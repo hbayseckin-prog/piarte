@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Kurs Ekle - Piarte{% endblock %}
+{% block content %}
+<h2>Kurs Ekle</h2>
+<form method="post" action="/courses/new">
+	<label>Kurs Adı</label>
+	<input type="text" name="name" required />
+	<button type="submit">Kaydet</button>
+	<button type="button" class="secondary" onclick="location.href='/dashboard'">İptal</button>
+</form>
+{% endblock %}
+
+

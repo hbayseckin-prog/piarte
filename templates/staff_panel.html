@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Personel Paneli - Piarte{% endblock %}
+{% block content %}
+<div class="h1">🔑 Personel Paneli</div>
+<div class="card">
+  <div style="margin-bottom:16px;">Hoş geldiniz. Buradan temel işlemleri kolayca erişebilirsiniz:</div>
+  <div class="btn-group">
+    <a href="/students/new" style="text-decoration:none;"><button style="width:100%;">Yeni Öğrenci Kaydı</button></a>
+    <a href="/lessons/new" style="text-decoration:none;"><button style="width:100%;">Ders Seçimi / Kayıt</button></a>
+    <a href="/payments/new" style="text-decoration:none;"><button style="width:100%;">Ödeme Al</button></a>
+  </div>
+</div>
+
+{% endblock %}
+

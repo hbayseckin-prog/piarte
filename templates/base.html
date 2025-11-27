@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>{% block title %}Piarte{% endblock %}</title>
+	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+	<style>
+		:root{
+			--bg-gradient:linear-gradient(135deg,#e0e7ff 0%,#f8fafc 70%,#bae6fd 100%);
+			--text:#0f172a;
+			--muted:#64748b;
+			--border:#e5e7eb;
+			--accent:#0ea5e9;
+			--shadow:0 4px 22px -7px #00336624;
+		}
+		*{box-sizing:border-box}
+		body{
+			font-family:'Poppins',ui-sans-serif,system-ui,sans-serif;
+			line-height:1.6;color:var(--text);
+			background:var(--bg-gradient);
+			padding:16px;max-width:1200px;margin:auto;transition:background 0.3s;
+		}
+		nav{
+			display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding:14px 20px;background:#fff7;border-radius:20px;box-shadow:var(--shadow);
+			flex-wrap:wrap;gap:12px;
+		}
+		.brand{font-weight:700;letter-spacing:.2px;color:var(--text);font-size:20px;white-space:nowrap;display:flex;align-items:center;gap:8px}
+		.brand .note{margin-right:8px;font-size:24px}
+		.brand img{height:40px;width:auto;object-fit:contain;max-width:150px}
+		nav > div{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+		nav a{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;padding:8px 14px;border-radius:10px;border:1px solid transparent;font-weight:500;transition:.18s;font-size:14px;white-space:nowrap}
+		nav a:hover{color:#fff;background:var(--accent);border-color:var(--accent)}
+		.card{border:0.5px solid var(--border);border-radius:20px;padding:20px 18px;margin-bottom:18px;background:#fff;box-shadow:var(--shadow);transition:box-shadow .19s}
+		.card:hover{box-shadow:0 8px 28px -2px #64748b29;}
+		.table-wrap{overflow-x:auto;border:0.5px solid var(--border);border-radius:16px;background:#fff;box-shadow:var(--shadow);-webkit-overflow-scrolling:touch}
+		table{border-collapse:collapse;width:100%;min-width:600px;display:table}
+		th,td{border-bottom:1px solid var(--border);padding:12px 10px;text-align:left;font-size:14px}
+		th{font-size:12px;color:#2563eb;background:rgba(99,102,241,0.07);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+		tr:hover{background:#f9fafb}
+		/* Mobile table card view */
+		.mobile-card-view{display:none}
+		input,select,button,textarea{padding:12px 13px;margin:8px 0 12px 0;border:1px solid var(--border);border-radius:12px;background:#fcfcfc;font-size:15px;width:100%;max-width:100%;font-family:inherit}
+		input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);box-shadow:0 0 0 2px #38bdf830}
+		textarea{resize:vertical;min-height:100px}
+		label{display:block;margin-top:12px;font-weight:500;color:var(--text);margin-bottom:4px}
+		button{cursor:pointer;background:var(--accent);color:#fff;border-color:transparent;font-weight:600;transition:.18s;box-shadow:var(--shadow);min-width:120px}
+		button.secondary{background:#fff;color:var(--text);border-color:var(--border)}
+		button:hover{background:#2563eb;box-shadow:0 4px 20px -3px #3b82f680;}
+		.h1,.h2{display:flex;align-items:center;gap:10px;margin:8px 0 14px 0;font-family:'Poppins',sans-serif}
+		.h1{font-size:24px;font-weight:700}
+		.h2{font-size:18px;font-weight:600;color:var(--text)}
+		.icon{opacity:.64}
+		.footer{margin-top:38px;color:var(--muted);font-size:14px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+		
+		/* Mobile Responsive Styles */
+		@media (max-width: 768px) {
+			body{padding:8px}
+			nav{padding:12px 16px;flex-direction:column;align-items:stretch}
+			nav > div{flex-direction:column;width:100%}
+			nav a{width:100%;justify-content:center;padding:12px 14px;font-size:15px;margin:2px 0}
+			.brand{font-size:18px;text-align:center;width:100%;justify-content:center}
+			.brand img{height:35px;max-width:120px}
+			.card{padding:14px 12px;border-radius:16px;margin-bottom:14px}
+			.h1{font-size:20px;margin:6px 0 12px 0}
+			.h2{font-size:16px;margin:6px 0 10px 0}
+			
+			/* Tables - Convert to cards on mobile */
+			.table-wrap{overflow-x:visible;border:none;background:transparent;box-shadow:none;padding:0}
+			.table-wrap table{display:none}
+			.table-wrap .mobile-card-view{display:block}
+			
+			.mobile-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+			.mobile-card-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f1f5f9}
+			.mobile-card-row:last-child{border-bottom:none}
+			.mobile-card-label{font-weight:600;color:#2563eb;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;flex:0 0 35%}
+			.mobile-card-value{flex:1;color:var(--text);font-size:14px;text-align:right;word-break:break-word}
+			.mobile-card-value strong{color:var(--text)}
+			
+			input,select,button,textarea{font-size:15px;padding:12px 14px;margin:6px 0 10px 0}
+			button{width:100%;margin:8px 0;min-height:48px;font-size:15px}
+			label{font-size:14px;margin-top:10px}
+		}
+		
+		@media (max-width: 480px) {
+			body{padding:6px}
+			nav{padding:10px 12px}
+			.card{padding:12px 10px;margin-bottom:12px}
+			.h1{font-size:18px;margin:4px 0 10px 0}
+			.h2{font-size:15px;margin:4px 0 8px 0}
+			.brand img{height:30px;max-width:100px}
+			.brand span{font-size:16px}
+			.mobile-card{padding:12px}
+			.mobile-card-row{padding:6px 0}
+			.mobile-card-label{font-size:10px}
+			.mobile-card-value{font-size:13px}
+			input,select,button,textarea{font-size:16px;padding:14px}
+			button{min-height:50px;font-size:16px}
+		}
+		
+		/* Form responsive */
+		.form-row{display:flex;gap:12px;flex-wrap:wrap}
+		.form-row > *{flex:1;min-width:200px}
+		@media (max-width: 768px) {
+			.form-row{flex-direction:column}
+			.form-row > *{min-width:100%}
+		}
+		
+		/* Button groups responsive */
+		.btn-group{display:flex;gap:8px;flex-wrap:wrap}
+		@media (max-width: 768px) {
+			.btn-group{flex-direction:column;gap:8px}
+			.btn-group > *{width:100% !important;margin:0 !important}
+			.btn-group a{display:block;text-align:center;padding:12px 14px !important;min-height:48px;display:flex;align-items:center;justify-content:center}
+			.btn-group button{width:100% !important;min-height:48px}
+			.btn-group form{width:100%;margin:0}
+		}
+		
+		/* Inline buttons in tables - mobile */
+		@media (max-width: 768px) {
+			.mobile-card-value .btn-group{flex-direction:row;gap:6px}
+			.mobile-card-value .btn-group > *{flex:1;min-width:auto}
+			.mobile-card-value a, .mobile-card-value button{font-size:12px;padding:6px 10px !important;min-height:36px}
+		}
+	</style>
+</head>
+<body>
+	<nav>
+		<div class="brand">
+			<img src="/static/piarte_logo.jpg" alt="Piarte Logo" />
+			<span>Piarte</span>
+		</div>
+		<div>
+        {% set user = request.session.get('user') %}
+		{% if user and user.get('role') == 'staff' %}
+			<a href="/ui/staff"><span class="icon">🧑‍💼</span><span>Personel Paneli</span></a>
+			<a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
+        {% elif user and user.get('role') == 'teacher' %}
+            <a href="/ui/teacher"><span class="icon">🎹</span><span>Öğretmen Paneli</span></a>
+            <a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
+		{% else %}
+			<a href="/dashboard"><span class="icon">♫</span><span>Panel</span></a>
+			<a href="/ui/students"><span class="icon">🎻</span><span>Öğrenciler</span></a>
+			<a href="/ui/teachers"><span class="icon">🎹</span><span>Öğretmenler</span></a>
+			<a href="/ui/reports/payments"><span class="icon">💳</span><span>Ödemeler</span></a>
+			<a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
+		{% endif %}
+		</div>
+	</nav>
+	{% block content %}{% endblock %}
+	<div class="footer">♪ ♫ 🎸 🥁 🎻</div>
+</body>
+</html>
+
+
+

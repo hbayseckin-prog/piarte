@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Öğretmenler - Piarte{% endblock %}
+{% block content %}
+<h2>Öğretmen Listesi</h2>
+<table>
+	<thead><tr><th>Ad Soyad</th><th>Telefon</th><th></th></tr></thead>
+	<tbody>
+	{% for t in teachers %}
+	<tr>
+		<td>{{ t.first_name }} {{ t.last_name }}</td>
+		<td>{{ t.phone or '-' }}</td>
+		<td>
+    <form method="post" action="/teachers/{{ t.id }}/delete" style="display:inline">
+        <button type="submit" onclick="return confirm('Silmek istediğinize emin misiniz?');">Sil</button>
+    </form>
+    <a href="/ui/teachers/{{ t.id }}">Detay</a>
+</td>
+	</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endblock %}
+
+
+
+

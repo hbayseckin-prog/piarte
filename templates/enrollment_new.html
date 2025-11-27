@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Kayıt (Enrollment) - Piarte{% endblock %}
+{% block content %}
+<h2>Öğrenci Kurs Kaydı</h2>
+<form method="post" action="/enrollments/new">
+	<label>Öğrenci</label>
+	<select name="student_id" required>
+		{% for s in students %}
+		<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+		{% endfor %}
+	</select>
+	<label>Kurs</label>
+	<select name="course_id" required>
+		{% for c in courses %}
+		<option value="{{ c.id }}">{{ c.name }}</option>
+		{% endfor %}
+	</select>
+	<button type="submit">Kaydet</button>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+

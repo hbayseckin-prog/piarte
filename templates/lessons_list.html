@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Ders Programı - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Ders Programı</h2>
+
+<div class="card">
+  <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+    <h3 class="h2" style="margin:0">Tüm Dersler</h3>
+    <div>
+      <a href="/lessons/new" class="secondary" style="padding:8px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none">Yeni Ders Oluştur</a>
+    </div>
+  </div>
+  <form method="get" action="/ui/lessons" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+    <input type="date" name="start" value="{{ start }}" />
+    <input type="date" name="end" value="{{ end }}" />
+    <select name="teacher_id">
+      <option value="">Öğretmen (tümü)</option>
+      {% for t in teachers %}
+      <option value="{{ t.id }}" {% if teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
+      {% endfor %}
+    </select>
+    <select name="course_id">
+      <option value="">Kurs (tümü)</option>
+      {% for c in courses %}
+      <option value="{{ c.id }}" {% if course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Filtrele</button>
+    <a href="/ui/lessons" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none">Temizle</a>
+  </form>
+  <div class="table-wrap" style="margin-top:10px">
+    <table>
+      <thead><tr><th>Tarih</th><th>Kurs</th><th>Öğretmen</th><th>Saat</th><th>Açıklama</th><th>Yoklama</th></tr></thead>
+      <tbody>
+        {% for l in lessons %}
+        <tr>
+          <td>{{ l.lesson_date }}</td>
+          <td>{{ l.course.name }}</td>
+          <td>{{ l.teacher.first_name }} {{ l.teacher.last_name }}</td>
+          <td>{{ (l.start_time or '') }} - {{ (l.end_time or '') }}</td>
+          <td>{{ l.description or '' }}</td>
+          <td><a href="/lessons/{{ l.id }}/attendance/new">Yoklama</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Kayıtlı ders bulunmuyor.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+

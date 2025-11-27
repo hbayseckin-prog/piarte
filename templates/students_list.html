@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Öğrenciler - Piarte{% endblock %}
+{% block content %}
+<div class="card">
+	<h2 class="h1">Öğrenci Listesi</h2>
+	<div style="margin-bottom:16px;">
+		<a href="/students/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;display:inline-block;">Yeni Öğrenci Ekle</a>
+	</div>
+	<div class="table-wrap">
+		<table>
+			<thead><tr><th>Ad Soyad</th><th>Telefon</th><th>İşlemler</th></tr></thead>
+			<tbody>
+			{% for s in students %}
+			<tr>
+				<td><strong>{{ s.first_name }} {{ s.last_name }}</strong></td>
+				<td>{{ s.phone_primary or '-' }}</td>
+				<td>
+					<div class="btn-group" style="flex-wrap:nowrap;">
+						<a href="/ui/students/{{ s.id }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;white-space:nowrap;">Detay</a>
+						<form method="post" action="/students/{{ s.id }}/delete" style="display:inline;margin:0;">
+							<button type="submit" onclick="return confirm('Silmek istediğinize emin misiniz?');" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;">Sil</button>
+						</form>
+					</div>
+				</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for s in students %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ad Soyad</div>
+					<div class="mobile-card-value"><strong>{{ s.first_name }} {{ s.last_name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Telefon</div>
+					<div class="mobile-card-value">{{ s.phone_primary or '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">İşlemler</div>
+					<div class="mobile-card-value">
+						<div class="btn-group">
+							<a href="/ui/students/{{ s.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;display:inline-block;text-align:center;flex:1;">Detay</a>
+							<form method="post" action="/students/{{ s.id }}/delete" style="display:inline;margin:0;flex:1;">
+								<button type="submit" onclick="return confirm('Silmek istediğinize emin misiniz?');" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">Sil</button>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+
+
+

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Öğretmen Paneli - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Öğretmen Paneli</h2>
+
+<div class="card">
+	<h3 class="h2">Ders Programı</h3>
+	{% if lessons_with_students %}
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr><th>Gün</th><th>Tarih</th><th>Kurs</th><th>Saat</th><th>Açıklama</th><th>Öğrenciler</th><th>Yoklama</th></tr>
+			</thead>
+			<tbody>
+			{% for entry in lessons_with_students %}
+			<tr>
+				<td><strong>{{ entry.weekday }}</strong></td>
+				<td>{{ entry.lesson.lesson_date.strftime('%d.%m.%Y') }}</td>
+				<td><strong>{{ entry.lesson.course.name }}</strong></td>
+				<td>
+					{% if entry.lesson.start_time or entry.lesson.end_time %}
+						{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+					{% else %}-{% endif %}
+				</td>
+				<td>{{ entry.lesson.description or '-' }}</td>
+				<td>
+				{% if entry.students %}
+					{% for s in entry.students %}
+						<span style="display:inline-block;padding:4px 8px;background:#e0e7ff;border-radius:6px;margin:2px;font-size:13px;">{{ s.first_name }} {{ s.last_name }}</span>
+					{% endfor %}
+				{% else %}-{% endif %}
+				</td>
+				<td><a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;">Yoklama Al</a></td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for entry in lessons_with_students %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Gün</div>
+					<div class="mobile-card-value"><strong>{{ entry.weekday }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tarih</div>
+					<div class="mobile-card-value">{{ entry.lesson.lesson_date.strftime('%d.%m.%Y') }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kurs</div>
+					<div class="mobile-card-value"><strong>{{ entry.lesson.course.name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Saat</div>
+					<div class="mobile-card-value">
+						{% if entry.lesson.start_time or entry.lesson.end_time %}
+							{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+						{% else %}-{% endif %}
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Açıklama</div>
+					<div class="mobile-card-value">{{ entry.lesson.description or '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğrenciler</div>
+					<div class="mobile-card-value">
+						{% if entry.students %}
+							{% for s in entry.students %}
+								<span style="display:inline-block;padding:4px 8px;background:#e0e7ff;border-radius:6px;margin:2px;font-size:12px;">{{ s.first_name }} {{ s.last_name }}</span>
+							{% endfor %}
+						{% else %}-{% endif %}
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Yoklama</div>
+					<div class="mobile-card-value">
+						<a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;display:block;text-align:center;">Yoklama Al</a>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	{% else %}
+	<p>Henüz ders kaydı bulunmuyor.</p>
+	{% endif %}
+</div>
+
+<div class="card">
+	<h3 class="h2">Haftalık Ders Programı</h3>
+	{% if lessons_with_students %}
+	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
+	<div class="weekly-schedule" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px">
+		{% for day_name in weekdays %}
+		<div style="border:1px solid var(--border);border-radius:12px;padding:12px;background:#f9fafb">
+			<h4 style="margin:0 0 8px 0;font-size:14px;color:#2563eb;font-weight:600">{{ day_name }}</h4>
+			<div style="display:flex;flex-direction:column;gap:8px">
+				{% for entry in lessons_with_students %}
+					{% if entry.weekday == day_name %}
+					<div style="padding:8px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:12px">
+						<div style="font-weight:600;color:#0f172a;margin-bottom:4px">{{ entry.lesson.course.name }}</div>
+						<div style="color:#64748b;font-size:11px;margin-bottom:4px">
+							{% if entry.lesson.start_time or entry.lesson.end_time %}
+								{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+							{% endif %}
+						</div>
+						<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+						{% if entry.students %}
+						<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+							{% for s in entry.students %}
+								<div style="font-size:11px;color:#475569">{{ s.first_name }} {{ s.last_name }}</div>
+							{% endfor %}
+						</div>
+						{% endif %}
+						<a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="display:inline-block;margin-top:6px;padding:4px 8px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:11px">Yoklama</a>
+					</div>
+					{% endif %}
+				{% endfor %}
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+	<style>
+		@media (max-width: 768px) {
+			.weekly-schedule {
+				grid-template-columns: repeat(2, 1fr) !important;
+			}
+		}
+		@media (max-width: 480px) {
+			.weekly-schedule {
+				grid-template-columns: 1fr !important;
+			}
+		}
+	</style>
+	{% else %}
+	<p>Henüz ders kaydı bulunmuyor.</p>
+	{% endif %}
+</div>
+
+{% endblock %}
+
+
+

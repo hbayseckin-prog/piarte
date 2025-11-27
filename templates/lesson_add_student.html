@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Derse Öğrenci Ekle - Piarte{% endblock %}
+{% block content %}
+<h2>Derse Öğrenci Ekle</h2>
+<div class="card">
+	<p><strong>Ders:</strong> {{ lesson.course.name }} - {{ lesson.lesson_date.strftime('%d.%m.%Y') }} 
+	{% if lesson.start_time or lesson.end_time %}
+		{{ lesson.start_time.strftime('%H:%M') if lesson.start_time else '' }} - {{ lesson.end_time.strftime('%H:%M') if lesson.end_time else '' }}
+	{% endif %}
+	</p>
+</div>
+<form method="post" action="/lessons/{{ lesson.id }}/add-student">
+	<label>Öğrenci Seç</label>
+	<select name="student_id" required>
+		<option value="">Öğrenci seçin</option>
+		{% if available_students %}
+		<optgroup label="Kursa Kayıtlı (Önerilen)">
+			{% for s in available_students %}
+			<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+			{% endfor %}
+		</optgroup>
+		{% endif %}
+		<optgroup label="Tüm Öğrenciler">
+			{% for s in all_students %}
+			<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+			{% endfor %}
+		</optgroup>
+	</select>
+	<button type="submit">Öğrenciyi Ekle</button>
+	<button type="button" class="secondary" onclick="location.href='/ui/teachers/{{ lesson.teacher_id }}'">İptal</button>
+</form>
+{% endblock %}
+
+

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Yoklama - Piarte{% endblock %}
+{% block content %}
+<div class="card">
+	<h2 class="h1">Yoklama - Ders #{{ lesson.id }}</h2>
+	<p style="color:var(--muted);margin-bottom:16px;">{{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</p>
+	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new">
+		<div class="table-wrap">
+			<table>
+				<thead><tr><th>Öğrenci</th><th>Durum</th></tr></thead>
+				<tbody>
+				{% for s in students %}
+				<tr>
+					<td><strong>{{ s.first_name }} {{ s.last_name }}</strong></td>
+					<td>
+						<select name="status_{{ s.id }}" style="width:100%;max-width:100%;">
+							<option value="">-</option>
+							<option value="PRESENT">Geldi</option>
+							<option value="UNEXCUSED_ABSENT">Habersiz gelmedi</option>
+							<option value="EXCUSED_ABSENT">Haberli gelmedi</option>
+							<option value="LATE">Geç</option>
+						</select>
+					</td>
+				</tr>
+				{% endfor %}
+				</tbody>
+			</table>
+			<div class="mobile-card-view">
+				{% for s in students %}
+				<div class="mobile-card">
+					<div class="mobile-card-row">
+						<div class="mobile-card-label">Öğrenci</div>
+						<div class="mobile-card-value"><strong>{{ s.first_name }} {{ s.last_name }}</strong></div>
+					</div>
+					<div class="mobile-card-row">
+						<div class="mobile-card-label">Durum</div>
+						<div class="mobile-card-value">
+							<select name="status_{{ s.id }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;">
+								<option value="">-</option>
+								<option value="PRESENT">Geldi</option>
+								<option value="UNEXCUSED_ABSENT">Habersiz gelmedi</option>
+								<option value="EXCUSED_ABSENT">Haberli gelmedi</option>
+								<option value="LATE">Geç</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				{% endfor %}
+			</div>
+		</div>
+		<div style="margin-top:16px;">
+			<button type="submit" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
+		</div>
+	</form>
+</div>
+{% endblock %}
+
+
+
+
+
+
+

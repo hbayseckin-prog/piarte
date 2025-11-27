@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Ödeme Gir - Piarte{% endblock %}
+{% block content %}
+<h2>Ödeme Gir</h2>
+<form method="post" action="/payments/new">
+	<label>Öğrenci</label>
+	<select name="student_id" required>
+		{% for s in students %}
+		<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+		{% endfor %}
+	</select>
+	<label>Tutar (TL)</label>
+	<input type="number" name="amount_try" step="0.01" min="0" required />
+	<label>Tarih</label>
+	<input type="date" name="payment_date" />
+	<label>Yöntem</label>
+	<select name="method">
+		<option value="">Seçiniz</option>
+		<option>Nakit</option>
+		<option>Kart</option>
+		<option>EFT</option>
+	</select>
+	<label>Not</label>
+	<textarea name="note"></textarea>
+	<button type="submit">Kaydet</button>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Öğrenci Detay - Piarte{% endblock %}
+{% block content %}
+<h2>{{ student.first_name }} {{ student.last_name }}</h2>
+<div class="card">
+	<h3>İletişim</h3>
+	<div>Telefon: {{ student.phone_primary or '-' }}</div>
+	<div>Adres: {{ student.address or '-' }}</div>
+	<div>Veli: {{ student.parent_name or '-' }} ({{ student.parent_phone or '-' }})</div>
+</div>
+
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+<div class="card">
+    <h3>Bilgileri Düzenle</h3>
+    <form method="post" action="/students/{{ student.id }}/update" class="form-grid">
+        <label>
+            Ad
+            <input type="text" name="first_name" value="{{ student.first_name }}" required />
+        </label>
+        <label>
+            Soyad
+            <input type="text" name="last_name" value="{{ student.last_name }}" required />
+        </label>
+        <label>
+            Doğum Tarihi
+            <input type="date" name="date_of_birth" value="{{ student.date_of_birth or '' }}" />
+        </label>
+        <label>
+            Veli Adı
+            <input type="text" name="parent_name" value="{{ student.parent_name or '' }}" />
+        </label>
+        <label>
+            Veli Telefonu
+            <input type="text" name="parent_phone" value="{{ student.parent_phone or '' }}" />
+        </label>
+        <label>
+            Öğrenci Telefonu
+            <input type="text" name="phone_primary" value="{{ student.phone_primary or '' }}" />
+        </label>
+        <label>
+            İkinci Telefon
+            <input type="text" name="phone_secondary" value="{{ student.phone_secondary or '' }}" />
+        </label>
+        <label>
+            Adres
+            <textarea name="address" rows="2">{{ student.address or '' }}</textarea>
+        </label>
+        <button type="submit">Kaydet</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="card">
+	<h3>Kayıtlı Kurslar</h3>
+	<ul>
+	{% for e in enrollments %}
+		<li>{{ e.course.name }}</li>
+	{% else %}
+		<li>Henüz bir kursa kayıtlı değil.</li>
+	{% endfor %}
+	</ul>
+	<p><a href="/enrollments/new">Kursa Kaydet</a></p>
+</div>
+
+<div class="card">
+	<h3>Ödemeler</h3>
+	<table>
+		<thead><tr><th>Tarih</th><th>Tutar (TL)</th><th>Yöntem</th><th>Not</th></tr></thead>
+		<tbody>
+		{% for p in payments %}
+		<tr>
+			<td>{{ p.payment_date }}</td>
+			<td>{{ '%.2f'| format(p.amount_try) }}</td>
+			<td>{{ p.method or '-' }}</td>
+			<td>{{ p.note or '' }}</td>
+		</tr>
+		{% else %}
+		<tr><td colspan="4">Ödeme bulunmuyor.</td></tr>
+		{% endfor %}
+		</tbody>
+	</table>
+	<p><a href="/payments/new">Ödeme Gir</a></p>
+</div>
+{% endblock %}
+
+
+
+
+

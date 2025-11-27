@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Kullanıcı Yönetimi - Piarte{% endblock %}
+{% block content %}
+<h2>Kullanıcılar</h2>
+<table>
+	<thead><tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Rol</th><th>Oluşturma</th><th>Şifre Değiştir</th><th>Sil</th></tr></thead>
+	<tbody>
+	{% for u in users %}
+	<tr>
+		<td>{{ u.username }}</td>
+		<td>{{ u.full_name or '-' }}</td>
+		<td>{{ u.role or 'admin' }}</td>
+		<td>{{ u.created_at }}</td>
+		<td>
+			<form method="post" action="/ui/admin/users/{{ u.id }}/password">
+				<input type="password" name="password" placeholder="Yeni şifre" required />
+				<button type="submit">Kaydet</button>
+			</form>
+		</td>
+        <td>
+            {% if u.username != "admin" %}
+            <form method="post" action="/ui/admin/users/{{ u.id }}/delete" onsubmit="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?');">
+                <button type="submit" class="secondary">Sil</button>
+            </form>
+            {% else %}-{% endif %}
+        </td>
+	</tr>
+	{% endfor %}
+	</tbody>
+</table>
+
+<div class="card">
+	<h3>Yeni Kullanıcı Ekle</h3>
+	<form method="post" action="/ui/admin/users">
+		<input type="text" name="username" placeholder="Kullanıcı adı" required />
+		<input type="password" name="password" placeholder="Şifre" required />
+		<input type="text" name="full_name" placeholder="Ad Soyad" />
+		<select name="role">
+			<option value="admin">admin</option>
+			<option value="teacher">teacher</option>
+			<option value="staff">personel</option>
+		</select>
+		<label>Bağlı Öğretmen (teacher rolü için)</label>
+		<select name="teacher_id">
+			<option value="">-</option>
+			{% for t in teachers %}
+			<option value="{{ t.id }}">{{ t.first_name }} {{ t.last_name }}</option>
+			{% endfor %}
+		</select>
+		<button type="submit">Ekle</button>
+	</form>
+</div>
+{% endblock %}
+
+

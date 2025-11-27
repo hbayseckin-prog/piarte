@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Arama - Piarte{% endblock %}
+{% block content %}
+<h2>Arama: "{{ q }}"</h2>
+
+<div class="card">
+	<h3>Öğrenciler</h3>
+	<ul>
+	{% for s in students %}
+		<li><a href="/ui/students/{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</a></li>
+	{% else %}
+		<li>Sonuç yok</li>
+	{% endfor %}
+	</ul>
+</div>
+
+<div class="card">
+	<h3>Öğretmenler</h3>
+	<ul>
+	{% for t in teachers %}
+		<li><a href="/ui/teachers/{{ t.id }}">{{ t.first_name }} {{ t.last_name }}</a></li>
+	{% else %}
+		<li>Sonuç yok</li>
+	{% endfor %}
+	</ul>
+</div>
+
+<div class="card">
+	<h3>Kurslar</h3>
+	<ul>
+	{% for c in courses %}
+		<li>{{ c.name }}</li>
+	{% else %}
+		<li>Sonuç yok</li>
+	{% endfor %}
+	</ul>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+

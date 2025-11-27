@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Personel Giriş - Piarte</title>
+	<style>
+		*{box-sizing:border-box}
+		body{
+			font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+			padding:16px;
+			max-width:420px;
+			margin:auto;
+			background:linear-gradient(135deg,#e0e7ff 0%,#f8fafc 70%,#bae6fd 100%);
+			min-height:100vh;
+			display:flex;
+			align-items:center;
+			justify-content:center;
+		}
+		.card{
+			border:1px solid #e5e7eb;
+			border-radius:16px;
+			padding:24px;
+			background:#fff;
+			box-shadow:0 4px 22px -7px #00336624;
+			width:100%;
+		}
+		h2{margin-top:0;margin-bottom:20px;font-size:24px;color:#0f172a}
+		label{display:block;margin-top:12px;margin-bottom:6px;font-weight:500;color:#0f172a}
+		input,button{
+			padding:12px;
+			margin:6px 0;
+			width:100%;
+			border:1px solid #e5e7eb;
+			border-radius:8px;
+			font-size:15px;
+			font-family:inherit;
+		}
+		input:focus{
+			outline:2px solid #0ea5e9;
+			box-shadow:0 0 0 2px #38bdf830;
+		}
+		button{
+			background:#0ea5e9;
+			color:white;
+			border:none;
+			border-radius:8px;
+			font-weight:600;
+			cursor:pointer;
+			margin-top:16px;
+			transition:background 0.18s;
+		}
+		button:hover{background:#2563eb}
+		p{color:#64748b;font-size:14px;margin-top:16px}
+		@media (max-width: 480px) {
+			body{padding:12px}
+			.card{padding:20px}
+			h2{font-size:20px}
+		}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<h2>Piarte - Personel Girişi</h2>
+		<form method="post" action="/login/staff">
+			<label>Kullanıcı adı</label>
+			<input type="text" name="username" required />
+			<label>Şifre</label>
+			<input type="password" name="password" required />
+			<button type="submit">Giriş Yap</button>
+		</form>
+		<p>Sadece personel için giriş alanıdır.</p>
+	</div>
+</body>
+</html>
+
+
+
+

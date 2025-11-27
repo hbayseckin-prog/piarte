@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Öğretmen Detay - Piarte{% endblock %}
+{% block content %}
+<h2>{{ teacher.first_name }} {{ teacher.last_name }}</h2>
+<div class="card">
+	<div>Telefon: {{ teacher.phone or '-' }}</div>
+	<div>Email: {{ teacher.email or '-' }}</div>
+</div>
+
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+<div class="card">
+    <h3>Bilgileri Düzenle</h3>
+    <form method="post" action="/teachers/{{ teacher.id }}/update" class="form-grid">
+        <label>
+            Ad
+            <input type="text" name="first_name" value="{{ teacher.first_name }}" required />
+        </label>
+        <label>
+            Soyad
+            <input type="text" name="last_name" value="{{ teacher.last_name }}" required />
+        </label>
+        <label>
+            Telefon
+            <input type="text" name="phone" value="{{ teacher.phone or '' }}" />
+        </label>
+        <label>
+            E-posta
+            <input type="email" name="email" value="{{ teacher.email or '' }}" />
+        </label>
+        <button type="submit">Kaydet</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="card">
+	<h3>Ders Programı</h3>
+	{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+	<p><a href="/lessons/new" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;">Yeni Ders Ekle</a></p>
+	{% endif %}
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Tarih</th>
+					<th>Kurs</th>
+					<th>Saat</th>
+					<th>Öğrenciler</th>
+					<th>Açıklama</th>
+					{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+					<th>İşlemler</th>
+					{% endif %}
+				</tr>
+			</thead>
+			<tbody>
+			{% for entry in lessons_with_students %}
+			{% set l = entry.lesson %}
+			<tr>
+				<td>{{ l.lesson_date.strftime('%d.%m.%Y') }}</td>
+				<td><strong>{{ l.course.name }}</strong></td>
+				<td>
+					{% if l.start_time or l.end_time %}
+						{{ l.start_time.strftime('%H:%M') if l.start_time else '' }} - {{ l.end_time.strftime('%H:%M') if l.end_time else '' }}
+					{% else %}-{% endif %}
+				</td>
+				<td>
+					{% if entry.students %}
+						{% for s in entry.students %}
+							<span style="display:inline-block;padding:4px 8px;background:#e0e7ff;border-radius:6px;margin:2px;font-size:13px;">{{ s.first_name }} {{ s.last_name }}</span>
+						{% endfor %}
+					{% else %}-{% endif %}
+				</td>
+				<td>{{ l.description or '-' }}</td>
+				{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+				<td>
+					<a href="/lessons/{{ l.id }}/edit" style="margin-right:8px; padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;">Düzenle</a>
+					<a href="/lessons/{{ l.id }}/add-student" style="margin-right:8px; padding:6px 12px; background:#10b981; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;">Öğrenci Ekle</a>
+					<form method="post" action="/lessons/{{ l.id }}/delete" style="display:inline;" onsubmit="return confirm('Bu dersi silmek istediğinizden emin misiniz?');">
+						<button type="submit" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:8px; font-size:13px; cursor:pointer;">Sil</button>
+					</form>
+				</td>
+				{% endif %}
+			</tr>
+			{% else %}
+			<tr><td colspan="{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}6{% else %}5{% endif %}">Ders bulunmuyor.</td></tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+<div class="card">
+    <h3>Öğrenciler</h3>
+    {% if teacher_students %}
+    <table>
+        <thead><tr><th>Ad Soyad</th><th>Veli</th><th>Telefon</th></tr></thead>
+        <tbody>
+        {% for s in teacher_students %}
+        <tr>
+            <td>{{ s.first_name }} {{ s.last_name }}</td>
+            <td>{{ s.parent_name or '-' }}</td>
+            <td>{{ s.parent_phone or s.phone_primary or '-' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Bu öğretmene atanmış öğrenci bulunamadı.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+
+
+
+

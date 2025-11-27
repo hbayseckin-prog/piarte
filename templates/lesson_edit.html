@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Ders Düzenle - Piarte{% endblock %}
+{% block content %}
+<h2>Ders Düzenle</h2>
+<form method="post" action="/lessons/{{ lesson.id }}/update">
+	<label>Kurs</label>
+	<select name="course_id" required>
+		{% for c in courses %}
+		<option value="{{ c.id }}" {% if c.id == lesson.course_id %}selected{% endif %}>{{ c.name }}</option>
+		{% endfor %}
+	</select>
+	<label>Öğretmen</label>
+	<select name="teacher_id" required>
+		{% for t in teachers %}
+		<option value="{{ t.id }}" {% if t.id == lesson.teacher_id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
+		{% endfor %}
+	</select>
+	<label>Tarih</label>
+	<input type="date" name="lesson_date" value="{{ lesson.lesson_date.strftime('%Y-%m-%d') }}" required />
+	<label>Başlangıç Saati</label>
+	<input type="time" name="start_time" value="{% if lesson.start_time %}{{ lesson.start_time.strftime('%H:%M') }}{% endif %}" />
+	<label>Bitiş Saati</label>
+	<input type="time" name="end_time" value="{% if lesson.end_time %}{{ lesson.end_time.strftime('%H:%M') }}{% endif %}" />
+	<label>Açıklama</label>
+	<input type="text" name="description" value="{{ lesson.description or '' }}" />
+	<button type="submit">Güncelle</button>
+	<button type="button" class="secondary" onclick="location.href='/ui/teachers/{{ lesson.teacher_id }}'">İptal</button>
+</form>
+{% endblock %}
+
+

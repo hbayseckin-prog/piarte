@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+	<h2 class="h1">Öğrenci Ekle</h2>
+	<form method="post" action="/students/new">
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Ad</label>
+		<input type="text" name="first_name" required />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Soyad</label>
+		<input type="text" name="last_name" required />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Doğum Tarihi</label>
+		<input type="date" name="date_of_birth" />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Veli Adı</label>
+		<input type="text" name="parent_name" />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Veli Telefon</label>
+		<input type="text" name="parent_phone" />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Adres</label>
+		<textarea name="address" style="width:100%;padding:12px 13px;margin:8px 0 12px 0;border:1px solid var(--border);border-radius:12px;background:#fcfcfc;font-size:15px;font-family:inherit;resize:vertical;min-height:100px;"></textarea>
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Telefon (Birincil)</label>
+		<input type="text" name="phone_primary" />
+		<label style="display:block;margin-top:12px;font-weight:500;color:var(--text);">Telefon (İkincil)</label>
+		<input type="text" name="phone_secondary" />
+		<button type="submit" style="width:100%;max-width:300px;margin-top:16px;">Kaydet</button>
+	</form>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+

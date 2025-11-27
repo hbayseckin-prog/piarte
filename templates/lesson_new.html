@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Ders Oluştur - Piarte{% endblock %}
+{% block content %}
+<div class="card">
+	<h2 class="h1">Ders Oluştur</h2>
+	<form method="post" action="/lessons/new">
+		<label>Öğrenci</label>
+		<select name="student_id" required>
+			<option value="">Yeni öğrenci ekle</option>
+			{% for s in students %}
+			<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+			{% endfor %}
+		</select>
+		<div id="student-new-fields" style="display:none; margin-bottom:10px;">
+			<input type="text" name="first_name" placeholder="Ad" />
+			<input type="text" name="last_name" placeholder="Soyad" />
+		</div>
+		<label>Kurs</label>
+		<select name="course_id" required>
+			{% for c in courses %}
+			<option value="{{ c.id }}">{{ c.name }}</option>
+			{% endfor %}
+		</select>
+		<label>Öğretmen</label>
+		<select name="teacher_id" required>
+			{% for t in teachers %}
+			<option value="{{ t.id }}">{{ t.first_name }} {{ t.last_name }}</option>
+			{% endfor %}
+		</select>
+		<label>Tarih</label>
+		<input type="date" name="lesson_date" required />
+		<label>Gün</label>
+		<select name="lesson_weekday">
+			<option value="">Tarih üzerinden otomatik</option>
+			<option value="0">Pazartesi</option>
+			<option value="1">Salı</option>
+			<option value="2">Çarşamba</option>
+			<option value="3">Perşembe</option>
+			<option value="4">Cuma</option>
+			<option value="5">Cumartesi</option>
+			<option value="6">Pazar</option>
+		</select>
+		<label>Başlangıç Saati</label>
+		<input type="time" name="start_time" />
+		<label>Bitiş Saati</label>
+		<input type="time" name="end_time" />
+		<label>Açıklama</label>
+		<input type="text" name="description" />
+		<button type="submit" style="width:100%;max-width:300px;margin-top:16px;">Oluştur</button>
+	</form>
+</div>
+<script>
+const select = document.querySelector('select[name="student_id"]');
+const newFields = document.getElementById('student-new-fields');
+if(select && newFields) {
+	select.addEventListener('change', function() {
+		if(this.value === "") { newFields.style.display = "block"; }
+		else { newFields.style.display = "none"; }
+	})
+}
+</script>
+{% endblock %}
+
+
+
+

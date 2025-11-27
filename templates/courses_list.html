@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Kurslar - Piarte{% endblock %}
+{% block content %}
+<h2>Kurs Listesi</h2>
+<p><a href="/courses/new">Yeni Kurs Ekle</a> · <a href="/dashboard">Panele Dön</a></p>
+<table>
+	<thead><tr><th>Ad</th><th>Oluşturma Tarihi</th><th>İşlemler</th></tr></thead>
+	<tbody>
+	{% for c in courses %}
+	<tr>
+		<td>{{ c.name }}</td>
+		<td>{{ c.created_at.date() }}</td>
+		<td>
+			<a href="/courses/{{ c.id }}/edit" style="margin-right:8px; padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;">Düzenle</a>
+			<form method="post" action="/courses/{{ c.id }}/delete" style="display:inline;" onsubmit="return confirm('Bu kursu silmek istediğinizden emin misiniz?');">
+				<button type="submit" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:8px; font-size:13px; cursor:pointer;">Sil</button>
+			</form>
+		</td>
+	</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endblock %}
+
+

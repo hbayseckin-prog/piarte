@@ -68,6 +68,226 @@ async def add_security_headers(request: Request, call_next):
 def health_check():
 	return {"status": "ok", "message": "Server is running"}
 
+# Veritabanı kurulum endpoint'i
+@app.get("/setup-database", response_class=HTMLResponse)
+def setup_database_endpoint(request: Request):
+	"""Veritabanını oluştur ve seed data ekle - HTML response ile"""
+	try:
+		# Tüm tabloları oluştur
+		Base.metadata.create_all(bind=engine)
+		
+		# Seed data ekle
+		db = next(get_db())
+		messages = []
+		errors = []
+		
+		try:
+			from app.seed import seed_courses, seed_admin
+			
+			# Kursları ekle
+			if seed_courses:
+				try:
+					seed_courses(db)
+					messages.append("✅ Kurslar başarıyla eklendi")
+				except Exception as e:
+					errors.append(f"⚠️ Kurs ekleme hatası: {str(e)}")
+			
+			# Admin kullanıcısını ekle
+			if seed_admin:
+				try:
+					seed_admin(db)
+					messages.append("✅ Admin kullanıcısı eklendi (kullanıcı adı: admin, şifre: admin123)")
+				except Exception as e:
+					errors.append(f"⚠️ Admin ekleme hatası: {str(e)}")
+			
+			db.commit()
+		except Exception as e:
+			errors.append(f"❌ Seed data hatası: {str(e)}")
+			db.rollback()
+		finally:
+			db.close()
+		
+		# HTML response oluştur
+		messages_html = "\n".join([f"<p style='color: green;'>{msg}</p>" for msg in messages])
+		errors_html = "\n".join([f"<p style='color: orange;'>{err}</p>" for err in errors])
+		
+		html_content = f"""
+		<!DOCTYPE html>
+		<html lang="tr">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Veritabanı Kurulumu - Piarte</title>
+			<style>
+				body {{
+					font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					margin: 0;
+					padding: 20px;
+					min-height: 100vh;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+				}}
+				.container {{
+					background: white;
+					border-radius: 15px;
+					padding: 40px;
+					max-width: 600px;
+					box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+				}}
+				h1 {{
+					color: #667eea;
+					margin-bottom: 20px;
+					text-align: center;
+				}}
+				.status {{
+					background: #f0f9ff;
+					border-left: 4px solid #667eea;
+					padding: 15px;
+					margin: 20px 0;
+					border-radius: 5px;
+				}}
+				.success {{
+					background: #f0fdf4;
+					border-left: 4px solid #22c55e;
+				}}
+				.warning {{
+					background: #fffbeb;
+					border-left: 4px solid #f59e0b;
+				}}
+				.error {{
+					background: #fef2f2;
+					border-left: 4px solid #ef4444;
+				}}
+				.button {{
+					display: inline-block;
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					color: white;
+					padding: 12px 30px;
+					text-decoration: none;
+					border-radius: 5px;
+					margin-top: 20px;
+					text-align: center;
+					width: 100%;
+					box-sizing: border-box;
+				}}
+				.button:hover {{
+					opacity: 0.9;
+				}}
+				.info {{
+					background: #f8fafc;
+					padding: 15px;
+					border-radius: 5px;
+					margin-top: 20px;
+					font-size: 14px;
+					color: #64748b;
+				}}
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<h1>📦 Veritabanı Kurulumu</h1>
+				
+				<div class="status success">
+					<strong>✅ Tablolar başarıyla oluşturuldu!</strong>
+				</div>
+				
+				{messages_html if messages_html else ""}
+				{errors_html if errors_html else ""}
+				
+				<div class="info">
+					<strong>📝 Sonraki Adımlar:</strong><br>
+					1. Ana sayfaya dönün ve giriş yapın<br>
+					2. Admin kullanıcısı ile giriş yapın (kullanıcı adı: <strong>admin</strong>, şifre: <strong>admin123</strong>)<br>
+					3. Güvenlik için şifrenizi değiştirin!
+				</div>
+				
+				<a href="/" class="button">🏠 Ana Sayfaya Dön</a>
+			</div>
+		</body>
+		</html>
+		"""
+		
+		return HTMLResponse(content=html_content)
+		
+	except Exception as e:
+		# Hata durumunda HTML response
+		html_content = f"""
+		<!DOCTYPE html>
+		<html lang="tr">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Veritabanı Kurulum Hatası - Piarte</title>
+			<style>
+				body {{
+					font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					margin: 0;
+					padding: 20px;
+					min-height: 100vh;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+				}}
+				.container {{
+					background: white;
+					border-radius: 15px;
+					padding: 40px;
+					max-width: 600px;
+					box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+				}}
+				h1 {{
+					color: #ef4444;
+					margin-bottom: 20px;
+					text-align: center;
+				}}
+				.error {{
+					background: #fef2f2;
+					border-left: 4px solid #ef4444;
+					padding: 15px;
+					margin: 20px 0;
+					border-radius: 5px;
+					color: #991b1b;
+				}}
+				.button {{
+					display: inline-block;
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					color: white;
+					padding: 12px 30px;
+					text-decoration: none;
+					border-radius: 5px;
+					margin-top: 20px;
+					text-align: center;
+					width: 100%;
+					box-sizing: border-box;
+				}}
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<h1>❌ Veritabanı Kurulum Hatası</h1>
+				
+				<div class="error">
+					<strong>Hata:</strong><br>
+					{str(e)}
+				</div>
+				
+				<div style="margin-top: 20px; color: #64748b; font-size: 14px;">
+					<strong>Çözüm Önerileri:</strong><br>
+					1. Railway'de DATABASE_URL değişkeninin doğru olduğundan emin olun<br>
+					2. PostgreSQL servisinin çalıştığını kontrol edin<br>
+					3. Railway'de "Deploy Logs" sekmesinden hata detaylarını kontrol edin
+				</div>
+				
+				<a href="/" class="button">🏠 Ana Sayfaya Dön</a>
+			</div>
+		</body>
+		</html>
+		"""
+		return HTMLResponse(content=html_content, status_code=500)
+
 # Startup event'ini kaldırdık - lazy initialization kullanacağız
 # İlk database isteğinde otomatik olarak tablolar oluşturulacak
 

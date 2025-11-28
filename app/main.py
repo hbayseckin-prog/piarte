@@ -332,18 +332,33 @@ def home(request: Request):
 
 @app.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    from passlib.hash import pbkdf2_sha256
-    user = crud.get_user_by_username(db, username)
-    if not user or not pbkdf2_sha256.verify(password, user.password_hash):
+    try:
+        from passlib.hash import pbkdf2_sha256
+        user = crud.get_user_by_username(db, username)
+        if not user:
+            return RedirectResponse(url="/", status_code=302)
+        try:
+            password_valid = pbkdf2_sha256.verify(password, user.password_hash)
+        except Exception as e:
+            import logging
+            logging.error(f"Şifre doğrulama hatası: {e}")
+            return RedirectResponse(url="/", status_code=302)
+        if not password_valid:
+            return RedirectResponse(url="/", status_code=302)
+        request.session["user"] = {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role or "admin",
+            "teacher_id": getattr(user, 'teacher_id', None),
+        }
+        return RedirectResponse(url="/dashboard", status_code=302)
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Login hatası: {e}")
+        logging.error(traceback.format_exc())
         return RedirectResponse(url="/", status_code=302)
-    request.session["user"] = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "role": user.role or "admin",
-        "teacher_id": getattr(user, 'teacher_id', None),
-    }
-    return RedirectResponse(url="/dashboard", status_code=302)
 
 @app.get("/logout")
 def logout(request: Request):
@@ -1612,24 +1627,52 @@ def login_admin_form(request: Request):
 
 @app.post("/login/admin")
 def login_admin(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    from passlib.hash import pbkdf2_sha256
-    user = crud.get_user_by_username(db, username)
-    # Admin kontrolü: role None ise admin kabul et (geriye dönük uyumluluk)
-    is_admin = (user and user.role is None) or (user and user.role == "admin")
-    if not user or not pbkdf2_sha256.verify(password, user.password_hash) or not is_admin:
-        # Hata mesajı ile login sayfasına yönlendir
-        request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da admin yetkisi yok."
+    try:
+        from passlib.hash import pbkdf2_sha256
+        user = crud.get_user_by_username(db, username)
+        
+        # Kullanıcı yoksa
+        if not user:
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı."
+            return RedirectResponse(url="/login/admin", status_code=302)
+        
+        # Şifre kontrolü
+        try:
+            password_valid = pbkdf2_sha256.verify(password, user.password_hash)
+        except Exception as e:
+            # Şifre hash hatası
+            import logging
+            logging.error(f"Şifre doğrulama hatası: {e}")
+            request.session["login_error"] = "Giriş hatası. Lütfen tekrar deneyin."
+            return RedirectResponse(url="/login/admin", status_code=302)
+        
+        # Admin kontrolü: role None ise admin kabul et (geriye dönük uyumluluk)
+        is_admin = (user.role is None) or (user.role == "admin")
+        
+        if not password_valid or not is_admin:
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da admin yetkisi yok."
+            return RedirectResponse(url="/login/admin", status_code=302)
+        
+        # Session'a kullanıcı bilgilerini kaydet
+        request.session["user"] = {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": "admin",
+            "teacher_id": getattr(user, 'teacher_id', None),
+        }
+        # Hata mesajını temizle
+        request.session.pop("login_error", None)
+        return RedirectResponse(url="/dashboard", status_code=302)
+    
+    except Exception as e:
+        # Genel hata yakalama
+        import logging
+        import traceback
+        logging.error(f"Login hatası: {e}")
+        logging.error(traceback.format_exc())
+        request.session["login_error"] = f"Sunucu hatası: {str(e)}"
         return RedirectResponse(url="/login/admin", status_code=302)
-    request.session["user"] = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "role": "admin",
-        "teacher_id": getattr(user, 'teacher_id', None),
-    }
-    # Hata mesajını temizle
-    request.session.pop("login_error", None)
-    return RedirectResponse(url="/dashboard", status_code=302)
 
 # Öğretmen için giriş
 @app.get("/login/teacher", response_class=HTMLResponse)

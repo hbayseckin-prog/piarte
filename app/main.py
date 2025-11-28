@@ -373,6 +373,9 @@ def dashboard(
     courses = crud.list_courses(db)
     students = crud.list_students(db)
     teachers = crud.list_teachers(db)
+    # Staff (personel) kullanıcılarını getir
+    from sqlalchemy import select
+    staff_users = db.scalars(select(models.User).where(models.User.role == "staff").order_by(models.User.created_at.desc())).all()
     
     # Query parametrelerini integer'a çevir (boş string'leri None yap)
     teacher_id_int = None
@@ -438,12 +441,19 @@ def dashboard(
                 "teacher": teacher,
                 "course": course,
             })
+    # Puantaj raporunu getir (sadece admin için)
+    attendance_report = []
+    if user.get("role") == "admin":
+        attendance_report = crud.get_attendance_report_by_teacher(db)
+    
     context = {
         "request": request,
         "courses": courses,
         "students": students,
         "teachers": teachers,
+        "staff_users": staff_users,
         "attendances": attendances_with_details,
+        "attendance_report": attendance_report,
         "user": user,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
@@ -922,9 +932,25 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
     else:
         # Admin/staff için de sadece bu derse atanmış öğrencileri göster
         students = crud.list_students_by_lesson(db, lesson_id)
+    
+    # Bu ders için mevcut yoklamaları getir
+    existing_attendances = crud.list_attendance_for_lesson(db, lesson_id)
+    attendance_map = {att.student_id: att.status for att in existing_attendances}
+    
+    # Her öğrenci için ödeme durumunu ve mevcut yoklama durumunu kontrol et
+    students_with_payment_status = []
+    for student in students:
+        needs_payment = crud.check_student_payment_status(db, student.id)
+        current_status = attendance_map.get(student.id, "")
+        students_with_payment_status.append({
+            "student": student,
+            "needs_payment": needs_payment,
+            "current_status": current_status
+        })
+    
     return templates.TemplateResponse(
         "attendance_new.html",
-        {"request": request, "lesson": lesson, "students": students},
+        {"request": request, "lesson": lesson, "students_with_status": students_with_payment_status},
     )
 
 
@@ -966,11 +992,25 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "LATE"}:
             continue
         to_create.append(schemas.AttendanceCreate(lesson_id=lesson_id, student_id=sid, status=status))
+    success_count = 0
+    error_count = 0
     for item in to_create:
         try:
             crud.mark_attendance(db, item)
-        except Exception:
+            success_count += 1
+        except Exception as e:
+            error_count += 1
+            # Hata loglama (geliştirme için)
+            import logging
+            logging.error(f"Yoklama kayıt hatası: {e}")
             continue
+    
+    # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
+    if success_count > 0:
+        request.session["attendance_success"] = success_count
+    if error_count > 0:
+        request.session["attendance_errors"] = error_count
+    
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
@@ -1696,7 +1736,7 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
     return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)
-def staff_panel(request: Request, db: Session = Depends(get_db)):
+def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
@@ -1709,7 +1749,135 @@ def staff_panel(request: Request, db: Session = Depends(get_db)):
         else:
             return RedirectResponse(url="/login/staff", status_code=302)
     try:
-        return templates.TemplateResponse("staff_panel.html", {"request": request})
+        # Tüm öğretmenleri getir
+        teachers = crud.list_teachers(db)
+        
+        # Her öğretmen için haftalık ders programını hazırla
+        from datetime import datetime
+        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+        teachers_schedules = []
+        
+        for teacher in teachers:
+            lessons_with_students = crud.lessons_with_students_by_teacher(db, teacher.id)
+            formatted_lessons = []
+            for entry in lessons_with_students:
+                lesson = entry["lesson"]
+                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                formatted_lessons.append({
+                    "weekday": weekday,
+                    "lesson": lesson,
+                    "students": entry["students"],
+                })
+            teachers_schedules.append({
+                "teacher": teacher,
+                "lessons": formatted_lessons
+            })
+        
+        # Öğrenci arama ve ders programı
+        search_results = []
+        selected_student = None
+        student_lessons = []
+        student_lessons_formatted = []
+        
+        if search:
+            # Öğrenci ara
+            search_term = f"%{search.strip()}%"
+            students_found = db.query(models.Student).filter(
+                (models.Student.first_name.ilike(search_term)) | 
+                (models.Student.last_name.ilike(search_term))
+            ).limit(20).all()
+            # Her öğrenci için ödeme durumunu kontrol et
+            search_results = []
+            for student in students_found:
+                needs_payment = crud.check_student_payment_status(db, student.id)
+                search_results.append({
+                    "student": student,
+                    "needs_payment": needs_payment
+                })
+        
+        if student_id:
+            # Seçilen öğrencinin bilgilerini ve derslerini getir
+            selected_student = crud.get_student(db, student_id)
+            if selected_student:
+                student_lessons = crud.list_lessons_by_student(db, student_id)
+                # Dersleri haftalık formata çevir
+                from datetime import time as time_type
+                for lesson in student_lessons:
+                    weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                    # Öğrencinin bu derste kaçıncı ders olduğunu bul (aynı gün içinde)
+                    same_day_lessons = [l for l in student_lessons if l.lesson_date == lesson.lesson_date]
+                    # Start time'a göre sırala
+                    same_day_lessons.sort(key=lambda x: x.start_time if x.start_time else time_type.min)
+                    lesson_number = same_day_lessons.index(lesson) + 1 if lesson in same_day_lessons else None
+                    student_lessons_formatted.append({
+                        "weekday": weekday,
+                        "lesson": lesson,
+                        "lesson_number": lesson_number,
+                        "total_same_day": len(same_day_lessons)
+                    })
+        
+        # Ödeme durumu tablosu için tüm öğrencileri getir
+        all_students = crud.list_students(db)
+        payment_status_list = []
+        from datetime import date
+        today = date.today()
+        
+        for student in all_students:
+            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
+            total_lessons = db.scalars(
+                select(func.count(models.Attendance.id))
+                .where(
+                    models.Attendance.student_id == student.id,
+                    models.Attendance.status.in_(["PRESENT", "LATE"])
+                )
+            ).first() or 0
+            
+            # Öğrencinin ödemelerini getir
+            payments = crud.list_payments_by_student(db, student.id)
+            total_paid_sets = len(payments)
+            
+            # Beklenen ödeme seti hesapla: (toplam_ders // 4) + 1
+            # +1 çünkü ilk kayıt ödemesi (0. ders) her zaman bekleniyor
+            # 0 ders: 1 set (ilk kayıt)
+            # 1-3 ders: 1 set (ilk kayıt)
+            # 4-7 ders: 2 set (ilk kayıt + 4. ders)
+            # 8-11 ders: 3 set (ilk kayıt + 4. ders + 8. ders)
+            # 12-15 ders: 4 set
+            # ...
+            expected_paid_sets = (total_lessons // 4) + 1
+            
+            # En son ödeme tarihi
+            last_payment_date = None
+            if payments:
+                last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
+            
+            # Ödeme durumu kontrolü
+            # Ödeme yetersizse kırmızı
+            needs_payment = total_paid_sets < expected_paid_sets
+            
+            payment_status_list.append({
+                "student": student,
+                "total_lessons": total_lessons,
+                "expected_paid_sets": expected_paid_sets,
+                "total_paid_sets": total_paid_sets,
+                "last_payment_date": last_payment_date,
+                "needs_payment": needs_payment,
+                "payment_status": "✅ Ödendi" if not needs_payment else "⚠️ Ödeme Gerekli"
+            })
+        
+        # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)
+        payment_status_list.sort(key=lambda x: (not x["needs_payment"], x["student"].first_name, x["student"].last_name))
+        
+        return templates.TemplateResponse("staff_panel.html", {
+            "request": request,
+            "teachers_schedules": teachers_schedules,
+            "search": search or "",
+            "search_results": search_results,
+            "selected_student": selected_student,
+            "student_lessons": student_lessons_formatted,
+            "payment_status_list": payment_status_list,
+            "today": today
+        })
     except Exception as e:
         import logging
         logging.error(f"Staff panel template error: {e}")

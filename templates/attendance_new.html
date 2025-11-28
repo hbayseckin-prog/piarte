@@ -9,16 +9,23 @@
 			<table>
 				<thead><tr><th>Öğrenci</th><th>Durum</th></tr></thead>
 				<tbody>
-				{% for s in students %}
-				<tr>
-					<td><strong>{{ s.first_name }} {{ s.last_name }}</strong></td>
+				{% for item in students_with_status %}
+				<tr style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
 					<td>
-						<select name="status_{{ s.id }}" style="width:100%;max-width:100%;">
+						<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
+							{{ item.student.first_name }} {{ item.student.last_name }}
+							{% if item.needs_payment %}
+							<span style="font-size:12px;color:#dc2626;margin-left:8px;">⚠️ Ödeme Gerekli</span>
+							{% endif %}
+						</strong>
+					</td>
+					<td>
+						<select name="status_{{ item.student.id }}" style="width:100%;max-width:100%;">
 							<option value="">-</option>
-							<option value="PRESENT">Geldi</option>
-							<option value="UNEXCUSED_ABSENT">Habersiz gelmedi</option>
-							<option value="EXCUSED_ABSENT">Haberli gelmedi</option>
-							<option value="LATE">Geç</option>
+							<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
+							<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz gelmedi</option>
+							<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli gelmedi</option>
+							<option value="LATE" {% if item.current_status == "LATE" %}selected{% endif %}>Geç</option>
 						</select>
 					</td>
 				</tr>
@@ -26,21 +33,28 @@
 				</tbody>
 			</table>
 			<div class="mobile-card-view">
-				{% for s in students %}
-				<div class="mobile-card">
+				{% for item in students_with_status %}
+				<div class="mobile-card" style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
 					<div class="mobile-card-row">
 						<div class="mobile-card-label">Öğrenci</div>
-						<div class="mobile-card-value"><strong>{{ s.first_name }} {{ s.last_name }}</strong></div>
+						<div class="mobile-card-value">
+							<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
+								{{ item.student.first_name }} {{ item.student.last_name }}
+								{% if item.needs_payment %}
+								<span style="font-size:12px;color:#dc2626;margin-left:8px;display:block;margin-top:4px;">⚠️ Ödeme Gerekli</span>
+								{% endif %}
+							</strong>
+						</div>
 					</div>
 					<div class="mobile-card-row">
 						<div class="mobile-card-label">Durum</div>
 						<div class="mobile-card-value">
-							<select name="status_{{ s.id }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;">
+							<select name="status_{{ item.student.id }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;">
 								<option value="">-</option>
-								<option value="PRESENT">Geldi</option>
-								<option value="UNEXCUSED_ABSENT">Habersiz gelmedi</option>
-								<option value="EXCUSED_ABSENT">Haberli gelmedi</option>
-								<option value="LATE">Geç</option>
+								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
+								<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz gelmedi</option>
+								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli gelmedi</option>
+								<option value="LATE" {% if item.current_status == "LATE" %}selected{% endif %}>Geç</option>
 							</select>
 						</div>
 					</div>
@@ -54,10 +68,3 @@
 	</form>
 </div>
 {% endblock %}
-
-
-
-
-
-
-

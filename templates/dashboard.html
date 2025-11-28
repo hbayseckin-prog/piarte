@@ -156,6 +156,79 @@
 </div>
 
 <div class="card">
+    <h3 class="h2">Personel</h3>
+    {% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+    <form method="post" action="/ui/admin/users" class="form-row" style="margin-bottom:12px">
+        <input name="username" placeholder="Kullanıcı adı" required />
+        <input type="password" name="password" placeholder="Şifre" required />
+        <input name="full_name" placeholder="Ad Soyad" />
+        <input type="hidden" name="role" value="staff" />
+        <div class="btn-group" style="width:100%;">
+            <button type="submit" style="flex:1;">Ekle</button>
+            <button type="button" class="secondary" onclick="location.href='/ui/admin/users'" style="flex:1;">Tüm Kullanıcılar</button>
+        </div>
+    </form>
+    {% endif %}
+	<div class="table-wrap">
+		<table>
+			<thead><tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Oluşturma</th>{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}<th>İşlemler</th>{% endif %}</tr></thead>
+			<tbody>
+			{% for staff in staff_users %}
+			<tr>
+				<td><strong>{{ staff.username }}</strong></td>
+				<td>{{ staff.full_name or '-' }}</td>
+				<td>{{ staff.created_at.strftime('%d.%m.%Y') if staff.created_at else '-' }}</td>
+				{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+				<td>
+					<a href="/ui/admin/users" style="padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;white-space:nowrap;">Yönet</a>
+				</td>
+				{% endif %}
+			</tr>
+			{% endfor %}
+			{% if not staff_users %}
+			<tr>
+				<td colspan="{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}4{% else %}3{% endif %}" style="text-align:center;color:#64748b;">Henüz personel eklenmemiş</td>
+			</tr>
+			{% endif %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for staff in staff_users %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kullanıcı Adı</div>
+					<div class="mobile-card-value"><strong>{{ staff.username }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ad Soyad</div>
+					<div class="mobile-card-value">{{ staff.full_name or '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Oluşturma Tarihi</div>
+					<div class="mobile-card-value">{{ staff.created_at.strftime('%d.%m.%Y') if staff.created_at else '-' }}</div>
+				</div>
+				{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">İşlemler</div>
+					<div class="mobile-card-value">
+						<a href="/ui/admin/users" style="padding:8px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;display:block;text-align:center;">Yönet</a>
+					</div>
+				</div>
+				{% endif %}
+			</div>
+			{% endfor %}
+			{% if not staff_users %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-value" style="text-align:center;color:#64748b;">Henüz personel eklenmemiş</div>
+				</div>
+			</div>
+			{% endif %}
+		</div>
+	</div>
+</div>
+
+<div class="card">
     <h3 class="h2">Yoklamalar</h3>
     <form method="get" action="/dashboard" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
         <input type="date" name="start_date" value="{{ filters.start_date }}" placeholder="Başlangıç Tarihi" />
@@ -299,6 +372,80 @@
     <p>Henüz yoklama kaydı bulunmuyor.</p>
     {% endif %}
 </div>
+
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+<div class="card">
+    <h3 class="h2">Puantaj Tablosu</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">
+        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi (EXCUSED_ABSENT) durumları tabloya işlenmez.
+    </p>
+    {% if attendance_report %}
+        {% for teacher_report in attendance_report %}
+        <div style="margin-bottom:32px;border:1px solid var(--border);border-radius:12px;padding:16px;background:#f9fafb;">
+            <h4 style="margin:0 0 16px 0;color:#0f172a;font-size:18px;font-weight:600;padding-bottom:12px;border-bottom:2px solid var(--border);">
+                {{ teacher_report.teacher.first_name }} {{ teacher_report.teacher.last_name }}
+            </h4>
+            {% if teacher_report.students %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Öğrenci</th>
+                            <th>Geldi (PRESENT)</th>
+                            <th>Habersiz Gelmedi (UNEXCUSED_ABSENT)</th>
+                            <th>Geç Geldi (LATE)</th>
+                            <th>Toplam Ders</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student_data in teacher_report.students %}
+                        <tr>
+                            <td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
+                            <td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>
+                            <td style="text-align:center;color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</td>
+                            <td style="text-align:center;color:#f59e0b;font-weight:600;">{{ student_data.late }}</td>
+                            <td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="mobile-card-view">
+                    {% for student_data in teacher_report.students %}
+                    <div class="mobile-card">
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Öğrenci</div>
+                            <div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Geldi (PRESENT)</div>
+                            <div class="mobile-card-value" style="color:#10b981;font-weight:600;">{{ student_data.present }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Habersiz Gelmedi (UNEXCUSED_ABSENT)</div>
+                            <div class="mobile-card-value" style="color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Geç Geldi (LATE)</div>
+                            <div class="mobile-card-value" style="color:#f59e0b;font-weight:600;">{{ student_data.late }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Toplam Ders</div>
+                            <div class="mobile-card-value" style="font-weight:600;">{{ student_data.total }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p style="color:var(--muted);text-align:center;padding:16px;">Bu öğretmen için henüz yoklama kaydı bulunmuyor.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color:var(--muted);text-align:center;padding:16px;">Henüz puantaj verisi bulunmuyor.</p>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 

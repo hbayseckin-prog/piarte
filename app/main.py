@@ -1561,28 +1561,39 @@ def login_admin_form(request: Request):
         elif user.get("role") == "staff":
             return RedirectResponse(url="/ui/staff", status_code=302)
     
+    # Hata mesajını al
+    login_error = request.session.get("login_error", "")
+    if login_error:
+        request.session.pop("login_error", None)
+    
     # Direkt HTML döndür - template'e bağımlı olmadan
-    html_content = """<!DOCTYPE html>
+    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
+    
+    html_content = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Admin Giriş - Piarte</title>
     <style>
-        body { font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }
-        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #111827; }
-        label { display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }
-        input { padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
-        input:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
-        button { padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
-        button:hover { background: #1f2937; }
-        .info { color: #6b7280; font-size: 13px; margin-top: 16px; }
+        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
+        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        h2 {{ margin-top: 0; color: #111827; }}
+        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
+        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
+        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
+        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
+        button:hover {{ background: #1f2937; }}
+        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
+        .setup-link {{ margin-top: 16px; padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; text-align: center; }}
+        .setup-link a {{ color: #0ea5e9; text-decoration: none; font-weight: 500; }}
+        .setup-link a:hover {{ text-decoration: underline; }}
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Piarte - Admin Girişi</h2>
+        {error_html}
         <form method="post" action="/login/admin">
             <label>Kullanıcı adı</label>
             <input type="text" name="username" required autocomplete="username" />
@@ -1591,6 +1602,9 @@ def login_admin_form(request: Request):
             <button type="submit">Giriş Yap</button>
         </form>
         <p class="info">Sadece yönetici girişi içindir.</p>
+        <div class="setup-link">
+            <a href="/setup-database">🔧 Veritabanını Başlat (İlk Kurulum)</a>
+        </div>
     </div>
 </body>
 </html>"""
@@ -1600,7 +1614,11 @@ def login_admin_form(request: Request):
 def login_admin(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from passlib.hash import pbkdf2_sha256
     user = crud.get_user_by_username(db, username)
-    if not user or not pbkdf2_sha256.verify(password, user.password_hash) or (user.role != "admin" and (user.role is not None)):
+    # Admin kontrolü: role None ise admin kabul et (geriye dönük uyumluluk)
+    is_admin = (user and user.role is None) or (user and user.role == "admin")
+    if not user or not pbkdf2_sha256.verify(password, user.password_hash) or not is_admin:
+        # Hata mesajı ile login sayfasına yönlendir
+        request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da admin yetkisi yok."
         return RedirectResponse(url="/login/admin", status_code=302)
     request.session["user"] = {
         "id": user.id,
@@ -1609,6 +1627,8 @@ def login_admin(request: Request, username: str = Form(...), password: str = For
         "role": "admin",
         "teacher_id": getattr(user, 'teacher_id', None),
     }
+    # Hata mesajını temizle
+    request.session.pop("login_error", None)
     return RedirectResponse(url="/dashboard", status_code=302)
 
 # Öğretmen için giriş

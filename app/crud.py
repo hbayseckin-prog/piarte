@@ -496,10 +496,12 @@ def get_attendance_report_by_teacher(db: Session):
 		if student_id not in student_cache:
 			student_cache[student_id] = db.get(models.Student, student_id)
 		
-		# Sadece PRESENT, UNEXCUSED_ABSENT, LATE say
+		# Öğretmen/öğrenci kaydını oluştur (EXCUSED olsa bile raporda görünsün)
+		counts = report[teacher_id][student_id]
+		# Sadece PRESENT, UNEXCUSED_ABSENT, LATE say (Haberli gelmedi hariç)
 		if status in ["PRESENT", "UNEXCUSED_ABSENT", "LATE"]:
-			report[teacher_id][student_id][status] += 1
-			report[teacher_id][student_id]["total"] += 1
+			counts[status] += 1
+			counts["total"] += 1
 	
 	# Sonuçları formatla
 	result = []

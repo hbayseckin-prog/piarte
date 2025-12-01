@@ -331,13 +331,14 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		existing.status = data.status
 		if data.note is not None:
 			existing.note = data.note
-		existing.marked_at = datetime.utcnow()
+		existing.marked_at = data.marked_at or datetime.utcnow()
 		db.commit()
 		db.refresh(existing)
 		return existing
 	else:
 		# Yeni yoklama oluştur
-		attendance = models.Attendance(**data.model_dump())
+		payload = data.model_dump(exclude_none=True)
+		attendance = models.Attendance(**payload)
 		db.add(attendance)
 		db.commit()
 		db.refresh(attendance)

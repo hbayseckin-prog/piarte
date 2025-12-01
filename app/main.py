@@ -935,6 +935,7 @@ def lesson_create(
 def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
+    from datetime import date as date_cls
     lesson = db.get(models.Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
@@ -963,9 +964,15 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "current_status": current_status
         })
     
+    default_attendance_date = lesson.lesson_date or date_cls.today()
     return templates.TemplateResponse(
         "attendance_new.html",
-        {"request": request, "lesson": lesson, "students_with_status": students_with_payment_status},
+        {
+            "request": request,
+            "lesson": lesson,
+            "students_with_status": students_with_payment_status,
+            "attendance_date": default_attendance_date.isoformat(),
+        },
     )
 
 
@@ -989,6 +996,19 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         lesson_students = crud.list_students_by_lesson(db, lesson_id)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
+    attendance_date_raw = form.get("attendance_date")
+    marked_at_dt = None
+    if attendance_date_raw:
+        try:
+            from datetime import date as date_cls, datetime, time as time_cls
+            year, month, day = map(int, attendance_date_raw.split("-"))
+            chosen_date = date_cls(year, month, day)
+            base_time = lesson.start_time or time_cls(hour=12, minute=0)
+            if not isinstance(base_time, time_cls):
+                base_time = time_cls(hour=12, minute=0)
+            marked_at_dt = datetime.combine(chosen_date, base_time)
+        except Exception:
+            marked_at_dt = None
     # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE
     to_create = []
     for key, value in form.items():
@@ -1006,7 +1026,14 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             status = "UNEXCUSED_ABSENT"
         if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "LATE"}:
             continue
-        to_create.append(schemas.AttendanceCreate(lesson_id=lesson_id, student_id=sid, status=status))
+        to_create.append(
+            schemas.AttendanceCreate(
+                lesson_id=lesson_id,
+                student_id=sid,
+                status=status,
+                marked_at=marked_at_dt,
+            )
+        )
     success_count = 0
     error_count = 0
     for item in to_create:

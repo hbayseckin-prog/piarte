@@ -5,6 +5,17 @@
 	<h2 class="h1">Yoklama - Ders #{{ lesson.id }}</h2>
 	<p style="color:var(--muted);margin-bottom:16px;">{{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</p>
 	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new">
+		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
+			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>
+			<input
+				type="date"
+				id="attendance_date"
+				name="attendance_date"
+				value="{{ attendance_date }}"
+				style="padding:10px;border:1px solid var(--border);border-radius:8px;"
+			/>
+			<small style="color:#64748b;">Öğrenciler farklı günde geldiğinde tarihi değiştirerek yoklama alabilirsiniz.</small>
+		</div>
 		<div class="table-wrap">
 			<table>
 				<thead><tr><th>Öğrenci</th><th>Durum</th></tr></thead>

@@ -12,7 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
-from sqlalchemy.exc import ProgrammingError
 import os
 
 from .db import Base, engine, get_db
@@ -78,10 +77,11 @@ def setup_database_endpoint(request: Request):
 		try:
 			# Tüm tabloları oluştur
 			Base.metadata.create_all(bind=engine)
-		except ProgrammingError as e:
-			# PostgreSQL DuplicateTable hatası kodu: 42P07
-			duplicate = "DuplicateTable" in str(e) or getattr(getattr(e, "orig", None), "pgcode", "") == "42P07"
-			if duplicate:
+		except Exception as e:
+			# Eğer DuplicateTable / already exists hatası ise tüm tabloları silip yeniden oluştur
+			msg = str(e)
+			pgcode = getattr(getattr(e, "orig", None), "pgcode", "")
+			if "DuplicateTable" in msg or "already exists" in msg or pgcode == "42P07":
 				reset_performed = True
 				Base.metadata.drop_all(bind=engine)
 				Base.metadata.create_all(bind=engine)

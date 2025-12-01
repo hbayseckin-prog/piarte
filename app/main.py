@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
+from sqlalchemy.exc import ProgrammingError
 import os
 
 from .db import Base, engine, get_db
@@ -73,8 +74,19 @@ def health_check():
 def setup_database_endpoint(request: Request):
 	"""Veritabanını oluştur ve seed data ekle - HTML response ile"""
 	try:
-		# Tüm tabloları oluştur
-		Base.metadata.create_all(bind=engine)
+		reset_performed = False
+		try:
+			# Tüm tabloları oluştur
+			Base.metadata.create_all(bind=engine)
+		except ProgrammingError as e:
+			# PostgreSQL DuplicateTable hatası kodu: 42P07
+			duplicate = "DuplicateTable" in str(e) or getattr(getattr(e, "orig", None), "pgcode", "") == "42P07"
+			if duplicate:
+				reset_performed = True
+				Base.metadata.drop_all(bind=engine)
+				Base.metadata.create_all(bind=engine)
+			else:
+				raise
 		
 		# Seed data ekle
 		db = next(get_db())
@@ -108,6 +120,8 @@ def setup_database_endpoint(request: Request):
 			db.close()
 		
 		# HTML response oluştur
+		if reset_performed:
+			messages.insert(0, "ℹ️ Mevcut tablolar silinip yeniden oluşturuldu (duplicate hata nedeniyle).")
 		messages_html = "\n".join([f"<p style='color: green;'>{msg}</p>" for msg in messages])
 		errors_html = "\n".join([f"<p style='color: orange;'>{err}</p>" for err in errors])
 		

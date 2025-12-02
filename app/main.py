@@ -1032,12 +1032,25 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     # Her derse atanmış öğrenci için formdan durumu oku
     # (status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE)
     to_create = []
+    # Debug: izinli öğrenci id'lerini logla
+    try:
+        import logging
+        logging.warning(f"ATT_DEBUG allowed_student_ids: {sorted(list(allowed_student_ids or []) )}")
+    except Exception:
+        pass
+
     for s in lesson_students:
         sid = s.id
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
         value = form.get(f"status_{sid}")
         status = (value or "").strip().upper()
+        # Debug: her öğrenci için ham ve normalize değeri logla
+        try:
+            import logging
+            logging.warning(f"ATT_DEBUG student {sid}: raw={value!r} normalized={status!r}")
+        except Exception:
+            pass
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"

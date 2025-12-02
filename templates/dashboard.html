@@ -409,6 +409,11 @@
                             <td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>
                         </tr>
                         {% endfor %}
+                        {% set teacher_total = teacher_report.students | sum(attribute='total') %}
+                        <tr>
+                            <td colspan="5" style="text-align:right;font-weight:600;">Bu öğretmen için toplam ders sayısı:</td>
+                            <td style="text-align:center;font-weight:700;">{{ teacher_total }}</td>
+                        </tr>
                     </tbody>
                 </table>
                 <div class="mobile-card-view">

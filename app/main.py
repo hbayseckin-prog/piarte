@@ -1010,6 +1010,12 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         lesson_students = crud.list_students_by_lesson(db, lesson_id)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
+    # Debug: formdan gelen alanları logla
+    try:
+        import logging
+        logging.warning(f"ATT_DEBUG form keys: {list(form.keys())}")
+    except Exception:
+        pass
     attendance_date_raw = form.get("attendance_date")
     marked_at_dt = None
     if attendance_date_raw:
@@ -1045,6 +1051,13 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 marked_at=marked_at_dt,
             )
         )
+
+    # Debug: oluşturulacak kayıtları logla
+    try:
+        import logging
+        logging.warning(f"ATT_DEBUG to_create: {to_create}")
+    except Exception:
+        pass
     success_count = 0
     error_count = 0
     for item in to_create:

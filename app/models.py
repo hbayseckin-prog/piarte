@@ -97,7 +97,9 @@ class Lesson(Base):
 class Attendance(Base):
 	__tablename__ = "attendances"
 	__table_args__ = (
-		UniqueConstraint("lesson_id", "student_id", name="uq_lesson_student"),
+		# Attendance tablosundaki constraint adı, LessonStudent tablosundakinden
+		# farklı olmalı (PostgreSQL'de constraint isimleri şema genelinde benzersizdir)
+		UniqueConstraint("lesson_id", "student_id", name="uq_attendance_lesson_student"),
 	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)

@@ -1658,9 +1658,6 @@ def login_admin_form(request: Request):
             <button type="submit">Giriş Yap</button>
         </form>
         <p class="info">Sadece yönetici girişi içindir.</p>
-        <div class="setup-link">
-            <a href="/setup-database">🔧 Veritabanını Başlat (İlk Kurulum)</a>
-        </div>
     </div>
 </body>
 </html>"""

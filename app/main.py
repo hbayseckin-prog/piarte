@@ -1023,17 +1023,14 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = datetime.combine(chosen_date, base_time)
         except Exception:
             marked_at_dt = None
-    # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE
+    # Her derse atanmış öğrenci için formdan durumu oku
+    # (status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE)
     to_create = []
-    for key, value in form.items():
-        if not key.startswith("status_"):
-            continue
-        try:
-            sid = int(key.split("_", 1)[1])
-        except Exception:
-            continue
+    for s in lesson_students:
+        sid = s.id
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
+        value = form.get(f"status_{sid}")
         status = (value or "").strip().upper()
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":

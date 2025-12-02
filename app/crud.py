@@ -451,6 +451,42 @@ def list_payments_by_student(db: Session, student_id: int):
 	return db.scalars(stmt).all()
 
 
+def check_student_payment_status(db: Session, student_id: int):
+	"""
+	Öğrencinin ödeme durumunu kontrol eder.
+	Ödeme mantığı:
+	- 0. derste (ilk kayıt) ödeme alınır (1. set)
+	- 4. derse geldiğinde yeni ödeme alınır (2. set)
+	- 8. derse geldiğinde yeni ödeme alınır (3. set)
+	- 12, 16, 20... diye devam eder
+
+	Beklenen ödeme seti = (toplam_ders // 4) + 1
+	- 0 ders: 1 set (ilk kayıt)
+	- 1-3 ders: 1 set (ilk kayıt)
+	- 4-7 ders: 2 set (ilk kayıt + 4. ders)
+	- 8-11 ders: 3 set (ilk kayıt + 4. ders + 8. ders)
+	- 12-15 ders: 4 set
+	- ...
+	"""
+	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE olan yoklamalar)
+	total_lessons = db.scalars(
+		select(func.count(models.Attendance.id)).where(
+			models.Attendance.student_id == student_id,
+			models.Attendance.status.in_(["PRESENT", "LATE"]),
+		)
+	).first() or 0
+
+	# Öğrencinin ödemelerini getir
+	payments = list_payments_by_student(db, student_id)
+	total_paid_sets = len(payments)
+
+	# Beklenen ödeme seti hesapla
+	expected_paid_sets = (total_lessons // 4) + 1
+
+	# Ödeme yetersizse True (kırmızı), yeterliyse False
+	return total_paid_sets < expected_paid_sets
+
+
 # Invoices
 def create_invoice(db: Session, data: schemas.InvoiceCreate):
     invoice = models.Invoice(**data.model_dump())

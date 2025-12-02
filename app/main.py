@@ -474,7 +474,12 @@ def dashboard(
     attendance_report = []
     if user.get("role") == "admin":
         try:
-            attendance_report = crud.get_attendance_report_by_teacher(db)
+            attendance_report = crud.get_attendance_report_by_teacher(
+                db,
+                teacher_id=teacher_id_int,
+                start_date=start_date_obj,
+                end_date=end_date_obj,
+            )
         except Exception as e:
             # Rapor hatasını logla ama dashboard'u düşürme
             import logging, traceback

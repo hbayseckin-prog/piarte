@@ -372,7 +372,12 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	return db.scalars(stmt).all()
 
 
-def get_attendance_report_by_teacher(db: Session):
+def get_attendance_report_by_teacher(
+	db: Session,
+	teacher_id: int | None = None,
+	start_date: date | None = None,
+	end_date: date | None = None,
+):
 	"""
 	Her öğretmen-altında her öğrenci için toplam yoklama sayısını döndürür.
 	Sadece şu statüler sayılır:
@@ -382,21 +387,31 @@ def get_attendance_report_by_teacher(db: Session):
 	EXCUSED_ABSENT (haberli gelmedi) sayılmaz, ama kaydı varsa satır yine görünür.
 	"""
 	# Tüm yoklamaları öğretmen, öğrenci ve derse join ederek al
-	rows = (
-		db.query(
-			models.Teacher.id.label("teacher_id"),
-			models.Teacher.first_name.label("teacher_first_name"),
-			models.Teacher.last_name.label("teacher_last_name"),
-			models.Student.id.label("student_id"),
-			models.Student.first_name.label("student_first_name"),
-			models.Student.last_name.label("student_last_name"),
-			models.Attendance.status,
-		)
-		.join(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
-		.join(models.Teacher, models.Lesson.teacher_id == models.Teacher.id)
-		.join(models.Student, models.Attendance.student_id == models.Student.id)
-		.all()
+	q = db.query(
+		models.Teacher.id.label("teacher_id"),
+		models.Teacher.first_name.label("teacher_first_name"),
+		models.Teacher.last_name.label("teacher_last_name"),
+		models.Student.id.label("student_id"),
+		models.Student.first_name.label("student_first_name"),
+		models.Student.last_name.label("student_last_name"),
+		models.Attendance.status,
+	).join(
+		models.Lesson, models.Attendance.lesson_id == models.Lesson.id
+	).join(
+		models.Teacher, models.Lesson.teacher_id == models.Teacher.id
+	).join(
+		models.Student, models.Attendance.student_id == models.Student.id
 	)
+
+	# Opsiyonel filtreler (öğretmen ve tarih aralığı)
+	if teacher_id:
+		q = q.filter(models.Lesson.teacher_id == teacher_id)
+	if start_date:
+		q = q.filter(models.Lesson.lesson_date >= start_date)
+	if end_date:
+		q = q.filter(models.Lesson.lesson_date <= end_date)
+
+	rows = q.all()
 
 	report_map: dict[tuple[int, int], dict] = {}
 
@@ -413,6 +428,7 @@ def get_attendance_report_by_teacher(db: Session):
 				"present": 0,
 				"unexcused_absent": 0,
 				"late": 0,
+				"excused_absent": 0,
 			}
 		if r.status == "PRESENT":
 			report_map[key]["present"] += 1
@@ -420,6 +436,8 @@ def get_attendance_report_by_teacher(db: Session):
 			report_map[key]["unexcused_absent"] += 1
 		elif r.status == "LATE":
 			report_map[key]["late"] += 1
+		elif r.status == "EXCUSED_ABSENT":
+			report_map[key]["excused_absent"] += 1
 
 	# Önce öğretmen-öğrenci bazlı liste
 	report_list = list(report_map.values())
@@ -461,6 +479,7 @@ def get_attendance_report_by_teacher(db: Session):
 				},
 				"students": [],
 			}
+		# Toplam ders: daha önce konuştuğumuz gibi EXCUSED_ABSENT hariç
 		total = row["present"] + row["unexcused_absent"] + row["late"]
 		teachers_map[tid]["students"].append(
 			{
@@ -471,6 +490,7 @@ def get_attendance_report_by_teacher(db: Session):
 				"present": row["present"],
 				"unexcused_absent": row["unexcused_absent"],
 				"late": row["late"],
+				"excused_absent": row["excused_absent"],
 				"total": total,
 			}
 		)

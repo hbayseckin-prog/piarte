@@ -473,7 +473,13 @@ def dashboard(
     # Puantaj raporunu getir (sadece admin için)
     attendance_report = []
     if user.get("role") == "admin":
-        attendance_report = crud.get_attendance_report_by_teacher(db)
+        try:
+            attendance_report = crud.get_attendance_report_by_teacher(db)
+        except Exception as e:
+            # Rapor hatasını logla ama dashboard'u düşürme
+            import logging, traceback
+            logging.error(f"Puantaj raporu hatası: {e}")
+            logging.error(traceback.format_exc())
     
     context = {
         "request": request,

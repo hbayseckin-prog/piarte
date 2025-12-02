@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, delete
-from datetime import date, datetime
+from datetime import date
 from . import models, schemas
 
 
@@ -241,24 +241,6 @@ def list_students_by_lesson(db: Session, lesson_id: int):
 	return db.scalars(stmt).all()
 
 
-def list_lessons_by_student(db: Session, student_id: int):
-	"""Öğrencinin kayıtlı olduğu tüm dersleri getir"""
-	from sqlalchemy.orm import joinedload
-	lessons = db.query(models.Lesson).options(
-		joinedload(models.Lesson.course),
-		joinedload(models.Lesson.teacher)
-	).join(
-		models.LessonStudent,
-		models.LessonStudent.lesson_id == models.Lesson.id
-	).filter(
-		models.LessonStudent.student_id == student_id
-	).order_by(
-		models.Lesson.lesson_date.asc(),
-		models.Lesson.start_time.asc()
-	).all()
-	return lessons
-
-
 # Lessons
 def create_lesson(db: Session, data: schemas.LessonCreate):
 	lesson = models.Lesson(**data.model_dump())
@@ -318,31 +300,31 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 
 # Attendance
 def mark_attendance(db: Session, data: schemas.AttendanceCreate):
-	# Önce mevcut yoklamayı kontrol et
-	existing = db.scalar(
+	"""
+	Bir ders-öğrenci çifti için yoklama kaydını oluşturur veya günceller (upsert).
+	Aynı (lesson_id, student_id) için birden fazla kayıt oluşmasını engeller.
+	"""
+	# Önce mevcut bir kayıt var mı kontrol et
+	existing = db.scalars(
 		select(models.Attendance).where(
 			models.Attendance.lesson_id == data.lesson_id,
-			models.Attendance.student_id == data.student_id
+			models.Attendance.student_id == data.student_id,
 		)
-	)
-	
+	).first()
 	if existing:
-		# Mevcut yoklamayı güncelle
+		# Güncelle
 		existing.status = data.status
-		if data.note is not None:
-			existing.note = data.note
-		existing.marked_at = data.marked_at or datetime.utcnow()
+		if data.marked_at is not None:
+			existing.marked_at = data.marked_at
 		db.commit()
 		db.refresh(existing)
 		return existing
-	else:
-		# Yeni yoklama oluştur
-		payload = data.model_dump(exclude_none=True)
-		attendance = models.Attendance(**payload)
-		db.add(attendance)
-		db.commit()
-		db.refresh(attendance)
-		return attendance
+	# Yoksa yeni kayıt oluştur
+	attendance = models.Attendance(**data.model_dump())
+	db.add(attendance)
+	db.commit()
+	db.refresh(attendance)
+	return attendance
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):
@@ -390,6 +372,68 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	return db.scalars(stmt).all()
 
 
+def get_attendance_report_by_teacher(db: Session):
+	"""
+	Her öğretmen-altında her öğrenci için toplam yoklama sayısını döndürür.
+	Sadece şu statüler sayılır:
+	- PRESENT  -> geldi
+	- UNEXCUSED_ABSENT -> habersiz gelmedi
+	- LATE -> geç geldi
+	EXCUSED_ABSENT (haberli gelmedi) sayılmaz, ama kaydı varsa satır yine görünür.
+	"""
+	# Tüm yoklamaları öğretmen, öğrenci ve derse join ederek al
+	rows = (
+		db.query(
+			models.Teacher.id.label("teacher_id"),
+			models.Teacher.first_name.label("teacher_first_name"),
+			models.Teacher.last_name.label("teacher_last_name"),
+			models.Student.id.label("student_id"),
+			models.Student.first_name.label("student_first_name"),
+			models.Student.last_name.label("student_last_name"),
+			models.Attendance.status,
+		)
+		.join(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
+		.join(models.Teacher, models.Lesson.teacher_id == models.Teacher.id)
+		.join(models.Student, models.Attendance.student_id == models.Student.id)
+		.all()
+	)
+
+	report_map: dict[tuple[int, int], dict] = {}
+
+	for r in rows:
+		key = (r.teacher_id, r.student_id)
+		if key not in report_map:
+			report_map[key] = {
+				"teacher_id": r.teacher_id,
+				"teacher_first_name": r.teacher_first_name,
+				"teacher_last_name": r.teacher_last_name,
+				"student_id": r.student_id,
+				"student_first_name": r.student_first_name,
+				"student_last_name": r.student_last_name,
+				"present": 0,
+				"unexcused_absent": 0,
+				"late": 0,
+			}
+		if r.status == "PRESENT":
+			report_map[key]["present"] += 1
+		elif r.status == "UNEXCUSED_ABSENT":
+			report_map[key]["unexcused_absent"] += 1
+		elif r.status == "LATE":
+			report_map[key]["late"] += 1
+
+	# Listeye çevir, öğretmen ve öğrenci adına göre sırala
+	report_list = list(report_map.values())
+	report_list.sort(
+		key=lambda x: (
+			x["teacher_last_name"],
+			x["teacher_first_name"],
+			x["student_last_name"],
+			x["student_first_name"],
+		)
+	)
+	return report_list
+
+
 # Payments
 def create_payment(db: Session, data: schemas.PaymentCreate):
 	payload = data.model_dump()
@@ -405,137 +449,6 @@ def create_payment(db: Session, data: schemas.PaymentCreate):
 def list_payments_by_student(db: Session, student_id: int):
 	stmt = select(models.Payment).where(models.Payment.student_id == student_id).order_by(models.Payment.payment_date.desc())
 	return db.scalars(stmt).all()
-
-
-def check_student_payment_status(db: Session, student_id: int):
-	"""
-	Öğrencinin ödeme durumunu kontrol eder.
-	Ödeme mantığı:
-	- 0. derste (ilk kayıt) ödeme alınır (1. set)
-	- 4. derse geldiğinde yeni ödeme alınır (2. set)
-	- 8. derse geldiğinde yeni ödeme alınır (3. set)
-	- 12, 16, 20... diye devam eder
-	
-	Beklenen ödeme seti = (toplam_ders // 4) + 1
-	- 0 ders: 1 set (ilk kayıt)
-	- 1-3 ders: 1 set (ilk kayıt)
-	- 4-7 ders: 2 set (ilk kayıt + 4. ders)
-	- 8-11 ders: 3 set (ilk kayıt + 4. ders + 8. ders)
-	- 12-15 ders: 4 set
-	- ...
-	"""
-	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE olan yoklamalar)
-	total_lessons = db.scalars(
-		select(func.count(models.Attendance.id))
-		.where(
-			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "LATE"])
-		)
-	).first() or 0
-	
-	# Öğrencinin ödemelerini getir
-	payments = list_payments_by_student(db, student_id)
-	total_paid_sets = len(payments)
-	
-	# Beklenen ödeme seti hesapla: (toplam_ders // 4) + 1
-	# +1 çünkü ilk kayıt ödemesi (0. ders) her zaman bekleniyor
-	expected_paid_sets = (total_lessons // 4) + 1
-	
-	# Ödeme yetersizse kırmızı
-	return total_paid_sets < expected_paid_sets
-
-
-# Puantaj (Attendance Report)
-def get_attendance_report_by_teacher(db: Session):
-	"""
-	Öğretmen bazında puantaj raporu oluşturur.
-	Her öğretmen için, her öğrenci için:
-	- PRESENT (Geldi) sayısı
-	- UNEXCUSED_ABSENT (Habersiz gelmedi) sayısı
-	- LATE (Geç geldi) sayısı
-	- Toplam ders sayısı (EXCUSED_ABSENT hariç)
-	
-	EXCUSED_ABSENT (Haberli gelmedi) sayılmaz.
-	"""
-	from collections import defaultdict
-	
-	# Tüm yoklamaları getir (EXCUSED_ABSENT hariç)
-	stmt = select(models.Attendance).join(
-		models.Lesson, models.Attendance.lesson_id == models.Lesson.id
-	).where(
-		models.Attendance.status != "EXCUSED_ABSENT"
-	)
-	attendances = db.scalars(stmt).all()
-	
-	# Öğretmen -> Öğrenci -> Durum sayıları
-	report = defaultdict(lambda: defaultdict(lambda: {
-		"PRESENT": 0,
-		"UNEXCUSED_ABSENT": 0,
-		"LATE": 0,
-		"total": 0
-	}))
-	
-	# Öğretmen ve öğrenci bilgilerini cache'le
-	teacher_cache = {}
-	student_cache = {}
-	
-	for att in attendances:
-		lesson = db.get(models.Lesson, att.lesson_id)
-		if not lesson or not lesson.teacher_id:
-			continue
-		
-		teacher_id = lesson.teacher_id
-		student_id = att.student_id
-		status = att.status
-		
-		# Öğretmen bilgisini cache'le
-		if teacher_id not in teacher_cache:
-			teacher_cache[teacher_id] = db.get(models.Teacher, teacher_id)
-		
-		# Öğrenci bilgisini cache'le
-		if student_id not in student_cache:
-			student_cache[student_id] = db.get(models.Student, student_id)
-		
-		# Öğretmen/öğrenci kaydını oluştur (EXCUSED olsa bile raporda görünsün)
-		counts = report[teacher_id][student_id]
-		# Sadece PRESENT, UNEXCUSED_ABSENT, LATE say (Haberli gelmedi hariç)
-		if status in ["PRESENT", "UNEXCUSED_ABSENT", "LATE"]:
-			counts[status] += 1
-			counts["total"] += 1
-	
-	# Sonuçları formatla
-	result = []
-	for teacher_id, students_data in report.items():
-		teacher = teacher_cache.get(teacher_id)
-		if not teacher:
-			continue
-		
-		students_report = []
-		for student_id, counts in students_data.items():
-			student = student_cache.get(student_id)
-			if not student:
-				continue
-			
-			students_report.append({
-				"student": student,
-				"present": counts["PRESENT"],
-				"unexcused_absent": counts["UNEXCUSED_ABSENT"],
-				"late": counts["LATE"],
-				"total": counts["total"]
-			})
-		
-		# Öğrenci adına göre sırala
-		students_report.sort(key=lambda x: (x["student"].first_name, x["student"].last_name))
-		
-		result.append({
-			"teacher": teacher,
-			"students": students_report
-		})
-	
-	# Öğretmen adına göre sırala
-	result.sort(key=lambda x: (x["teacher"].first_name, x["teacher"].last_name))
-	
-	return result
 
 
 # Invoices

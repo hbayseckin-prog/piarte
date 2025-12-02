@@ -1043,12 +1043,20 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         sid = s.id
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
-        value = form.get(f"status_{sid}")
-        status = (value or "").strip().upper()
+        # Aynı öğrenci için hem tablo hem mobil görünümde select olduğu için
+        # birden fazla "status_<id>" field'ı geliyor. Bunların içinden boş olmayanı seçelim.
+        values = form.getlist(f"status_{sid}") if hasattr(form, "getlist") else [form.get(f"status_{sid}")]
+        # İlk dolu değeri bul
+        raw_value = ""
+        for v in values:
+            if v:
+                raw_value = v
+                break
+        status = (raw_value or "").strip().upper()
         # Debug: her öğrenci için ham ve normalize değeri logla
         try:
             import logging
-            logging.warning(f"ATT_DEBUG student {sid}: raw={value!r} normalized={status!r}")
+            logging.warning(f"ATT_DEBUG student {sid}: values={values!r} chosen_raw={raw_value!r} normalized={status!r}")
         except Exception:
             pass
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)

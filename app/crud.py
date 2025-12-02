@@ -421,8 +421,9 @@ def get_attendance_report_by_teacher(db: Session):
 		elif r.status == "LATE":
 			report_map[key]["late"] += 1
 
-	# Listeye çevir, öğretmen ve öğrenci adına göre sırala
+	# Önce öğretmen-öğrenci bazlı liste
 	report_list = list(report_map.values())
+	# Öğretmen ve öğrenci adına göre sırala
 	report_list.sort(
 		key=lambda x: (
 			x["teacher_last_name"],
@@ -431,7 +432,58 @@ def get_attendance_report_by_teacher(db: Session):
 			x["student_first_name"],
 		)
 	)
-	return report_list
+
+	# Daha sonra öğretmen bazında grupla; template'in beklediği yapı:
+	# [
+	#   {
+	#     "teacher": {"first_name": "...", "last_name": "..."},
+	#     "students": [
+	#        {
+	#          "student": {"first_name": "...", "last_name": "..."},
+	#          "present": 3,
+	#          "unexcused_absent": 1,
+	#          "late": 0,
+	#          "total": 4,
+	#        },
+	#        ...
+	#     ],
+	#   },
+	#   ...
+	# ]
+	teachers_map: dict[int, dict] = {}
+	for row in report_list:
+		tid = row["teacher_id"]
+		if tid not in teachers_map:
+			teachers_map[tid] = {
+				"teacher": {
+					"first_name": row["teacher_first_name"],
+					"last_name": row["teacher_last_name"],
+				},
+				"students": [],
+			}
+		total = row["present"] + row["unexcused_absent"] + row["late"]
+		teachers_map[tid]["students"].append(
+			{
+				"student": {
+					"first_name": row["student_first_name"],
+					"last_name": row["student_last_name"],
+				},
+				"present": row["present"],
+				"unexcused_absent": row["unexcused_absent"],
+				"late": row["late"],
+				"total": total,
+			}
+		)
+
+	# Öğretmen adlarına göre sırala
+	grouped_list = list(teachers_map.values())
+	grouped_list.sort(
+		key=lambda t: (
+			t["teacher"]["last_name"],
+			t["teacher"]["first_name"],
+		)
+	)
+	return grouped_list
 
 
 # Payments

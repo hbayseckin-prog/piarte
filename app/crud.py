@@ -387,6 +387,7 @@ def get_attendance_report_by_teacher(
 	EXCUSED_ABSENT (haberli gelmedi) sayılmaz, ama kaydı varsa satır yine görünür.
 	"""
 	# Tüm yoklamaları öğretmen, öğrenci ve derse join ederek al
+	# Attendance tablosundan başlayarak join yapıyoruz
 	q = db.query(
 		models.Teacher.id.label("teacher_id"),
 		models.Teacher.first_name.label("teacher_first_name"),
@@ -395,6 +396,8 @@ def get_attendance_report_by_teacher(
 		models.Student.first_name.label("student_first_name"),
 		models.Student.last_name.label("student_last_name"),
 		models.Attendance.status,
+	).select_from(
+		models.Attendance
 	).join(
 		models.Lesson, models.Attendance.lesson_id == models.Lesson.id
 	).join(

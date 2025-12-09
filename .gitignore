@@ -4,22 +4,32 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Virtual Environment
 venv/
-env/
 ENV/
+env/
 .venv/
-
-# Environment variables
-.env
-.env.local
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
-data.db
 
 # IDE
 .vscode/
@@ -32,24 +42,13 @@ data.db
 .DS_Store
 Thumbs.db
 
+# Environment variables
+.env
+.env.local
+
 # Logs
 *.log
 
-# Test files
-durum.xlsx
-test_*.xlsx
-
-# Windows
-start_server.bat
-start_server_2.bat
-
-# Backup files
-*.bak
-backup_*.sql
-
-# Temporary files
-*.tmp
-*.temp
-
-
+# Railway
+.railway/
 

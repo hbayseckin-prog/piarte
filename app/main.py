@@ -2018,6 +2018,8 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
         "role": "staff",
         "teacher_id": getattr(user, 'teacher_id', None),
     }
+    # last_role'ü temizle
+    request.session.pop("last_role", None)
     return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)

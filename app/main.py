@@ -147,6 +147,16 @@ def setup_database_endpoint(request: Request, db: Session = Depends(get_db)):
 		except Exception as e2:
 			messages.append(f"⚠️ Constraint kaldırma hatası (normal olabilir): {e2}")
 	
+	# Mevcut LATE kayıtlarını TELAFI'ye dönüştür
+	try:
+		from sqlalchemy import text
+		updated = db.execute(text("UPDATE attendances SET status = 'TELAFI' WHERE status = 'LATE'"))
+		db.commit()
+		if updated.rowcount > 0:
+			messages.append(f"✅ {updated.rowcount} adet LATE kaydı TELAFI'ye dönüştürüldü")
+	except Exception as e:
+		messages.append(f"⚠️ LATE->TELAFI dönüşüm hatası (normal olabilir): {e}")
+	
 	try:
 		reset_performed = False
 		try:

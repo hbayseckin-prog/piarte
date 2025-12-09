@@ -1152,17 +1152,20 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         )
 
     # Debug: oluşturulacak kayıtları logla
-    try:
-        import logging
-        logging.warning(f"ATT_DEBUG to_create: {to_create}")
-    except Exception:
-        pass
+    import logging
+    logging.warning(f"ATT_DEBUG to_create: {to_create}")
+    logging.warning(f"ATT_DEBUG: to_create listesi uzunluğu: {len(to_create)}")
+    
     success_count = 0
     error_count = 0
     error_messages = []
     
+    if not to_create:
+        logging.warning("ATT_DEBUG: to_create listesi boş, yoklama kaydı oluşturulmayacak")
+        request.session["attendance_error"] = "Yoklama kaydı oluşturulamadı: Öğrenci durumu seçilmedi."
+        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
+    
     try:
-        import logging
         logging.warning(f"ATT_DEBUG: {len(to_create)} yoklama kaydı oluşturulacak")
         for item in to_create:
             try:

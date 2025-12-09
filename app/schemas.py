@@ -116,6 +116,7 @@ class AttendanceCreate(BaseModel):
 	student_id: int
 	status: str  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, TELAFI
 	note: Optional[str] = None
+	marked_at: Optional[datetime] = None
 
 
 class AttendanceOut(BaseModel):

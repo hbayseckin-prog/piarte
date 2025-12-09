@@ -102,7 +102,7 @@ class Attendance(Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
 	student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
-	status: Mapped[str] = mapped_column(String(20), nullable=False)  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, LATE
+	status: Mapped[str] = mapped_column(String(20), nullable=False)  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, TELAFI
 	note: Mapped[str | None] = mapped_column(Text, nullable=True)
 	marked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

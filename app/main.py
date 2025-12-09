@@ -115,7 +115,7 @@ def debug_attendances(teacher_id: int, student_id: int, db: Session = Depends(ge
 						result["report_counts"] = {
 							"present": student_data["present"],
 							"unexcused_absent": student_data["unexcused_absent"],
-							"late": student_data["late"],
+							"telafi": student_data["telafi"],
 							"excused_absent": student_data["excused_absent"],
 							"total": student_data["total"]
 						}
@@ -1126,7 +1126,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         except Exception:
             marked_at_dt = None
     # Her derse atanmış öğrenci için formdan durumu oku
-    # (status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE)
+    # (status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI)
     to_create = []
     # Debug: izinli öğrenci id'lerini logla
     try:
@@ -1158,7 +1158,10 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "LATE"}:
+        # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
+        if status == "LATE":
+            status = "TELAFI"
+        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}:
             continue
         to_create.append(
             schemas.AttendanceCreate(
@@ -2079,12 +2082,13 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         today = date.today()
         
         for student in all_students:
-            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
+            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
+            # Geriye dönük uyumluluk için LATE'i de dahil et
             total_lessons = db.scalars(
                 select(func.count(models.Attendance.id))
                 .where(
                     models.Attendance.student_id == student.id,
-                    models.Attendance.status.in_(["PRESENT", "LATE"])
+                    models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"])
                 )
             ).first() or 0
             

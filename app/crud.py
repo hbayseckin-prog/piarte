@@ -458,7 +458,7 @@ def get_attendance_report_by_teacher(
 	Sadece şu statüler sayılır:
 	- PRESENT  -> geldi
 	- UNEXCUSED_ABSENT -> habersiz gelmedi
-	- LATE -> geç geldi
+	- TELAFI -> telafi dersi
 	EXCUSED_ABSENT (haberli gelmedi) sayılmaz, ama kaydı varsa satır yine görünür.
 	"""
 	# Tüm yoklamaları öğretmen, öğrenci ve derse join ederek al
@@ -509,17 +509,20 @@ def get_attendance_report_by_teacher(
 				"student_last_name": r.student_last_name,
 				"present": 0,
 				"unexcused_absent": 0,
-				"late": 0,
+				"telafi": 0,
 				"excused_absent": 0,
 			}
-		# Status'u kontrol et ve say
-		if r.status == "PRESENT":
+		# Status'u kontrol et ve say (geriye dönük uyumluluk için LATE'i TELAFI'ye çevir)
+		status = r.status
+		if status == "LATE":
+			status = "TELAFI"
+		if status == "PRESENT":
 			report_map[key]["present"] += 1
-		elif r.status == "UNEXCUSED_ABSENT":
+		elif status == "UNEXCUSED_ABSENT":
 			report_map[key]["unexcused_absent"] += 1
-		elif r.status == "LATE":
-			report_map[key]["late"] += 1
-		elif r.status == "EXCUSED_ABSENT":
+		elif status == "TELAFI":
+			report_map[key]["telafi"] += 1
+		elif status == "EXCUSED_ABSENT":
 			report_map[key]["excused_absent"] += 1
 		else:
 			# Bilinmeyen status için log
@@ -566,7 +569,7 @@ def get_attendance_report_by_teacher(
 				"students": [],
 			}
 		# Toplam ders: daha önce konuştuğumuz gibi EXCUSED_ABSENT hariç
-		total = row["present"] + row["unexcused_absent"] + row["late"]
+		total = row["present"] + row["unexcused_absent"] + row["telafi"]
 		teachers_map[tid]["students"].append(
 			{
 				"student": {
@@ -575,7 +578,7 @@ def get_attendance_report_by_teacher(
 				},
 				"present": row["present"],
 				"unexcused_absent": row["unexcused_absent"],
-				"late": row["late"],
+				"telafi": row["telafi"],
 				"excused_absent": row["excused_absent"],
 				"total": total,
 			}
@@ -626,11 +629,12 @@ def check_student_payment_status(db: Session, student_id: int):
 	- 12-15 ders: 4 set
 	- ...
 	"""
-	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE olan yoklamalar)
+	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI olan yoklamalar)
+	# Geriye dönük uyumluluk için LATE'i de dahil et
 	total_lessons = db.scalars(
 		select(func.count(models.Attendance.id)).where(
 			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "LATE"]),
+			models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"]),
 		)
 	).first() or 0
 

@@ -419,12 +419,19 @@ def home(request: Request):
 			return RedirectResponse(url="/ui/staff", status_code=302)
 		else:
 			return RedirectResponse(url="/dashboard", status_code=302)
+	# Son kullanılan role'e göre login sayfasına yönlendir
+	last_role = request.session.get("last_role")
+	if last_role == "teacher":
+		return RedirectResponse(url="/login/teacher", status_code=302)
+	elif last_role == "staff":
+		return RedirectResponse(url="/login/staff", status_code=302)
+	
 	# index.html'i göster
 	try:
 		with open("index.html", "r", encoding="utf-8") as f:
 			return HTMLResponse(content=f.read())
 	except FileNotFoundError:
-		# index.html yoksa login sayfasına yönlendir
+		# index.html yoksa admin login sayfasına yönlendir
 		return RedirectResponse(url="/login/admin", status_code=302)
 
 
@@ -461,7 +468,13 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
 
 @app.get("/logout")
 def logout(request: Request):
+	# Kullanıcının hangi panelden çıkış yaptığını kaydet
+	user = request.session.get("user")
+	last_role = user.get("role") if user else None
 	request.session.clear()
+	# Son kullanılan role'ü kaydet (login sayfasına yönlendirme için)
+	if last_role:
+		request.session["last_role"] = last_role
 	return RedirectResponse(url="/", status_code=302)
 
 
@@ -1867,8 +1880,9 @@ def login_admin(request: Request, username: str = Form(...), password: str = For
             "role": "admin",
             "teacher_id": getattr(user, 'teacher_id', None),
         }
-        # Hata mesajını temizle
+        # Hata mesajını ve last_role'ü temizle
         request.session.pop("login_error", None)
+        request.session.pop("last_role", None)
         return RedirectResponse(url="/dashboard", status_code=302)
     
     except Exception as e:
@@ -1940,6 +1954,8 @@ def login_teacher(request: Request, username: str = Form(...), password: str = F
         "role": "teacher",
         "teacher_id": getattr(user, 'teacher_id', None),
     }
+    # last_role'ü temizle
+    request.session.pop("last_role", None)
     return RedirectResponse(url="/ui/teacher", status_code=302)
 
 # Personel için giriş (örnek rol adı: staff)

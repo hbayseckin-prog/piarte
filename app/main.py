@@ -2023,7 +2023,7 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
     return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)
-def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, db: Session = Depends(get_db)):
+def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, lesson_date: str | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
@@ -2036,11 +2036,19 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         else:
             return RedirectResponse(url="/login/staff", status_code=302)
     try:
+        from datetime import date, datetime
+        # Tarih seçimi: eğer seçilmediyse bugünü kullan
+        selected_date = date.today()
+        if lesson_date:
+            try:
+                selected_date = datetime.strptime(lesson_date, "%Y-%m-%d").date()
+            except ValueError:
+                selected_date = date.today()
+        
         # Tüm öğretmenleri getir
         teachers = crud.list_teachers(db)
         
-        # Her öğretmen için haftalık ders programını hazırla
-        from datetime import datetime
+        # Her öğretmen için seçilen tarihe göre ders programını hazırla
         weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
         teachers_schedules = []
         
@@ -2049,12 +2057,14 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             formatted_lessons = []
             for entry in lessons_with_students:
                 lesson = entry["lesson"]
-                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-                formatted_lessons.append({
-                    "weekday": weekday,
-                    "lesson": lesson,
-                    "students": entry["students"],
-                })
+                # Sadece seçilen tarihe ait dersleri göster
+                if lesson.lesson_date == selected_date:
+                    weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                    formatted_lessons.append({
+                        "weekday": weekday,
+                        "lesson": lesson,
+                        "students": entry["students"],
+                    })
             teachers_schedules.append({
                 "teacher": teacher,
                 "lessons": formatted_lessons
@@ -2086,7 +2096,9 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             # Seçilen öğrencinin bilgilerini ve derslerini getir
             selected_student = crud.get_student(db, student_id)
             if selected_student:
-                student_lessons = crud.list_lessons_by_student(db, student_id)
+                student_lessons_all = crud.list_lessons_by_student(db, student_id)
+                # Sadece seçilen tarihe ait dersleri filtrele
+                student_lessons = [l for l in student_lessons_all if l.lesson_date == selected_date]
                 # Dersleri haftalık formata çevir
                 from datetime import time as time_type
                 for lesson in student_lessons:
@@ -2106,7 +2118,6 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         # Ödeme durumu tablosu için tüm öğrencileri getir
         all_students = crud.list_students(db)
         payment_status_list = []
-        from datetime import date
         today = date.today()
         
         for student in all_students:
@@ -2164,7 +2175,9 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             "selected_student": selected_student,
             "student_lessons": student_lessons_formatted,
             "payment_status_list": payment_status_list,
-            "today": today
+            "today": today,
+            "selected_date": selected_date,
+            "lesson_date": lesson_date or selected_date.strftime("%Y-%m-%d")
         })
     except Exception as e:
         import logging

@@ -301,21 +301,48 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 # Attendance
 def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 	"""
-	Bir ders-öğrenci çifti için yoklama kaydını oluşturur veya günceller (upsert).
-	Aynı (lesson_id, student_id) için birden fazla kayıt oluşmasını engeller.
+	Bir ders-öğrenci çifti için yoklama kaydını oluşturur.
+	Her yoklama girişi ayrı bir kayıt olarak oluşturulur (aynı ders için farklı tarihlerde yoklama alınabilir).
+	Eğer aynı lesson_id, student_id ve marked_at (tarih) için kayıt varsa, o kayıt güncellenir.
 	"""
 	try:
 		import logging
-		# Önce mevcut bir kayıt var mı kontrol et
-		existing = db.scalars(
-			select(models.Attendance).where(
-				models.Attendance.lesson_id == data.lesson_id,
-				models.Attendance.student_id == data.student_id,
-			)
-		).first()
+		from datetime import datetime, date
+		
+		# marked_at tarihini al (sadece tarih kısmı, saat kısmı olmadan)
+		marked_date = None
+		if data.marked_at:
+			if isinstance(data.marked_at, datetime):
+				marked_date = data.marked_at.date()
+			elif isinstance(data.marked_at, date):
+				marked_date = data.marked_at
+		
+		# Aynı lesson_id, student_id ve tarih için mevcut kayıt var mı kontrol et
+		existing = None
+		if marked_date:
+			# marked_at'in tarih kısmına göre kontrol et
+			all_attendances = db.scalars(
+				select(models.Attendance).where(
+					models.Attendance.lesson_id == data.lesson_id,
+					models.Attendance.student_id == data.student_id,
+				)
+			).all()
+			for att in all_attendances:
+				if att.marked_at and att.marked_at.date() == marked_date:
+					existing = att
+					break
+		else:
+			# marked_at yoksa, sadece lesson_id ve student_id'ye göre kontrol et
+			existing = db.scalars(
+				select(models.Attendance).where(
+					models.Attendance.lesson_id == data.lesson_id,
+					models.Attendance.student_id == data.student_id,
+				)
+			).first()
+		
 		if existing:
-			# Güncelle
-			logging.warning(f"MARK_ATTENDANCE: Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, eski_status={existing.status}, yeni_status={data.status}")
+			# Aynı tarih için kayıt varsa güncelle
+			logging.warning(f"MARK_ATTENDANCE: Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, tarih={marked_date}, eski_status={existing.status}, yeni_status={data.status}")
 			existing.status = data.status
 			if data.marked_at is not None:
 				existing.marked_at = data.marked_at
@@ -323,19 +350,37 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 			db.refresh(existing)
 			logging.warning(f"MARK_ATTENDANCE: Yoklama güncellendi: attendance_id={existing.id}")
 			return existing
-		# Yoksa yeni kayıt oluştur
-		logging.warning(f"MARK_ATTENDANCE: Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}")
+		
+		# Farklı tarih için yeni kayıt oluştur
+		logging.warning(f"MARK_ATTENDANCE: Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}, tarih={marked_date}")
 		attendance = models.Attendance(**data.model_dump())
 		db.add(attendance)
 		db.commit()
 		db.refresh(attendance)
-		logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}")
+		logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}, marked_at={attendance.marked_at}")
 		return attendance
 	except Exception as e:
 		# Hata durumunda rollback yap
 		db.rollback()
 		import logging
 		import traceback
+		error_str = str(e)
+		# Eğer unique constraint hatası ise, mevcut kaydı güncelle
+		if "uq_attendance_lesson_student" in error_str or "unique constraint" in error_str.lower() or "duplicate key" in error_str.lower():
+			logging.warning(f"MARK_ATTENDANCE: Unique constraint hatası, mevcut kayıt güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}")
+			existing = db.scalars(
+				select(models.Attendance).where(
+					models.Attendance.lesson_id == data.lesson_id,
+					models.Attendance.student_id == data.student_id,
+				)
+			).first()
+			if existing:
+				existing.status = data.status
+				if data.marked_at is not None:
+					existing.marked_at = data.marked_at
+				db.commit()
+				db.refresh(existing)
+				return existing
 		logging.error(f"mark_attendance hatası: {e}, lesson_id={data.lesson_id}, student_id={data.student_id}")
 		logging.error(traceback.format_exc())
 		raise

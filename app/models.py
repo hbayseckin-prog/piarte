@@ -96,11 +96,8 @@ class Lesson(Base):
 
 class Attendance(Base):
 	__tablename__ = "attendances"
-	__table_args__ = (
-		# Attendance tablosundaki constraint adı, LessonStudent tablosundakinden
-		# farklı olmalı (PostgreSQL'de constraint isimleri şema genelinde benzersizdir)
-		UniqueConstraint("lesson_id", "student_id", name="uq_attendance_lesson_student"),
-	)
+	# Unique constraint kaldırıldı - aynı ders için farklı tarihlerde yoklama alınabilir
+	# Her yoklama girişi ayrı bir kayıt olarak oluşturulur
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)

@@ -127,8 +127,26 @@ def debug_attendances(teacher_id: int, student_id: int, db: Session = Depends(ge
 
 # Veritabanı kurulum endpoint'i
 @app.get("/setup-database", response_class=HTMLResponse)
-def setup_database_endpoint(request: Request):
+def setup_database_endpoint(request: Request, db: Session = Depends(get_db)):
 	"""Veritabanını oluştur ve seed data ekle - HTML response ile"""
+	# Önce unique constraint'i kaldır (eğer varsa)
+	messages = []
+	try:
+		from sqlalchemy import text
+		# PostgreSQL için constraint'i kaldır
+		db.execute(text("ALTER TABLE attendances DROP CONSTRAINT IF EXISTS uq_attendance_lesson_student"))
+		db.commit()
+		messages.append("✅ Unique constraint kaldırıldı (eğer varsa)")
+	except Exception as e:
+		# SQLite için farklı syntax deneyelim
+		try:
+			from sqlalchemy import text
+			db.execute(text("DROP INDEX IF EXISTS uq_attendance_lesson_student"))
+			db.commit()
+			messages.append("✅ Unique constraint kaldırıldı (eğer varsa)")
+		except Exception as e2:
+			messages.append(f"⚠️ Constraint kaldırma hatası (normal olabilir): {e2}")
+	
 	try:
 		reset_performed = False
 		try:

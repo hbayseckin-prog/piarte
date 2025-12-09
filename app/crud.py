@@ -305,6 +305,7 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 	Aynı (lesson_id, student_id) için birden fazla kayıt oluşmasını engeller.
 	"""
 	try:
+		import logging
 		# Önce mevcut bir kayıt var mı kontrol et
 		existing = db.scalars(
 			select(models.Attendance).where(
@@ -314,6 +315,7 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		).first()
 		if existing:
 			# Güncelle
+			logging.info(f"Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, eski_status={existing.status}, yeni_status={data.status}")
 			existing.status = data.status
 			if data.marked_at is not None:
 				existing.marked_at = data.marked_at
@@ -321,16 +323,20 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 			db.refresh(existing)
 			return existing
 		# Yoksa yeni kayıt oluştur
+		logging.info(f"Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}")
 		attendance = models.Attendance(**data.model_dump())
 		db.add(attendance)
 		db.commit()
 		db.refresh(attendance)
+		logging.info(f"Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}")
 		return attendance
 	except Exception as e:
 		# Hata durumunda rollback yap
 		db.rollback()
 		import logging
+		import traceback
 		logging.error(f"mark_attendance hatası: {e}, lesson_id={data.lesson_id}, student_id={data.student_id}")
+		logging.error(traceback.format_exc())
 		raise
 
 
@@ -422,6 +428,10 @@ def get_attendance_report_by_teacher(
 		q = q.filter(models.Lesson.lesson_date <= end_date)
 
 	rows = q.all()
+	
+	# Debug: Toplam satır sayısını logla
+	import logging
+	logging.info(f"Puantaj raporu: Toplam {len(rows)} yoklama kaydı bulundu")
 
 	report_map: dict[tuple[int, int], dict] = {}
 
@@ -440,6 +450,7 @@ def get_attendance_report_by_teacher(
 				"late": 0,
 				"excused_absent": 0,
 			}
+		# Status'u kontrol et ve say
 		if r.status == "PRESENT":
 			report_map[key]["present"] += 1
 		elif r.status == "UNEXCUSED_ABSENT":
@@ -448,6 +459,9 @@ def get_attendance_report_by_teacher(
 			report_map[key]["late"] += 1
 		elif r.status == "EXCUSED_ABSENT":
 			report_map[key]["excused_absent"] += 1
+		else:
+			# Bilinmeyen status için log
+			logging.warning(f"Bilinmeyen yoklama durumu: {r.status} (teacher_id={r.teacher_id}, student_id={r.student_id})")
 
 	# Önce öğretmen-öğrenci bazlı liste
 	report_list = list(report_map.values())

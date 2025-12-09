@@ -304,27 +304,34 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 	Bir ders-öğrenci çifti için yoklama kaydını oluşturur veya günceller (upsert).
 	Aynı (lesson_id, student_id) için birden fazla kayıt oluşmasını engeller.
 	"""
-	# Önce mevcut bir kayıt var mı kontrol et
-	existing = db.scalars(
-		select(models.Attendance).where(
-			models.Attendance.lesson_id == data.lesson_id,
-			models.Attendance.student_id == data.student_id,
-		)
-	).first()
-	if existing:
-		# Güncelle
-		existing.status = data.status
-		if data.marked_at is not None:
-			existing.marked_at = data.marked_at
+	try:
+		# Önce mevcut bir kayıt var mı kontrol et
+		existing = db.scalars(
+			select(models.Attendance).where(
+				models.Attendance.lesson_id == data.lesson_id,
+				models.Attendance.student_id == data.student_id,
+			)
+		).first()
+		if existing:
+			# Güncelle
+			existing.status = data.status
+			if data.marked_at is not None:
+				existing.marked_at = data.marked_at
+			db.commit()
+			db.refresh(existing)
+			return existing
+		# Yoksa yeni kayıt oluştur
+		attendance = models.Attendance(**data.model_dump())
+		db.add(attendance)
 		db.commit()
-		db.refresh(existing)
-		return existing
-	# Yoksa yeni kayıt oluştur
-	attendance = models.Attendance(**data.model_dump())
-	db.add(attendance)
-	db.commit()
-	db.refresh(attendance)
-	return attendance
+		db.refresh(attendance)
+		return attendance
+	except Exception as e:
+		# Hata durumunda rollback yap
+		db.rollback()
+		import logging
+		logging.error(f"mark_attendance hatası: {e}, lesson_id={data.lesson_id}, student_id={data.student_id}")
+		raise
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):

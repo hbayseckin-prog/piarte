@@ -990,6 +990,13 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
         })
     
     default_attendance_date = lesson.lesson_date or date_cls.today()
+    
+    # Session'daki mesajları al ve temizle (bir kez gösterildikten sonra)
+    attendance_error = request.session.pop("attendance_error", None)
+    attendance_success = request.session.pop("attendance_success", None)
+    attendance_errors = request.session.pop("attendance_errors", None)
+    attendance_error_messages = request.session.pop("attendance_error_messages", None)
+    
     return templates.TemplateResponse(
         "attendance_new.html",
         {
@@ -997,6 +1004,9 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "lesson": lesson,
             "students_with_status": students_with_payment_status,
             "attendance_date": default_attendance_date.isoformat(),
+            "attendance_error": attendance_error,
+            "attendance_success": attendance_success,
+            "attendance_error_messages": attendance_error_messages,
         },
     )
 
@@ -1092,24 +1102,45 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         pass
     success_count = 0
     error_count = 0
-    for item in to_create:
-        try:
-            crud.mark_attendance(db, item)
-            success_count += 1
-        except Exception as e:
-            error_count += 1
-            # Hata loglama (geliştirme için)
-            import logging
-            logging.error(f"Yoklama kayıt hatası: {e}")
-            continue
+    error_messages = []
     
-    # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
-    if success_count > 0:
-        request.session["attendance_success"] = success_count
-    if error_count > 0:
-        request.session["attendance_errors"] = error_count
-    
-    return RedirectResponse(url="/dashboard", status_code=302)
+    try:
+        for item in to_create:
+            try:
+                crud.mark_attendance(db, item)
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+                # Hata loglama (geliştirme için)
+                import logging
+                import traceback
+                error_msg = f"Öğrenci ID {item.student_id}: {str(e)}"
+                logging.error(f"Yoklama kayıt hatası: {error_msg}")
+                logging.error(traceback.format_exc())
+                error_messages.append(error_msg)
+                continue
+        
+        # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
+        if success_count > 0:
+            request.session["attendance_success"] = success_count
+        if error_count > 0:
+            request.session["attendance_errors"] = error_count
+            request.session["attendance_error_messages"] = error_messages[:5]  # İlk 5 hatayı kaydet
+        
+        # Eğer hiç kayıt yapılamadıysa hata mesajı göster
+        if success_count == 0 and error_count > 0:
+            request.session["attendance_error"] = f"Yoklama kaydedilemedi. {error_count} hata oluştu."
+            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
+        
+        return RedirectResponse(url="/dashboard", status_code=302)
+    except Exception as e:
+        # Genel hata yakalama
+        import logging
+        import traceback
+        logging.error(f"Yoklama endpoint genel hatası: {e}")
+        logging.error(traceback.format_exc())
+        request.session["attendance_error"] = f"Yoklama kaydedilirken bir hata oluştu: {str(e)}"
+        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
 
 
 # UI: Enrollment - create

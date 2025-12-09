@@ -364,23 +364,39 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		db.rollback()
 		import logging
 		import traceback
+		from sqlalchemy import text
 		error_str = str(e)
-		# Eğer unique constraint hatası ise, mevcut kaydı güncelle
+		# Eğer unique constraint hatası ise, constraint'i kaldırmayı dene
 		if "uq_attendance_lesson_student" in error_str or "unique constraint" in error_str.lower() or "duplicate key" in error_str.lower():
-			logging.warning(f"MARK_ATTENDANCE: Unique constraint hatası, mevcut kayıt güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}")
-			existing = db.scalars(
-				select(models.Attendance).where(
-					models.Attendance.lesson_id == data.lesson_id,
-					models.Attendance.student_id == data.student_id,
-				)
-			).first()
-			if existing:
-				existing.status = data.status
-				if data.marked_at is not None:
-					existing.marked_at = data.marked_at
+			logging.warning(f"MARK_ATTENDANCE: Unique constraint hatası tespit edildi, constraint kaldırılmaya çalışılıyor...")
+			try:
+				# PostgreSQL için constraint'i kaldır
+				db.execute(text("ALTER TABLE attendances DROP CONSTRAINT IF EXISTS uq_attendance_lesson_student"))
 				db.commit()
-				db.refresh(existing)
-				return existing
+				logging.warning("MARK_ATTENDANCE: Unique constraint başarıyla kaldırıldı, yoklama kaydı tekrar oluşturuluyor...")
+				# Tekrar dene
+				attendance = models.Attendance(**data.model_dump())
+				db.add(attendance)
+				db.commit()
+				db.refresh(attendance)
+				logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}, marked_at={attendance.marked_at}")
+				return attendance
+			except Exception as e2:
+				logging.warning(f"MARK_ATTENDANCE: Constraint kaldırılamadı, mevcut kayıt güncelleniyor: {e2}")
+				# Constraint kaldırılamazsa, mevcut kaydı güncelle
+				existing = db.scalars(
+					select(models.Attendance).where(
+						models.Attendance.lesson_id == data.lesson_id,
+						models.Attendance.student_id == data.student_id,
+					)
+				).first()
+				if existing:
+					existing.status = data.status
+					if data.marked_at is not None:
+						existing.marked_at = data.marked_at
+					db.commit()
+					db.refresh(existing)
+					return existing
 		logging.error(f"mark_attendance hatası: {e}, lesson_id={data.lesson_id}, student_id={data.student_id}")
 		logging.error(traceback.format_exc())
 		raise

@@ -315,20 +315,21 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		).first()
 		if existing:
 			# Güncelle
-			logging.info(f"Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, eski_status={existing.status}, yeni_status={data.status}")
+			logging.warning(f"MARK_ATTENDANCE: Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, eski_status={existing.status}, yeni_status={data.status}")
 			existing.status = data.status
 			if data.marked_at is not None:
 				existing.marked_at = data.marked_at
 			db.commit()
 			db.refresh(existing)
+			logging.warning(f"MARK_ATTENDANCE: Yoklama güncellendi: attendance_id={existing.id}")
 			return existing
 		# Yoksa yeni kayıt oluştur
-		logging.info(f"Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}")
+		logging.warning(f"MARK_ATTENDANCE: Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}")
 		attendance = models.Attendance(**data.model_dump())
 		db.add(attendance)
 		db.commit()
 		db.refresh(attendance)
-		logging.info(f"Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}")
+		logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}")
 		return attendance
 	except Exception as e:
 		# Hata durumunda rollback yap
@@ -431,7 +432,7 @@ def get_attendance_report_by_teacher(
 	
 	# Debug: Toplam satır sayısını logla
 	import logging
-	logging.info(f"Puantaj raporu: Toplam {len(rows)} yoklama kaydı bulundu")
+	logging.warning(f"PUANTAJ_DEBUG: Toplam {len(rows)} yoklama kaydı bulundu")
 
 	report_map: dict[tuple[int, int], dict] = {}
 

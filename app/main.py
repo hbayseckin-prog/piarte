@@ -1162,10 +1162,14 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     error_messages = []
     
     try:
+        import logging
+        logging.warning(f"ATT_DEBUG: {len(to_create)} yoklama kaydı oluşturulacak")
         for item in to_create:
             try:
+                logging.warning(f"ATT_DEBUG: mark_attendance çağrılıyor: lesson_id={item.lesson_id}, student_id={item.student_id}, status={item.status}")
                 crud.mark_attendance(db, item)
                 success_count += 1
+                logging.warning(f"ATT_DEBUG: mark_attendance başarılı: success_count={success_count}")
             except Exception as e:
                 error_count += 1
                 # Hata loglama (geliştirme için)

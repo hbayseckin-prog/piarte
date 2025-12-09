@@ -241,6 +241,16 @@ def list_students_by_lesson(db: Session, lesson_id: int):
 	return db.scalars(stmt).all()
 
 
+def list_lessons_by_student(db: Session, student_id: int):
+	stmt = (
+		select(models.Lesson)
+		.join(models.LessonStudent, models.LessonStudent.lesson_id == models.Lesson.id)
+		.where(models.LessonStudent.student_id == student_id)
+		.order_by(models.Lesson.lesson_date.asc(), models.Lesson.start_time.asc())
+	)
+	return db.scalars(stmt).all()
+
+
 # Lessons
 def create_lesson(db: Session, data: schemas.LessonCreate):
 	lesson = models.Lesson(**data.model_dump())

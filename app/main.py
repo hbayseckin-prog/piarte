@@ -68,6 +68,63 @@ async def add_security_headers(request: Request, call_next):
 def health_check():
 	return {"status": "ok", "message": "Server is running"}
 
+# Debug endpoint - yoklama kayıtlarını kontrol et
+@app.get("/debug/attendances/{teacher_id}/{student_id}")
+def debug_attendances(teacher_id: int, student_id: int, db: Session = Depends(get_db)):
+	"""Belirli bir öğretmen-öğrenci çifti için yoklama kayıtlarını debug için gösterir"""
+	# Tüm yoklamaları getir
+	from sqlalchemy import select
+	attendances = db.scalars(
+		select(models.Attendance)
+		.join(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
+		.where(
+			models.Lesson.teacher_id == teacher_id,
+			models.Attendance.student_id == student_id
+		)
+	).all()
+	
+	result = {
+		"teacher_id": teacher_id,
+		"student_id": student_id,
+		"total_attendances": len(attendances),
+		"attendances": []
+	}
+	
+	for att in attendances:
+		lesson = db.get(models.Lesson, att.lesson_id)
+		student = db.get(models.Student, att.student_id)
+		result["attendances"].append({
+			"attendance_id": att.id,
+			"lesson_id": att.lesson_id,
+			"status": att.status,
+			"marked_at": att.marked_at.isoformat() if att.marked_at else None,
+			"lesson_date": lesson.lesson_date.isoformat() if lesson and lesson.lesson_date else None,
+			"student_name": f"{student.first_name} {student.last_name}" if student else "Unknown"
+		})
+	
+	# Puantaj raporundan sayıları al
+	from datetime import date
+	try:
+		report = crud.get_attendance_report_by_teacher(db, teacher_id=teacher_id)
+		for teacher_report in report:
+			for student_data in teacher_report["students"]:
+				if student_data["student"]["first_name"] and student_data["student"]["last_name"]:
+					# Student ID'yi kontrol et - report'ta student_id var mı?
+					student_in_db = db.get(models.Student, student_id)
+					if student_in_db and student_in_db.first_name == student_data["student"]["first_name"] and student_in_db.last_name == student_data["student"]["last_name"]:
+						result["report_counts"] = {
+							"present": student_data["present"],
+							"unexcused_absent": student_data["unexcused_absent"],
+							"late": student_data["late"],
+							"excused_absent": student_data["excused_absent"],
+							"total": student_data["total"]
+						}
+						break
+	except Exception as e:
+		result["report_error"] = str(e)
+	
+	return result
+
 # Veritabanı kurulum endpoint'i
 @app.get("/setup-database", response_class=HTMLResponse)
 def setup_database_endpoint(request: Request):

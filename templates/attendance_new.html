@@ -9,7 +9,7 @@
 		<strong>⚠️ Hata:</strong> {{ error_message }}
 	</div>
 	{% endif %}
-	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new">
+	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new" onsubmit="return validateFormBeforeSubmit(event)">
 		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
 			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>
 			<input
@@ -83,4 +83,33 @@
 		</div>
 	</form>
 </div>
+<script>
+function validateFormBeforeSubmit(event) {
+	var selects = document.querySelectorAll('select[name^="status_"]');
+	var hasValidSelection = false;
+	var formData = [];
+	
+	console.log('Form submit - checking', selects.length, 'select fields');
+	for (var i = 0; i < selects.length; i++) {
+		var value = selects[i].value;
+		var name = selects[i].name;
+		console.log('Field:', name, 'Value:', value);
+		formData.push(name + '=' + value);
+		
+		if (value && value !== '' && value !== '-') {
+			hasValidSelection = true;
+			console.log('Found valid selection:', name, '=', value);
+		}
+	}
+	
+	if (!hasValidSelection) {
+		alert('Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi).');
+		event.preventDefault();
+		return false;
+	}
+	
+	console.log('Form data:', formData.join('&'));
+	return true;
+}
+</script>
 {% endblock %}

@@ -256,7 +256,7 @@
             <option value="PRESENT" {% if filters.status == 'PRESENT' %}selected{% endif %}>Geldi</option>
             <option value="UNEXCUSED_ABSENT" {% if filters.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>Habersiz gelmedi</option>
             <option value="EXCUSED_ABSENT" {% if filters.status == 'EXCUSED_ABSENT' %}selected{% endif %}>Haberli gelmedi</option>
-            <option value="LATE" {% if filters.status == 'LATE' %}selected{% endif %}>Geç</option>
+            <option value="LATE" {% if filters.status == 'LATE' %}selected{% endif %}>Haberli gelmedi</option>
         </select>
         <select name="order_by">
             <option value="marked_at_desc" {% if filters.order_by == 'marked_at_desc' %}selected{% endif %}>Yoklama Zamanı (Yeni → Eski)</option>
@@ -303,7 +303,7 @@
                     {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                         <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
                     {% elif entry.attendance.status == 'LATE' %}
-                        <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geç</span>
+                        <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
                     {% elif entry.attendance.status == 'ABSENT' %}
                         <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
                     {% else %}
@@ -352,7 +352,7 @@
                         {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                             <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
                         {% elif entry.attendance.status == 'LATE' %}
-                            <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geç</span>
+                            <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
                         {% elif entry.attendance.status == 'ABSENT' %}
                             <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
                         {% else %}
@@ -393,7 +393,7 @@
                             <th>Öğrenci</th>
                             <th>Geldi</th>
                             <th>Habersiz Gelmedi</th>
-                            <th>Geç Geldi</th>
+                            <th>Haberli Gelmedi</th>
                             <th>Toplam Ders</th>
                         </tr>
                     </thead>
@@ -425,7 +425,7 @@
                             <div class="mobile-card-value" style="color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</div>
                         </div>
                         <div class="mobile-card-row">
-                            <div class="mobile-card-label">Geç Geldi</div>
+                            <div class="mobile-card-label">Haberli Gelmedi</div>
                             <div class="mobile-card-value" style="color:#f59e0b;font-weight:600;">{{ student_data.late }}</div>
                         </div>
                         <div class="mobile-card-row">

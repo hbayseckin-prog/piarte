@@ -1081,13 +1081,15 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             logging.error(f"Yoklama kayıt hatası: {e}")
             logging.error(traceback.format_exc())
             # Hata olsa bile devam et
+            db.rollback()
             continue
     
-    # Tüm işlemler tamamlandıktan sonra commit et (ek güvenlik için)
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
+    # Tüm işlemler başarılıysa commit et
+    if success_count > 0:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
     
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:

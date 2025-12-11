@@ -375,10 +375,25 @@
 
 {% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 <div class="card">
-    <h3 class="h2">Puantaj Tablosu</h3>
-    <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">
-        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
-    </p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+            <h3 class="h2" style="margin:0;">Puantaj Tablosu</h3>
+            <p style="color:var(--muted);margin-top:8px;margin-bottom:0;font-size:14px;">
+                Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
+            </p>
+        </div>
+        <div>
+            <a href="/dashboard/export/excel?{% if filters.teacher_id %}teacher_id={{ filters.teacher_id }}&{% endif %}{% if filters.student_id %}student_id={{ filters.student_id }}&{% endif %}{% if filters.course_id %}course_id={{ filters.course_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.start_date %}start_date={{ filters.start_date }}&{% endif %}{% if filters.end_date %}end_date={{ filters.end_date }}&{% endif %}" 
+               style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#10b981;color:#fff;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;transition:background 0.2s;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Excel'e Aktar
+            </a>
+        </div>
+    </div>
     {% if attendance_report %}
         {% for teacher_report in attendance_report %}
         <div style="margin-bottom:32px;border:1px solid var(--border);border-radius:12px;padding:16px;background:#f9fafb;">

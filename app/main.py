@@ -623,6 +623,208 @@ def dashboard(
     return templates.TemplateResponse("dashboard.html", context)
 
 
+@app.get("/dashboard/export/excel")
+def export_punctuality_excel(
+    request: Request,
+    db: Session = Depends(get_db),
+    teacher_id: str | None = None,
+    student_id: str | None = None,
+    course_id: str | None = None,
+    status: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
+    """Puantaj tablosunu Excel formatında export eder"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Yetki yok")
+    
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from datetime import datetime, date
+    from io import BytesIO
+    
+    # Filtreleri parse et
+    teacher_id_int = None
+    student_id_int = None
+    course_id_int = None
+    start_date_obj = None
+    end_date_obj = None
+    
+    if teacher_id and teacher_id.strip():
+        try:
+            teacher_id_int = int(teacher_id)
+        except (ValueError, TypeError):
+            pass
+    if student_id and student_id.strip():
+        try:
+            student_id_int = int(student_id)
+        except (ValueError, TypeError):
+            pass
+    if course_id and course_id.strip():
+        try:
+            course_id_int = int(course_id)
+        except (ValueError, TypeError):
+            pass
+    if start_date:
+        try:
+            y, m, d = map(int, start_date.split("-"))
+            start_date_obj = date(y, m, d)
+        except Exception:
+            pass
+    if end_date:
+        try:
+            y, m, d = map(int, end_date.split("-"))
+            end_date_obj = date(y, m, d)
+        except Exception:
+            pass
+    
+    # Puantaj raporunu getir
+    attendance_report = crud.get_attendance_report_by_teacher(db)
+    
+    # Filtreleri uygula
+    if teacher_id_int:
+        attendance_report = [r for r in attendance_report if r["teacher"].id == teacher_id_int]
+    
+    # Excel workbook oluştur
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Puantaj Raporu"
+    
+    # Stil tanımlamaları
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    header_fill = PatternFill(start_color="1f2937", end_color="1f2937", fill_type="solid")
+    border_style = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    center_alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Başlık satırı
+    row = 1
+    ws.merge_cells(f'A{row}:F{row}')
+    title_cell = ws[f'A{row}']
+    title_cell.value = f"Puantaj Raporu - {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    title_cell.font = Font(bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    row += 2
+    
+    # Her öğretmen için ayrı bölüm
+    for teacher_report in attendance_report:
+        # Öğretmen başlığı
+        ws.merge_cells(f'A{row}:F{row}')
+        teacher_cell = ws[f'A{row}']
+        teacher_cell.value = f"Öğretmen: {teacher_report['teacher'].first_name} {teacher_report['teacher'].last_name}"
+        teacher_cell.font = Font(bold=True, size=12, color="001F2937")
+        teacher_cell.fill = PatternFill(start_color="E5E7EB", end_color="E5E7EB", fill_type="solid")
+        teacher_cell.alignment = Alignment(horizontal='left', vertical='center')
+        row += 1
+        
+        # Öğrenci verilerini filtrele
+        students_data = teacher_report['students']
+        if student_id_int:
+            students_data = [s for s in students_data if s['student'].id == student_id_int]
+        if course_id_int:
+            # Course filtresi için lesson bilgisi gerekli, şimdilik tüm öğrencileri göster
+            pass
+        if status:
+            # Status filtresi için attendance bilgisi gerekli, şimdilik tüm öğrencileri göster
+            pass
+        
+        if not students_data:
+            ws.merge_cells(f'A{row}:F{row}')
+            no_data_cell = ws[f'A{row}']
+            no_data_cell.value = "Bu öğretmen için filtre kriterlerine uygun veri bulunmuyor."
+            no_data_cell.alignment = Alignment(horizontal='center', vertical='center')
+            row += 2
+            continue
+        
+        # Tablo başlıkları
+        headers = ["Öğrenci", "Geldi", "Haberli Gelmedi", "Telafi", "Habersiz Gelmedi", "Toplam Ders"]
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=row, column=col_idx)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = border_style
+        row += 1
+        
+        # Öğrenci verileri
+        for student_data in students_data:
+            # Öğrenci adı
+            cell = ws.cell(row=row, column=1)
+            cell.value = f"{student_data['student'].first_name} {student_data['student'].last_name}"
+            cell.border = border_style
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+            
+            # Geldi
+            cell = ws.cell(row=row, column=2)
+            cell.value = student_data['present']
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(color="0010B981", bold=True)  # RGB format
+            
+            # Haberli Gelmedi
+            cell = ws.cell(row=row, column=3)
+            cell.value = student_data['excused_absent']
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(color="00F97316", bold=True)  # RGB format
+            
+            # Telafi
+            cell = ws.cell(row=row, column=4)
+            cell.value = student_data['telafi']
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(color="008B5CF6", bold=True)  # RGB format
+            
+            # Habersiz Gelmedi
+            cell = ws.cell(row=row, column=5)
+            cell.value = student_data['unexcused_absent']
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(color="00EF4444", bold=True)  # RGB format
+            
+            # Toplam Ders
+            cell = ws.cell(row=row, column=6)
+            cell.value = student_data['total']
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(bold=True)
+            
+            row += 1
+        
+        # Öğretmen bölümü sonrası boş satır
+        row += 1
+    
+    # Sütun genişliklerini ayarla
+    ws.column_dimensions['A'].width = 30
+    ws.column_dimensions['B'].width = 12
+    ws.column_dimensions['C'].width = 18
+    ws.column_dimensions['D'].width = 12
+    ws.column_dimensions['E'].width = 20
+    ws.column_dimensions['F'].width = 15
+    
+    # Excel dosyasını memory'de oluştur
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Dosya adı
+    filename = f"puantaj_raporu_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    return Response(
+        content=output.read(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
 # UI: Quick search
 @app.get("/ui/search", response_class=HTMLResponse)
 def quick_search(request: Request, q: str, db: Session = Depends(get_db)):

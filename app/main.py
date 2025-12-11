@@ -443,7 +443,7 @@ def dashboard(
             course_id_int = None
     
     # Tarih filtrelerini parse et
-    from datetime import date
+    from datetime import date, datetime
     start_date_obj = None
     end_date_obj = None
     if start_date:
@@ -473,45 +473,83 @@ def dashboard(
         logging.error(f"Debug log error: {e}")
     # #endregion
     
-    # Tüm yoklamaları getir (filtrelerle)
-    attendances = crud.list_all_attendances(
-        db,
-        limit=200,
-        teacher_id=teacher_id_int,
-        student_id=student_id_int,
-        course_id=course_id_int,
-        status=status,
-        start_date=start_date_obj,
-        end_date=end_date_obj,
-        order_by=order_by
-    )
+    # DIRECT QUERY: list_all_attendances fonksiyonunu bypass et, direkt sorgu kullan
+    # Bu, sorunun kaynağını bulmak için geçici bir çözüm
+    import logging
+    logging.warning("Dashboard: list_all_attendances bypass ediliyor, direkt sorgu kullanılıyor!")
+    
+    # Direkt sorgu ile tüm yoklamaları al
+    if 'all_attendances_direct' not in locals():
+        all_attendances_direct = db.scalars(select(models.Attendance)).all()
+    
+    # Filtreleri manuel uygula
+    attendances = list(all_attendances_direct)
+    
+    # Teacher filter
+    if teacher_id_int:
+        filtered = []
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.teacher_id == teacher_id_int:
+                filtered.append(att)
+        attendances = filtered
+    
+    # Student filter
+    if student_id_int:
+        attendances = [a for a in attendances if a.student_id == student_id_int]
+    
+    # Status filter
+    if status:
+        attendances = [a for a in attendances if a.status.upper() == status.upper()]
+    
+    # Course filter
+    if course_id_int:
+        filtered = []
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.course_id == course_id_int:
+                filtered.append(att)
+        attendances = filtered
+    
+    # Date filters
+    if start_date_obj:
+        filtered = []
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.lesson_date and lesson.lesson_date >= start_date_obj:
+                filtered.append(att)
+        attendances = filtered
+    
+    if end_date_obj:
+        filtered = []
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.lesson_date and lesson.lesson_date <= end_date_obj:
+                filtered.append(att)
+        attendances = filtered
+    
+    # Sort
+    if order_by == "marked_at_desc":
+        attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
+    elif order_by == "marked_at_asc":
+        attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
+    elif order_by == "lesson_date_desc":
+        attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=True)
+    elif order_by == "lesson_date_asc":
+        attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=False)
+    
+    # Limit
+    attendances = attendances[:200]
     
     # #region agent log
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        # Compare direct query with list_all_attendances result
-        direct_count = len(all_attendances_direct) if 'all_attendances_direct' in locals() else 0
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_attendances", "timestamp": int(time.time() * 1000), "location": "main.py:489", "message": "Dashboard attendances fetched via list_all_attendances", "data": {"direct_count": direct_count, "list_all_count": len(attendances), "attendance_ids": [a.id for a in attendances], "direct_ids": [a.id for a in all_attendances_direct] if 'all_attendances_direct' in locals() else [], "filters": {"teacher_id": teacher_id_int, "student_id": student_id_int, "course_id": course_id_int, "status": status}}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_direct", "timestamp": int(time.time() * 1000), "location": "main.py:476", "message": "Dashboard using DIRECT query (bypassing list_all_attendances)", "data": {"total_in_db": len(all_attendances_direct), "after_filters": len(attendances), "attendance_ids": [a.id for a in attendances], "filters": {"teacher_id": teacher_id_int, "student_id": student_id_int, "course_id": course_id_int, "status": status}}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
     except Exception as e:
         import logging
         logging.error(f"Debug log error: {e}")
     # #endregion
-    
-    # FALLBACK: Eğer list_all_attendances boş döndürdüyse ama direkt sorgu doluysa, direkt sorguyu kullan
-    if len(attendances) == 0 and 'all_attendances_direct' in locals() and len(all_attendances_direct) > 0:
-        import logging
-        logging.warning(f"list_all_attendances boş döndürdü ama direkt sorguda {len(all_attendances_direct)} yoklama var! Fallback kullanılıyor.")
-        # Filtreleri manuel uygula
-        attendances = all_attendances_direct
-        if teacher_id_int:
-            attendances = [a for a in attendances if db.get(models.Lesson, a.lesson_id) and db.get(models.Lesson, a.lesson_id).teacher_id == teacher_id_int]
-        if student_id_int:
-            attendances = [a for a in attendances if a.student_id == student_id_int]
-        if status:
-            attendances = [a for a in attendances if a.status.upper() == status.upper()]
-        # Limit uygula
-        attendances = attendances[:200]
     
     # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
     # ÖNEMLİ: Tüm yoklamaları göster, lesson/student yoksa bile

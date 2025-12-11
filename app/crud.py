@@ -369,6 +369,31 @@ def list_payments_by_student(db: Session, student_id: int):
 	return db.scalars(stmt).all()
 
 
+def check_student_payment_status(db: Session, student_id: int):
+	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
+	from datetime import date
+	today = date.today()
+	
+	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
+	total_lessons = db.scalars(
+		select(func.count(models.Attendance.id))
+		.where(
+			models.Attendance.student_id == student_id,
+			models.Attendance.status.in_(["PRESENT", "LATE"])
+		)
+	).first() or 0
+	
+	# Öğrencinin ödemelerini getir
+	payments = list_payments_by_student(db, student_id)
+	total_paid_sets = len(payments)
+	
+	# Beklenen ödeme seti hesapla: (toplam_ders // 4) + 1
+	expected_paid_sets = (total_lessons // 4) + 1
+	
+	# Ödeme yetersizse True döndür
+	return total_paid_sets < expected_paid_sets
+
+
 # Invoices
 def create_invoice(db: Session, data: schemas.InvoiceCreate):
     invoice = models.Invoice(**data.model_dump())

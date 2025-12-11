@@ -310,6 +310,8 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 	
 	if existing:
 		# Mevcut yoklamayı güncelle
+		# ÖNEMLİ: Status değerini doğrudan data.status'tan al
+		old_status = existing.status
 		existing.status = data.status
 		# marked_at varsa güncelle
 		if hasattr(data, 'marked_at') and data.marked_at is not None:
@@ -317,6 +319,10 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 		# note varsa güncelle
 		if hasattr(data, 'note') and data.note is not None:
 			existing.note = data.note
+		# Debug: Status değişikliğini logla
+		if old_status != data.status:
+			import logging
+			logging.info(f"Yoklama güncellendi: Öğrenci {data.student_id}, Ders {data.lesson_id}, Eski: {old_status}, Yeni: {data.status}")
 		if commit:
 			db.commit()
 			db.refresh(existing)

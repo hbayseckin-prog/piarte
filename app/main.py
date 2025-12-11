@@ -1051,13 +1051,20 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
         status = (value or "").strip().upper()
+        # Boş değerleri atla
+        if not status:
+            continue
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
         # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
         if status == "LATE":
             status = "TELAFI"
+        # Geçerli status değerlerini kontrol et
         if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}:
+            # Geçersiz status değerini logla
+            import logging
+            logging.warning(f"Geçersiz yoklama durumu: '{status}' (öğrenci {sid}, ham değer: '{value}')")
             continue
         to_create.append(
             schemas.AttendanceCreate(
@@ -1071,14 +1078,24 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     error_count = 0
     errors = []
     
+    # Debug: Gönderilen yoklama verilerini logla
+    import logging
+    logging.info(f"Yoklama kaydediliyor: {len(to_create)} kayıt, Ders ID: {lesson_id}")
+    for item in to_create:
+        logging.info(f"  - Öğrenci {item.student_id}: {item.status}")
+    
     # Tüm yoklamaları commit olmadan ekle
     # ÖNEMLİ: Hata durumunda rollback yapmıyoruz, sadece o kaydı atlıyoruz
     # Böylece önceki başarılı kayıtlar korunur
     for item in to_create:
         try:
+            # Debug: Kaydedilecek değeri logla
+            logging.info(f"Yoklama kaydediliyor: Öğrenci {item.student_id}, Durum: {item.status}, Ders: {item.lesson_id}")
             result = crud.mark_attendance(db, item, commit=False)
             if result:
                 success_count += 1
+                # Debug: Başarılı kayıt
+                logging.info(f"Yoklama başarıyla kaydedildi: Öğrenci {item.student_id}, Durum: {result.status}")
             else:
                 error_count += 1
                 errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
@@ -1086,7 +1103,6 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             error_count += 1
             errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
             # Hata loglama
-            import logging
             import traceback
             logging.error(f"Yoklama kayıt hatası: {e}")
             logging.error(traceback.format_exc())

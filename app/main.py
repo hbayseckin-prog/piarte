@@ -379,8 +379,21 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
 
 @app.get("/logout")
 def logout(request: Request):
+	# Kullanıcının rolünü al (session temizlenmeden önce)
+	user = request.session.get("user")
+	role = user.get("role") if user else None
+	
+	# Session'ı temizle
 	request.session.clear()
-	return RedirectResponse(url="/", status_code=302)
+	
+	# Rolüne göre ilgili giriş sayfasına yönlendir
+	if role == "teacher":
+		return RedirectResponse(url="/login/teacher", status_code=302)
+	elif role == "staff":
+		return RedirectResponse(url="/login/staff", status_code=302)
+	else:
+		# admin veya diğer durumlar için admin giriş sayfasına yönlendir
+		return RedirectResponse(url="/login/admin", status_code=302)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

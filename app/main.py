@@ -460,30 +460,29 @@ def dashboard(
             pass
     
     # #region agent log - Direct DB query before list_all_attendances
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        # Direct query to check all attendances in DB
-        all_attendances_direct = db.scalars(select(models.Attendance)).all()
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_direct_query", "timestamp": int(time.time() * 1000), "location": "main.py:462", "message": "Direct DB query - all attendances", "data": {"total_count": len(all_attendances_direct), "attendance_ids": [a.id for a in all_attendances_direct], "lesson_ids": list(set([a.lesson_id for a in all_attendances_direct])), "student_ids": list(set([a.student_id for a in all_attendances_direct]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
+    import logging
+    # Direct query to check all attendances in DB
+    all_attendances_direct = db.scalars(select(models.Attendance)).all()
+    logging.warning(f"🔍 DASHBOARD DEBUG: Veritabanında toplam {len(all_attendances_direct)} yoklama kaydı var")
+    if len(all_attendances_direct) > 0:
+        logging.warning(f"🔍 DASHBOARD DEBUG: İlk 5 yoklama ID: {[a.id for a in all_attendances_direct[:5]]}")
+        logging.warning(f"🔍 DASHBOARD DEBUG: Lesson ID'ler: {list(set([a.lesson_id for a in all_attendances_direct[:10]]))}")
+        logging.warning(f"🔍 DASHBOARD DEBUG: Student ID'ler: {list(set([a.student_id for a in all_attendances_direct[:10]]))}")
     # #endregion
     
     # DIRECT QUERY: list_all_attendances fonksiyonunu bypass et, direkt sorgu kullan
     # Bu, sorunun kaynağını bulmak için geçici bir çözüm
     import logging
-    logging.warning("Dashboard: list_all_attendances bypass ediliyor, direkt sorgu kullanılıyor!")
+    logging.warning("🔍 Dashboard: list_all_attendances bypass ediliyor, direkt sorgu kullanılıyor!")
     
     # Direkt sorgu ile tüm yoklamaları al
     if 'all_attendances_direct' not in locals():
         all_attendances_direct = db.scalars(select(models.Attendance)).all()
+        logging.warning(f"🔍 Dashboard: Direkt sorgu sonucu: {len(all_attendances_direct)} yoklama")
     
     # Filtreleri manuel uygula
     attendances = list(all_attendances_direct)
+    logging.warning(f"🔍 Dashboard: Filtre öncesi: {len(attendances)} yoklama")
     
     # Teacher filter
     if teacher_id_int:
@@ -540,16 +539,9 @@ def dashboard(
     
     # Limit
     attendances = attendances[:200]
-    
-    # #region agent log
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_direct", "timestamp": int(time.time() * 1000), "location": "main.py:476", "message": "Dashboard using DIRECT query (bypassing list_all_attendances)", "data": {"total_in_db": len(all_attendances_direct), "after_filters": len(attendances), "attendance_ids": [a.id for a in attendances], "filters": {"teacher_id": teacher_id_int, "student_id": student_id_int, "course_id": course_id_int, "status": status}}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
+    logging.warning(f"🔍 Dashboard: Filtre sonrası: {len(attendances)} yoklama (limit: 200)")
+    if len(attendances) > 0:
+        logging.warning(f"🔍 Dashboard: İlk 5 yoklama ID: {[a.id for a in attendances[:5]]}")
     
     # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
     # ÖNEMLİ: Tüm yoklamaları göster, lesson/student yoksa bile
@@ -561,10 +553,10 @@ def dashboard(
         # Lesson veya student yoksa bile yoklamayı göster (sadece uyarı ver)
         if not lesson:
             import logging
-            logging.warning(f"Yoklama {att.id} için lesson {att.lesson_id} bulunamadı!")
+            logging.warning(f"⚠️ Yoklama {att.id} için lesson {att.lesson_id} bulunamadı!")
         if not student:
             import logging
-            logging.warning(f"Yoklama {att.id} için student {att.student_id} bulunamadı!")
+            logging.warning(f"⚠️ Yoklama {att.id} için student {att.student_id} bulunamadı!")
         
         teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
         course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
@@ -577,6 +569,9 @@ def dashboard(
         })
         if not lesson or not student:
             orphaned_count += 1
+    
+    import logging
+    logging.warning(f"🔍 Dashboard: attendances_with_details hazırlandı: {len(attendances_with_details)} kayıt, {orphaned_count} orphaned")
     
     # #region agent log
     import json, os, time
@@ -1153,6 +1148,10 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         lesson_students = crud.list_students_by_lesson(db, lesson_id)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
+    import logging
+    logging.warning(f"🔍 FORM DEBUG: Form alındı, toplam {len(form)} field var")
+    logging.warning(f"🔍 FORM DEBUG: Form keys: {list(form.keys())}")
+    
     attendance_date_raw = form.get("attendance_date")
     marked_at_dt = None
     if attendance_date_raw:
@@ -1166,17 +1165,21 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = datetime.combine(chosen_date, base_time)
         except Exception:
             marked_at_dt = None
+    
     # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI
     # ÖNEMLİ: Her öğrenci için ayrı ayrı status değeri alınmalı
     to_create = []
-    import logging
     
     # Önce tüm form değerlerini logla
-    logging.info(f"=== FORM VERİLERİ ===")
-    logging.info(f"Ders ID: {lesson_id}")
+    logging.warning(f"🔍 FORM DEBUG: === FORM VERİLERİ ===")
+    logging.warning(f"🔍 FORM DEBUG: Ders ID: {lesson_id}")
+    logging.warning(f"🔍 FORM DEBUG: Allowed student IDs: {allowed_student_ids}")
+    status_fields = []
     for key, value in form.items():
         if key.startswith("status_"):
-            logging.info(f"  {key} = '{value}'")
+            status_fields.append(f"{key}={value}")
+            logging.warning(f"🔍 FORM DEBUG:   {key} = '{value}'")
+    logging.warning(f"🔍 FORM DEBUG: Toplam {len(status_fields)} status field bulundu: {status_fields}")
     
     # Her öğrenci için status değerini al
     for key, value in form.items():
@@ -1188,7 +1191,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             logging.warning(f"Geçersiz status key: {key}")
             continue
         if allowed_student_ids is not None and sid not in allowed_student_ids:
-            logging.warning(f"Öğrenci {sid} bu derse atanmamış, atlanıyor")
+            logging.warning(f"🔍 FORM DEBUG: Öğrenci {sid} bu derse atanmamış (allowed: {allowed_student_ids}), atlanıyor")
             continue
         
         # Form'dan gelen değeri al - DEĞİŞTİRME, OLDUĞU GİBİ KULLAN
@@ -1196,7 +1199,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         
         # Boş değerleri atla
         if not status_raw:
-            logging.info(f"Öğrenci {sid}: Boş değer, atlanıyor")
+            logging.warning(f"🔍 FORM DEBUG: Öğrenci {sid}: Boş değer, atlanıyor")
             continue
         
         # Status değerini büyük harfe çevir
@@ -1223,7 +1226,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             "TELAFI": "Telafi",
             "UNEXCUSED_ABSENT": "Habersiz Gelmedi"
         }
-        logging.info(f"✅ Öğrenci {sid}: {status} ({status_map.get(status, 'Bilinmeyen')})")
+        import logging
+        logging.warning(f"✅ YOKLAMA KAYDI: Öğrenci {sid}, Ders {lesson_id}, Durum: {status} ({status_map.get(status, 'Bilinmeyen')})")
         
         to_create.append(
             schemas.AttendanceCreate(

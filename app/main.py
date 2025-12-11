@@ -1644,9 +1644,6 @@ def login_admin_form(request: Request):
         button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
         button:hover {{ background: #1f2937; }}
         .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
-        .setup-link {{ margin-top: 16px; padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; text-align: center; }}
-        .setup-link a {{ color: #0ea5e9; text-decoration: none; font-weight: 500; }}
-        .setup-link a:hover {{ text-decoration: underline; }}
     </style>
 </head>
 <body>
@@ -1661,9 +1658,6 @@ def login_admin_form(request: Request):
             <button type="submit">Giriş Yap</button>
         </form>
         <p class="info">Sadece yönetici girişi içindir.</p>
-        <div class="setup-link">
-            <a href="/setup-database">🔧 Veritabanını Başlat (İlk Kurulum)</a>
-        </div>
     </div>
 </body>
 </html>"""

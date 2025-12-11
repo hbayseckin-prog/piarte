@@ -1040,70 +1040,69 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         except Exception:
             marked_at_dt = None
     # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI
+    # ÖNEMLİ: Her öğrenci için ayrı ayrı status değeri alınmalı
     to_create = []
+    import logging
+    
+    # Önce tüm form değerlerini logla
+    logging.info(f"=== FORM VERİLERİ ===")
+    logging.info(f"Ders ID: {lesson_id}")
+    for key, value in form.items():
+        if key.startswith("status_"):
+            logging.info(f"  {key} = '{value}'")
+    
+    # Her öğrenci için status değerini al
     for key, value in form.items():
         if not key.startswith("status_"):
             continue
         try:
             sid = int(key.split("_", 1)[1])
         except Exception:
+            logging.warning(f"Geçersiz status key: {key}")
             continue
         if allowed_student_ids is not None and sid not in allowed_student_ids:
+            logging.warning(f"Öğrenci {sid} bu derse atanmamış, atlanıyor")
             continue
-        # Form'dan gelen değeri al ve temizle
-        # ÖNEMLİ: Değeri olduğu gibi kullan, sadece boşlukları temizle
+        
+        # Form'dan gelen değeri al - DEĞİŞTİRME, OLDUĞU GİBİ KULLAN
         status_raw = (value or "").strip()
         
         # Boş değerleri atla
         if not status_raw:
+            logging.info(f"Öğrenci {sid}: Boş değer, atlanıyor")
             continue
         
-        # DEBUG: Ham değeri logla
-        import logging
-        logging.info(f"=== YOKLAMA KAYDI BAŞLADI ===")
-        logging.info(f"Form'dan gelen yoklama durumu: Öğrenci {sid}")
-        logging.info(f"  Ham değer (raw): '{value}'")
-        logging.info(f"  Temizlenmiş değer: '{status_raw}'")
-        
-        # Status değerini büyük harfe çevir (form'dan gelen değer zaten büyük harf olmalı ama emin olalım)
+        # Status değerini büyük harfe çevir
         status = status_raw.upper()
-        logging.info(f"  Büyük harf: '{status}'")
         
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-            logging.info(f"  Dönüşüm: ABSENT -> UNEXCUSED_ABSENT")
         
         # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
         if status == "LATE":
             status = "TELAFI"
-            logging.info(f"  Dönüşüm: LATE -> TELAFI")
         
         # Geçerli status değerlerini kontrol et
-        # PRESENT -> "Geldi"
-        # EXCUSED_ABSENT -> "Haberli Gelmedi"
-        # TELAFI -> "Telafi"
-        # UNEXCUSED_ABSENT -> "Habersiz Gelmedi"
         valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
         if status not in valid_statuses:
-            # Geçersiz status değerini logla
-            logging.error(f"  ❌ GEÇERSİZ YOKLAMA DURUMU: '{status}' (öğrenci {sid}, ham değer: '{value}')")
+            logging.error(f"❌ Öğrenci {sid}: Geçersiz durum '{status}' (ham: '{value}')")
             continue
         
-        # DEBUG: Geçerli status değerini logla
+        # Status değerini doğrulayarak ekle
         status_map = {
             "PRESENT": "Geldi",
             "EXCUSED_ABSENT": "Haberli Gelmedi",
             "TELAFI": "Telafi",
             "UNEXCUSED_ABSENT": "Habersiz Gelmedi"
         }
-        logging.info(f"  ✅ Geçerli durum: {status} -> {status_map.get(status, 'Bilinmeyen')}")
-        logging.info(f"=== YOKLAMA KAYDI DEVAM EDİYOR ===")
+        logging.info(f"✅ Öğrenci {sid}: {status} ({status_map.get(status, 'Bilinmeyen')})")
+        
         to_create.append(
             schemas.AttendanceCreate(
                 lesson_id=lesson_id,
                 student_id=sid,
-                status=status,
+                status=status,  # DOĞRUDAN status değerini kullan
                 marked_at=marked_at_dt,
             )
         )
@@ -1112,35 +1111,30 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     errors = []
     
     # Debug: Gönderilen yoklama verilerini logla
-    import logging
-    logging.info(f"Yoklama kaydediliyor: {len(to_create)} kayıt, Ders ID: {lesson_id}")
+    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ ===")
+    logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
     for item in to_create:
-        logging.info(f"  - Öğrenci {item.student_id}: {item.status}")
+        logging.info(f"  Öğrenci {item.student_id} -> Durum: {item.status}")
     
     # Tüm yoklamaları commit olmadan ekle
-    # ÖNEMLİ: Hata durumunda rollback yapmıyoruz, sadece o kaydı atlıyoruz
-    # Böylece önceki başarılı kayıtlar korunur
+    # ÖNEMLİ: Her öğrenci için ayrı ayrı işlem yap
     for item in to_create:
         try:
-            # Debug: Kaydedilecek değeri logla
-            logging.info(f"Yoklama kaydediliyor: Öğrenci {item.student_id}, Durum: {item.status}, Ders: {item.lesson_id}")
+            logging.info(f"Kaydediliyor: Öğrenci {item.student_id}, Durum: '{item.status}', Ders: {item.lesson_id}")
             result = crud.mark_attendance(db, item, commit=False)
             if result:
                 success_count += 1
-                # Debug: Başarılı kayıt
-                logging.info(f"Yoklama başarıyla kaydedildi: Öğrenci {item.student_id}, Durum: {result.status}")
+                logging.info(f"✅ Başarılı: Öğrenci {item.student_id}, Kaydedilen Durum: '{result.status}'")
             else:
                 error_count += 1
                 errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
+                logging.error(f"❌ Başarısız: Öğrenci {item.student_id}")
         except Exception as e:
             error_count += 1
             errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
-            # Hata loglama
             import traceback
-            logging.error(f"Yoklama kayıt hatası: {e}")
+            logging.error(f"❌ Hata (Öğrenci {item.student_id}): {e}")
             logging.error(traceback.format_exc())
-            # Hata durumunda rollback YAPMIYORUZ - sadece bu kaydı atlıyoruz
-            # Böylece önceki başarılı kayıtlar korunur
             continue
     
     # Tüm yoklamalar başarıyla eklendiyse tek seferde commit et
@@ -1162,7 +1156,30 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     if error_count > 0:
         request.session["attendance_errors"] = error_count
     
+    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ TAMAMLANDI ===")
+    logging.info(f"Başarılı: {success_count}, Hatalı: {error_count}")
+    
     return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.post("/admin/clear-all-attendances")
+def clear_all_attendances(request: Request, db: Session = Depends(get_db)):
+	"""Tüm yoklama kayıtlarını sil (sadece admin)"""
+	if not request.session.get("user"):
+		return RedirectResponse(url="/", status_code=302)
+	user = request.session.get("user")
+	if user.get("role") != "admin":
+		raise HTTPException(status_code=403, detail="Sadece admin bu işlemi yapabilir")
+	
+	try:
+		count = crud.delete_all_attendances(db)
+		import logging
+		logging.warning(f"Tüm yoklama kayıtları silindi: {count} kayıt")
+		return {"success": True, "deleted_count": count, "message": f"{count} yoklama kaydı silindi"}
+	except Exception as e:
+		import logging
+		logging.error(f"Yoklama kayıtları silinirken hata: {e}")
+		raise HTTPException(status_code=500, detail=f"Hata: {e}")
 
 
 # UI: Enrollment - create

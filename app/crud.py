@@ -149,6 +149,14 @@ def reset_teacher_student_links(db: Session):
 	db.commit()
 
 
+def delete_all_attendances(db: Session):
+	"""Tüm yoklama kayıtlarını sil"""
+	from sqlalchemy import delete
+	count = db.execute(delete(models.Attendance)).rowcount
+	db.commit()
+	return count
+
+
 # Courses
 def create_course(db: Session, name: str):
 	course = models.Course(name=name)

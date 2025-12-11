@@ -1072,7 +1072,7 @@ def lesson_create(
 
 
 @app.get("/lessons/{lesson_id}/attendance/new", response_class=HTMLResponse)
-def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db)):
+def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     from datetime import date as date_cls
@@ -1108,7 +1108,7 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
     
     # Hata mesajını al
     error_message = None
-    if request.args.get("error") == "no_data" or request.session.get("attendance_errors"):
+    if error == "no_data" or request.session.get("attendance_errors"):
         error_message = request.session.get("attendance_errors", "Lütfen en az bir öğrenci için durum seçin.")
         request.session.pop("attendance_errors", None)
     

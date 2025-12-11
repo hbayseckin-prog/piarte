@@ -65,13 +65,10 @@
 					<div class="mobile-card-row">
 						<div class="mobile-card-label">Durum</div>
 						<div class="mobile-card-value">
-							<select name="status_{{ item.student.id }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;">
-								<option value="">-</option>
-								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
-								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
-								<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
-								<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz Gelmedi</option>
-							</select>
+							<!-- Mobile view'da table'daki select kullanılıyor, burada sadece gösterim için -->
+							<!-- Table'daki select mobile view'da da görünür olacak şekilde CSS ile ayarlanmalı -->
+							<span id="status_display_{{ item.student.id }}" style="padding:8px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;display:inline-block;min-width:120px;">-</span>
+							<small style="color:#64748b;display:block;margin-top:4px;">Yukarıdaki tablodan seçim yapın</small>
 						</div>
 					</div>
 				</div>
@@ -84,16 +81,40 @@
 	</form>
 </div>
 <script>
+// Mobile view'da select değiştiğinde display'i güncelle
+document.addEventListener('DOMContentLoaded', function() {
+	// Sadece table'daki select'leri al (mobile view'daki disabled select'ler değil)
+	var selects = document.querySelectorAll('table select[name^="status_"]');
+	selects.forEach(function(select) {
+		select.addEventListener('change', function() {
+			var studentId = this.name.replace('status_', '');
+			var display = document.getElementById('status_display_' + studentId);
+			if (display) {
+				var option = this.options[this.selectedIndex];
+				display.textContent = option.textContent;
+			}
+		});
+		// İlk yüklemede de display'i güncelle
+		var studentId = select.name.replace('status_', '');
+		var display = document.getElementById('status_display_' + studentId);
+		if (display && select.value) {
+			var option = select.options[select.selectedIndex];
+			display.textContent = option.textContent;
+		}
+	});
+});
+
 function validateFormBeforeSubmit(event) {
-	var selects = document.querySelectorAll('select[name^="status_"]');
+	// Sadece görünür olan select'leri kontrol et (table'daki)
+	var selects = document.querySelectorAll('table select[name^="status_"]');
 	var hasValidSelection = false;
 	var formData = [];
 	
-	console.log('Form submit - checking', selects.length, 'select fields');
+	console.log('Form submit - checking', selects.length, 'select fields (table only)');
 	for (var i = 0; i < selects.length; i++) {
 		var value = selects[i].value;
 		var name = selects[i].name;
-		console.log('Field:', name, 'Value:', value);
+		console.log('Field:', name, 'Value:', value, 'Selected:', selects[i].selectedIndex);
 		formData.push(name + '=' + value);
 		
 		if (value && value !== '' && value !== '-') {
@@ -108,7 +129,7 @@ function validateFormBeforeSubmit(event) {
 		return false;
 	}
 	
-	console.log('Form data:', formData.join('&'));
+	console.log('Form validation passed. Form data:', formData.join('&'));
 	return true;
 }
 </script>

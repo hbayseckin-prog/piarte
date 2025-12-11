@@ -4,6 +4,11 @@
 <div class="card">
 	<h2 class="h1">Yoklama - Ders #{{ lesson.id }}</h2>
 	<p style="color:var(--muted);margin-bottom:16px;">{{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</p>
+	{% if error_message %}
+	<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:8px;margin-bottom:16px;color:#dc2626;">
+		<strong>⚠️ Hata:</strong> {{ error_message }}
+	</div>
+	{% endif %}
 	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new">
 		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
 			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>
@@ -74,8 +79,25 @@
 			</div>
 		</div>
 		<div style="margin-top:16px;">
-			<button type="submit" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
+			<button type="submit" onclick="return validateForm()" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
 		</div>
 	</form>
 </div>
+<script>
+function validateForm() {
+	var hasSelection = false;
+	var selects = document.querySelectorAll('select[name^="status_"]');
+	for (var i = 0; i < selects.length; i++) {
+		if (selects[i].value && selects[i].value !== '') {
+			hasSelection = true;
+			break;
+		}
+	}
+	if (!hasSelection) {
+		alert('Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi).');
+		return false;
+	}
+	return true;
+}
+</script>
 {% endblock %}

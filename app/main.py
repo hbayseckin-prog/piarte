@@ -1105,6 +1105,13 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
         })
     
     default_attendance_date = lesson.lesson_date or date_cls.today()
+    
+    # Hata mesajını al
+    error_message = None
+    if request.args.get("error") == "no_data" or request.session.get("attendance_errors"):
+        error_message = request.session.get("attendance_errors", "Lütfen en az bir öğrenci için durum seçin.")
+        request.session.pop("attendance_errors", None)
+    
     return templates.TemplateResponse(
         "attendance_new.html",
         {
@@ -1112,6 +1119,7 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "lesson": lesson,
             "students_with_status": students_with_payment_status,
             "attendance_date": default_attendance_date.isoformat(),
+            "error_message": error_message,
         },
     )
 
@@ -1271,11 +1279,11 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     # Eğer to_create boşsa, hata ver
     if len(to_create) == 0:
         logging.error("❌ HATA: to_create listesi boş! Form verileri parse edilemedi!")
-        request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen öğrenci durumlarını seçin."
-        user = request.session.get("user")
-        if user and user.get("role") == "teacher":
-            return RedirectResponse(url="/ui/teacher", status_code=302)
-        return RedirectResponse(url="/dashboard", status_code=302)
+        logging.error(f"❌ HATA: Form'da {len(status_fields)} status field var ama hepsi boş!")
+        logging.error(f"❌ HATA: Derse atanmış öğrenci sayısı: {len(lesson_students) if 'lesson_students' in locals() else 0}")
+        request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
+        # Hata mesajı ile birlikte form sayfasına geri dön
+        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?error=no_data", status_code=302)
     
     for item in to_create:
         try:

@@ -333,34 +333,6 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 		db.flush()
 		logging.info(f"Yoklama session'a yazıldı (commit=False): Öğrenci {data.student_id}, Durum: {attendance.status}")
 	return attendance
-		# Yeni yoklama kaydı oluştur
-		attendance_data = data.model_dump()
-		# marked_at yoksa veya None ise şu anki zamanı kullan
-		if 'marked_at' not in attendance_data or attendance_data.get('marked_at') is None:
-			from datetime import datetime
-			attendance_data['marked_at'] = datetime.utcnow()
-		
-		# DEBUG: Yeni kayıt oluşturuluyor
-		import logging
-		status_map = {
-			"PRESENT": "Geldi",
-			"EXCUSED_ABSENT": "Haberli Gelmedi",
-			"TELAFI": "Telafi",
-			"UNEXCUSED_ABSENT": "Habersiz Gelmedi"
-		}
-		logging.info(f"Yeni yoklama kaydı oluşturuluyor: Öğrenci {data.student_id}, Ders {data.lesson_id}, Durum: {data.status} ({status_map.get(data.status, 'Bilinmeyen')})")
-		
-		attendance = models.Attendance(**attendance_data)
-		db.add(attendance)
-		if commit:
-			db.commit()
-			db.refresh(attendance)
-			logging.info(f"Yeni yoklama kaydedildi (commit=True): Öğrenci {data.student_id}, Durum: {attendance.status}")
-		else:
-			# commit=False olduğunda da session'a yaz
-			db.flush()
-			logging.info(f"Yeni yoklama session'a yazıldı (commit=False): Öğrenci {data.student_id}, Durum: {attendance.status}")
-		return attendance
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):

@@ -1,8 +1,3 @@
-def redirect_teacher(user):
-    if user and user.get("role") == "teacher":
-        return RedirectResponse(url="/ui/teacher", status_code=302)
-    return None
-
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import Response
@@ -25,6 +20,12 @@ try:
 except ImportError:
     seed_courses = None
     seed_admin = None
+
+
+def redirect_teacher(user):
+    if user and user.get("role") == "teacher":
+        return RedirectResponse(url="/ui/teacher", status_code=302)
+    return None
 
 
 # Alt klasör desteği için root_path (eğer /piarte altında çalışıyorsa)

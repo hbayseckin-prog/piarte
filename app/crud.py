@@ -241,16 +241,6 @@ def list_students_by_lesson(db: Session, lesson_id: int):
 	return db.scalars(stmt).all()
 
 
-def list_lessons_by_student(db: Session, student_id: int):
-	stmt = (
-		select(models.Lesson)
-		.join(models.LessonStudent, models.LessonStudent.lesson_id == models.Lesson.id)
-		.where(models.LessonStudent.student_id == student_id)
-		.order_by(models.Lesson.lesson_date.asc(), models.Lesson.start_time.asc())
-	)
-	return db.scalars(stmt).all()
-
-
 # Lessons
 def create_lesson(db: Session, data: schemas.LessonCreate):
 	lesson = models.Lesson(**data.model_dump())
@@ -310,106 +300,11 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 
 # Attendance
 def mark_attendance(db: Session, data: schemas.AttendanceCreate):
-	"""
-	Bir ders-öğrenci çifti için yoklama kaydını oluşturur.
-	Her yoklama girişi ayrı bir kayıt olarak oluşturulur (aynı ders için farklı tarihlerde yoklama alınabilir).
-	Eğer aynı lesson_id, student_id ve marked_at (tarih) için kayıt varsa, o kayıt güncellenir.
-	"""
-	try:
-		import logging
-		from datetime import datetime, date
-		
-		# marked_at tarihini al (sadece tarih kısmı, saat kısmı olmadan)
-		marked_date = None
-		if data.marked_at:
-			if isinstance(data.marked_at, datetime):
-				marked_date = data.marked_at.date()
-			elif isinstance(data.marked_at, date):
-				marked_date = data.marked_at
-		
-		# Aynı lesson_id, student_id ve tarih için mevcut kayıt var mı kontrol et
-		existing = None
-		if marked_date:
-			# marked_at'in tarih kısmına göre kontrol et
-			all_attendances = db.scalars(
-				select(models.Attendance).where(
-					models.Attendance.lesson_id == data.lesson_id,
-					models.Attendance.student_id == data.student_id,
-				)
-			).all()
-			for att in all_attendances:
-				if att.marked_at and att.marked_at.date() == marked_date:
-					existing = att
-					break
-		else:
-			# marked_at yoksa, sadece lesson_id ve student_id'ye göre kontrol et
-			existing = db.scalars(
-				select(models.Attendance).where(
-					models.Attendance.lesson_id == data.lesson_id,
-					models.Attendance.student_id == data.student_id,
-				)
-			).first()
-		
-		if existing:
-			# Aynı tarih için kayıt varsa güncelle
-			logging.warning(f"MARK_ATTENDANCE: Yoklama güncelleniyor: lesson_id={data.lesson_id}, student_id={data.student_id}, tarih={marked_date}, eski_status={existing.status}, yeni_status={data.status}")
-			existing.status = data.status
-			if data.marked_at is not None:
-				existing.marked_at = data.marked_at
-			db.commit()
-			db.refresh(existing)
-			logging.warning(f"MARK_ATTENDANCE: Yoklama güncellendi: attendance_id={existing.id}")
-			return existing
-		
-		# Farklı tarih için yeni kayıt oluştur
-		logging.warning(f"MARK_ATTENDANCE: Yeni yoklama kaydı oluşturuluyor: lesson_id={data.lesson_id}, student_id={data.student_id}, status={data.status}, tarih={marked_date}")
-		attendance = models.Attendance(**data.model_dump())
-		db.add(attendance)
-		db.commit()
-		db.refresh(attendance)
-		logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}, marked_at={attendance.marked_at}")
-		return attendance
-	except Exception as e:
-		# Hata durumunda rollback yap
-		db.rollback()
-		import logging
-		import traceback
-		from sqlalchemy import text
-		error_str = str(e)
-		# Eğer unique constraint hatası ise, constraint'i kaldırmayı dene
-		if "uq_attendance_lesson_student" in error_str or "unique constraint" in error_str.lower() or "duplicate key" in error_str.lower():
-			logging.warning(f"MARK_ATTENDANCE: Unique constraint hatası tespit edildi, constraint kaldırılmaya çalışılıyor...")
-			try:
-				# PostgreSQL için constraint'i kaldır
-				db.execute(text("ALTER TABLE attendances DROP CONSTRAINT IF EXISTS uq_attendance_lesson_student"))
-				db.commit()
-				logging.warning("MARK_ATTENDANCE: Unique constraint başarıyla kaldırıldı, yoklama kaydı tekrar oluşturuluyor...")
-				# Tekrar dene
-				attendance = models.Attendance(**data.model_dump())
-				db.add(attendance)
-				db.commit()
-				db.refresh(attendance)
-				logging.warning(f"MARK_ATTENDANCE: Yoklama kaydı başarıyla oluşturuldu: attendance_id={attendance.id}, lesson_id={attendance.lesson_id}, student_id={attendance.student_id}, status={attendance.status}, marked_at={attendance.marked_at}")
-				return attendance
-			except Exception as e2:
-				logging.warning(f"MARK_ATTENDANCE: Constraint kaldırılamadı, mevcut kayıt güncelleniyor: {e2}")
-				# Constraint kaldırılamazsa, mevcut kaydı güncelle
-				existing = db.scalars(
-					select(models.Attendance).where(
-						models.Attendance.lesson_id == data.lesson_id,
-						models.Attendance.student_id == data.student_id,
-					)
-				).first()
-				if existing:
-					existing.status = data.status
-					if data.marked_at is not None:
-						existing.marked_at = data.marked_at
-					db.commit()
-					db.refresh(existing)
-					return existing
-		logging.error(f"mark_attendance hatası: {e}, lesson_id={data.lesson_id}, student_id={data.student_id}")
-		logging.error(traceback.format_exc())
-		raise
+	attendance = models.Attendance(**data.model_dump())
+	db.add(attendance)
+	db.commit()
+	db.refresh(attendance)
+	return attendance
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):
@@ -457,154 +352,6 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	return db.scalars(stmt).all()
 
 
-def get_attendance_report_by_teacher(
-	db: Session,
-	teacher_id: int | None = None,
-	start_date: date | None = None,
-	end_date: date | None = None,
-):
-	"""
-	Her öğretmen-altında her öğrenci için toplam yoklama sayısını döndürür.
-	Sadece şu statüler sayılır:
-	- PRESENT  -> geldi
-	- UNEXCUSED_ABSENT -> habersiz gelmedi
-	- TELAFI -> telafi dersi
-	EXCUSED_ABSENT (haberli gelmedi) sayılmaz, ama kaydı varsa satır yine görünür.
-	"""
-	# Tüm yoklamaları öğretmen, öğrenci ve derse join ederek al
-	# Attendance tablosundan başlayarak join yapıyoruz
-	q = db.query(
-		models.Teacher.id.label("teacher_id"),
-		models.Teacher.first_name.label("teacher_first_name"),
-		models.Teacher.last_name.label("teacher_last_name"),
-		models.Student.id.label("student_id"),
-		models.Student.first_name.label("student_first_name"),
-		models.Student.last_name.label("student_last_name"),
-		models.Attendance.status,
-	).select_from(
-		models.Attendance
-	).join(
-		models.Lesson, models.Attendance.lesson_id == models.Lesson.id
-	).join(
-		models.Teacher, models.Lesson.teacher_id == models.Teacher.id
-	).join(
-		models.Student, models.Attendance.student_id == models.Student.id
-	)
-
-	# Opsiyonel filtreler (öğretmen ve tarih aralığı)
-	if teacher_id:
-		q = q.filter(models.Lesson.teacher_id == teacher_id)
-	if start_date:
-		q = q.filter(models.Lesson.lesson_date >= start_date)
-	if end_date:
-		q = q.filter(models.Lesson.lesson_date <= end_date)
-
-	rows = q.all()
-	
-	# Debug: Toplam satır sayısını logla
-	import logging
-	logging.warning(f"PUANTAJ_DEBUG: Toplam {len(rows)} yoklama kaydı bulundu")
-
-	report_map: dict[tuple[int, int], dict] = {}
-
-	for r in rows:
-		key = (r.teacher_id, r.student_id)
-		if key not in report_map:
-			report_map[key] = {
-				"teacher_id": r.teacher_id,
-				"teacher_first_name": r.teacher_first_name,
-				"teacher_last_name": r.teacher_last_name,
-				"student_id": r.student_id,
-				"student_first_name": r.student_first_name,
-				"student_last_name": r.student_last_name,
-				"present": 0,
-				"unexcused_absent": 0,
-				"telafi": 0,
-				"excused_absent": 0,
-			}
-		# Status'u kontrol et ve say (geriye dönük uyumluluk için LATE'i TELAFI'ye çevir)
-		status = r.status
-		if status == "LATE":
-			status = "TELAFI"
-		if status == "PRESENT":
-			report_map[key]["present"] += 1
-		elif status == "UNEXCUSED_ABSENT":
-			report_map[key]["unexcused_absent"] += 1
-		elif status == "TELAFI":
-			report_map[key]["telafi"] += 1
-		elif status == "EXCUSED_ABSENT":
-			report_map[key]["excused_absent"] += 1
-		else:
-			# Bilinmeyen status için log
-			logging.warning(f"Bilinmeyen yoklama durumu: {r.status} (teacher_id={r.teacher_id}, student_id={r.student_id})")
-
-	# Önce öğretmen-öğrenci bazlı liste
-	report_list = list(report_map.values())
-	# Öğretmen ve öğrenci adına göre sırala
-	report_list.sort(
-		key=lambda x: (
-			x["teacher_last_name"],
-			x["teacher_first_name"],
-			x["student_last_name"],
-			x["student_first_name"],
-		)
-	)
-
-	# Daha sonra öğretmen bazında grupla; template'in beklediği yapı:
-	# [
-	#   {
-	#     "teacher": {"first_name": "...", "last_name": "..."},
-	#     "students": [
-	#        {
-	#          "student": {"first_name": "...", "last_name": "..."},
-	#          "present": 3,
-	#          "unexcused_absent": 1,
-	#          "late": 0,
-	#          "total": 4,
-	#        },
-	#        ...
-	#     ],
-	#   },
-	#   ...
-	# ]
-	teachers_map: dict[int, dict] = {}
-	for row in report_list:
-		tid = row["teacher_id"]
-		if tid not in teachers_map:
-			teachers_map[tid] = {
-				"teacher": {
-					"first_name": row["teacher_first_name"],
-					"last_name": row["teacher_last_name"],
-				},
-				"students": [],
-			}
-		# Toplam ders: daha önce konuştuğumuz gibi EXCUSED_ABSENT hariç
-		total = row["present"] + row["unexcused_absent"] + row["telafi"]
-		teachers_map[tid]["students"].append(
-			{
-				"student": {
-					"first_name": row["student_first_name"],
-					"last_name": row["student_last_name"],
-				},
-				"present": row["present"],
-				"unexcused_absent": row["unexcused_absent"],
-				"telafi": row["telafi"],
-				"excused_absent": row["excused_absent"],
-				"total": total,
-			}
-		)
-
-	# Öğretmen adlarına göre sırala
-	grouped_list = list(teachers_map.values())
-	grouped_list.sort(
-		key=lambda t: (
-			t["teacher"]["last_name"],
-			t["teacher"]["first_name"],
-		)
-	)
-	return grouped_list
-
-
 # Payments
 def create_payment(db: Session, data: schemas.PaymentCreate):
 	payload = data.model_dump()
@@ -620,43 +367,6 @@ def create_payment(db: Session, data: schemas.PaymentCreate):
 def list_payments_by_student(db: Session, student_id: int):
 	stmt = select(models.Payment).where(models.Payment.student_id == student_id).order_by(models.Payment.payment_date.desc())
 	return db.scalars(stmt).all()
-
-
-def check_student_payment_status(db: Session, student_id: int):
-	"""
-	Öğrencinin ödeme durumunu kontrol eder.
-	Ödeme mantığı:
-	- 0. derste (ilk kayıt) ödeme alınır (1. set)
-	- 4. derse geldiğinde yeni ödeme alınır (2. set)
-	- 8. derse geldiğinde yeni ödeme alınır (3. set)
-	- 12, 16, 20... diye devam eder
-
-	Beklenen ödeme seti = (toplam_ders // 4) + 1
-	- 0 ders: 1 set (ilk kayıt)
-	- 1-3 ders: 1 set (ilk kayıt)
-	- 4-7 ders: 2 set (ilk kayıt + 4. ders)
-	- 8-11 ders: 3 set (ilk kayıt + 4. ders + 8. ders)
-	- 12-15 ders: 4 set
-	- ...
-	"""
-	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI olan yoklamalar)
-	# Geriye dönük uyumluluk için LATE'i de dahil et
-	total_lessons = db.scalars(
-		select(func.count(models.Attendance.id)).where(
-			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"]),
-		)
-	).first() or 0
-
-	# Öğrencinin ödemelerini getir
-	payments = list_payments_by_student(db, student_id)
-	total_paid_sets = len(payments)
-
-	# Beklenen ödeme seti hesapla
-	expected_paid_sets = (total_lessons // 4) + 1
-
-	# Ödeme yetersizse True (kırmızı), yeterliyse False
-	return total_paid_sets < expected_paid_sets
 
 
 # Invoices

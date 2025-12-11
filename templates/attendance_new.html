@@ -1,23 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Yoklama - Piarte{% endblock %}
 {% block content %}
-{% if attendance_error %}
-<div class="card" style="background-color:#fee2e2;border-left:4px solid #ef4444;margin-bottom:16px;">
-	<p style="color:#dc2626;font-weight:600;margin:0;">⚠️ {{ attendance_error }}</p>
-	{% if attendance_error_messages %}
-	<ul style="margin-top:8px;padding-left:20px;color:#991b1b;">
-		{% for msg in attendance_error_messages %}
-		<li>{{ msg }}</li>
-		{% endfor %}
-	</ul>
-	{% endif %}
-</div>
-{% endif %}
-{% if attendance_success %}
-<div class="card" style="background-color:#d1fae5;border-left:4px solid #10b981;margin-bottom:16px;">
-	<p style="color:#059669;font-weight:600;margin:0;">✅ {{ attendance_success }} yoklama kaydı başarıyla kaydedildi.</p>
-</div>
-{% endif %}
 <div class="card">
 	<h2 class="h1">Yoklama - Ders #{{ lesson.id }}</h2>
 	<p style="color:var(--muted);margin-bottom:16px;">{{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</p>
@@ -53,7 +36,7 @@
 							<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 							<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz gelmedi</option>
 							<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli gelmedi</option>
-							<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
+							<option value="LATE" {% if item.current_status == "LATE" %}selected{% endif %}>Geç</option>
 						</select>
 					</td>
 				</tr>
@@ -82,7 +65,7 @@
 								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 								<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz gelmedi</option>
 								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli gelmedi</option>
-								<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
+								<option value="LATE" {% if item.current_status == "LATE" %}selected{% endif %}>Geç</option>
 							</select>
 						</div>
 					</div>

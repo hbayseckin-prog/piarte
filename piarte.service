@@ -1,0 +1,21 @@
+[Unit]
+Description=Piarte Kurs Yönetim Sistemi
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/piarte
+Environment="PATH=/var/www/piarte/venv/bin"
+EnvironmentFile=/var/www/piarte/.env
+ExecStart=/var/www/piarte/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+

@@ -42,7 +42,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(SessionMiddleware, secret_key="change-this-secret-key")
+# Session secret key - environment variable'dan al, yoksa varsayılan kullan
+SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key-in-production")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 templates = Jinja2Templates(directory="templates")
 
 # Static files için - logo ve diğer statik dosyalar (proje root dizini)
@@ -68,95 +70,10 @@ async def add_security_headers(request: Request, call_next):
 def health_check():
 	return {"status": "ok", "message": "Server is running"}
 
-# Debug endpoint - yoklama kayıtlarını kontrol et
-@app.get("/debug/attendances/{teacher_id}/{student_id}")
-def debug_attendances(teacher_id: int, student_id: int, db: Session = Depends(get_db)):
-	"""Belirli bir öğretmen-öğrenci çifti için yoklama kayıtlarını debug için gösterir"""
-	# Tüm yoklamaları getir
-	from sqlalchemy import select
-	attendances = db.scalars(
-		select(models.Attendance)
-		.join(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
-		.where(
-			models.Lesson.teacher_id == teacher_id,
-			models.Attendance.student_id == student_id
-		)
-	).all()
-	
-	result = {
-		"teacher_id": teacher_id,
-		"student_id": student_id,
-		"total_attendances": len(attendances),
-		"attendances": []
-	}
-	
-	for att in attendances:
-		lesson = db.get(models.Lesson, att.lesson_id)
-		student = db.get(models.Student, att.student_id)
-		result["attendances"].append({
-			"attendance_id": att.id,
-			"lesson_id": att.lesson_id,
-			"status": att.status,
-			"marked_at": att.marked_at.isoformat() if att.marked_at else None,
-			"lesson_date": lesson.lesson_date.isoformat() if lesson and lesson.lesson_date else None,
-			"student_name": f"{student.first_name} {student.last_name}" if student else "Unknown"
-		})
-	
-	# Puantaj raporundan sayıları al
-	from datetime import date
-	try:
-		report = crud.get_attendance_report_by_teacher(db, teacher_id=teacher_id)
-		for teacher_report in report:
-			for student_data in teacher_report["students"]:
-				if student_data["student"]["first_name"] and student_data["student"]["last_name"]:
-					# Student ID'yi kontrol et - report'ta student_id var mı?
-					student_in_db = db.get(models.Student, student_id)
-					if student_in_db and student_in_db.first_name == student_data["student"]["first_name"] and student_in_db.last_name == student_data["student"]["last_name"]:
-						result["report_counts"] = {
-							"present": student_data["present"],
-							"unexcused_absent": student_data["unexcused_absent"],
-							"telafi": student_data["telafi"],
-							"excused_absent": student_data["excused_absent"],
-							"total": student_data["total"]
-						}
-						break
-	except Exception as e:
-		result["report_error"] = str(e)
-	
-	return result
-
 # Veritabanı kurulum endpoint'i
 @app.get("/setup-database", response_class=HTMLResponse)
-def setup_database_endpoint(request: Request, db: Session = Depends(get_db)):
+def setup_database_endpoint(request: Request):
 	"""Veritabanını oluştur ve seed data ekle - HTML response ile"""
-	# Önce unique constraint'i kaldır (eğer varsa)
-	messages = []
-	try:
-		from sqlalchemy import text
-		# PostgreSQL için constraint'i kaldır
-		db.execute(text("ALTER TABLE attendances DROP CONSTRAINT IF EXISTS uq_attendance_lesson_student"))
-		db.commit()
-		messages.append("✅ Unique constraint kaldırıldı (eğer varsa)")
-	except Exception as e:
-		# SQLite için farklı syntax deneyelim
-		try:
-			from sqlalchemy import text
-			db.execute(text("DROP INDEX IF EXISTS uq_attendance_lesson_student"))
-			db.commit()
-			messages.append("✅ Unique constraint kaldırıldı (eğer varsa)")
-		except Exception as e2:
-			messages.append(f"⚠️ Constraint kaldırma hatası (normal olabilir): {e2}")
-	
-	# Mevcut LATE kayıtlarını TELAFI'ye dönüştür
-	try:
-		from sqlalchemy import text
-		updated = db.execute(text("UPDATE attendances SET status = 'TELAFI' WHERE status = 'LATE'"))
-		db.commit()
-		if updated.rowcount > 0:
-			messages.append(f"✅ {updated.rowcount} adet LATE kaydı TELAFI'ye dönüştürüldü")
-	except Exception as e:
-		messages.append(f"⚠️ LATE->TELAFI dönüşüm hatası (normal olabilir): {e}")
-	
 	try:
 		reset_performed = False
 		try:
@@ -419,19 +336,12 @@ def home(request: Request):
 			return RedirectResponse(url="/ui/staff", status_code=302)
 		else:
 			return RedirectResponse(url="/dashboard", status_code=302)
-	# Son kullanılan role'e göre login sayfasına yönlendir
-	last_role = request.session.get("last_role")
-	if last_role == "teacher":
-		return RedirectResponse(url="/login/teacher", status_code=302)
-	elif last_role == "staff":
-		return RedirectResponse(url="/login/staff", status_code=302)
-	
 	# index.html'i göster
 	try:
 		with open("index.html", "r", encoding="utf-8") as f:
 			return HTMLResponse(content=f.read())
 	except FileNotFoundError:
-		# index.html yoksa admin login sayfasına yönlendir
+		# index.html yoksa login sayfasına yönlendir
 		return RedirectResponse(url="/login/admin", status_code=302)
 
 
@@ -468,13 +378,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
 
 @app.get("/logout")
 def logout(request: Request):
-	# Kullanıcının hangi panelden çıkış yaptığını kaydet
-	user = request.session.get("user")
-	last_role = user.get("role") if user else None
 	request.session.clear()
-	# Son kullanılan role'ü kaydet (login sayfasına yönlendirme için)
-	if last_role:
-		request.session["last_role"] = last_role
 	return RedirectResponse(url="/", status_code=302)
 
 
@@ -571,18 +475,7 @@ def dashboard(
     # Puantaj raporunu getir (sadece admin için)
     attendance_report = []
     if user.get("role") == "admin":
-        try:
-            attendance_report = crud.get_attendance_report_by_teacher(
-                db,
-                teacher_id=teacher_id_int,
-                start_date=start_date_obj,
-                end_date=end_date_obj,
-            )
-        except Exception as e:
-            # Rapor hatasını logla ama dashboard'u düşürme
-            import logging, traceback
-            logging.error(f"Puantaj raporu hatası: {e}")
-            logging.error(traceback.format_exc())
+        attendance_report = crud.get_attendance_report_by_teacher(db)
     
     context = {
         "request": request,
@@ -1088,13 +981,6 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
         })
     
     default_attendance_date = lesson.lesson_date or date_cls.today()
-    
-    # Session'daki mesajları al ve temizle (bir kez gösterildikten sonra)
-    attendance_error = request.session.pop("attendance_error", None)
-    attendance_success = request.session.pop("attendance_success", None)
-    attendance_errors = request.session.pop("attendance_errors", None)
-    attendance_error_messages = request.session.pop("attendance_error_messages", None)
-    
     return templates.TemplateResponse(
         "attendance_new.html",
         {
@@ -1102,9 +988,6 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "lesson": lesson,
             "students_with_status": students_with_payment_status,
             "attendance_date": default_attendance_date.isoformat(),
-            "attendance_error": attendance_error,
-            "attendance_success": attendance_success,
-            "attendance_error_messages": attendance_error_messages,
         },
     )
 
@@ -1129,12 +1012,6 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         lesson_students = crud.list_students_by_lesson(db, lesson_id)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
-    # Debug: formdan gelen alanları logla
-    try:
-        import logging
-        logging.warning(f"ATT_DEBUG form keys: {list(form.keys())}")
-    except Exception:
-        pass
     attendance_date_raw = form.get("attendance_date")
     marked_at_dt = None
     if attendance_date_raw:
@@ -1148,43 +1025,22 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = datetime.combine(chosen_date, base_time)
         except Exception:
             marked_at_dt = None
-    # Her derse atanmış öğrenci için formdan durumu oku
-    # (status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI)
+    # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE
     to_create = []
-    # Debug: izinli öğrenci id'lerini logla
-    try:
-        import logging
-        logging.warning(f"ATT_DEBUG allowed_student_ids: {sorted(list(allowed_student_ids or []) )}")
-    except Exception:
-        pass
-
-    for s in lesson_students:
-        sid = s.id
+    for key, value in form.items():
+        if not key.startswith("status_"):
+            continue
+        try:
+            sid = int(key.split("_", 1)[1])
+        except Exception:
+            continue
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
-        # Aynı öğrenci için hem tablo hem mobil görünümde select olduğu için
-        # birden fazla "status_<id>" field'ı geliyor. Bunların içinden boş olmayanı seçelim.
-        values = form.getlist(f"status_{sid}") if hasattr(form, "getlist") else [form.get(f"status_{sid}")]
-        # İlk dolu değeri bul
-        raw_value = ""
-        for v in values:
-            if v:
-                raw_value = v
-                break
-        status = (raw_value or "").strip().upper()
-        # Debug: her öğrenci için ham ve normalize değeri logla
-        try:
-            import logging
-            logging.warning(f"ATT_DEBUG student {sid}: values={values!r} chosen_raw={raw_value!r} normalized={status!r}")
-        except Exception:
-            pass
+        status = (value or "").strip().upper()
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-        # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
-        if status == "LATE":
-            status = "TELAFI"
-        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}:
+        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "LATE"}:
             continue
         to_create.append(
             schemas.AttendanceCreate(
@@ -1194,61 +1050,26 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 marked_at=marked_at_dt,
             )
         )
-
-    # Debug: oluşturulacak kayıtları logla
-    import logging
-    logging.warning(f"ATT_DEBUG to_create: {to_create}")
-    logging.warning(f"ATT_DEBUG: to_create listesi uzunluğu: {len(to_create)}")
-    
     success_count = 0
     error_count = 0
-    error_messages = []
+    for item in to_create:
+        try:
+            crud.mark_attendance(db, item)
+            success_count += 1
+        except Exception as e:
+            error_count += 1
+            # Hata loglama (geliştirme için)
+            import logging
+            logging.error(f"Yoklama kayıt hatası: {e}")
+            continue
     
-    if not to_create:
-        logging.warning("ATT_DEBUG: to_create listesi boş, yoklama kaydı oluşturulmayacak")
-        request.session["attendance_error"] = "Yoklama kaydı oluşturulamadı: Öğrenci durumu seçilmedi."
-        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
+    # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
+    if success_count > 0:
+        request.session["attendance_success"] = success_count
+    if error_count > 0:
+        request.session["attendance_errors"] = error_count
     
-    try:
-        logging.warning(f"ATT_DEBUG: {len(to_create)} yoklama kaydı oluşturulacak")
-        for item in to_create:
-            try:
-                logging.warning(f"ATT_DEBUG: mark_attendance çağrılıyor: lesson_id={item.lesson_id}, student_id={item.student_id}, status={item.status}")
-                crud.mark_attendance(db, item)
-                success_count += 1
-                logging.warning(f"ATT_DEBUG: mark_attendance başarılı: success_count={success_count}")
-            except Exception as e:
-                error_count += 1
-                # Hata loglama (geliştirme için)
-                import logging
-                import traceback
-                error_msg = f"Öğrenci ID {item.student_id}: {str(e)}"
-                logging.error(f"Yoklama kayıt hatası: {error_msg}")
-                logging.error(traceback.format_exc())
-                error_messages.append(error_msg)
-                continue
-        
-        # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
-        if success_count > 0:
-            request.session["attendance_success"] = success_count
-        if error_count > 0:
-            request.session["attendance_errors"] = error_count
-            request.session["attendance_error_messages"] = error_messages[:5]  # İlk 5 hatayı kaydet
-        
-        # Eğer hiç kayıt yapılamadıysa hata mesajı göster
-        if success_count == 0 and error_count > 0:
-            request.session["attendance_error"] = f"Yoklama kaydedilemedi. {error_count} hata oluştu."
-            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
-        
-        return RedirectResponse(url="/dashboard", status_code=302)
-    except Exception as e:
-        # Genel hata yakalama
-        import logging
-        import traceback
-        logging.error(f"Yoklama endpoint genel hatası: {e}")
-        logging.error(traceback.format_exc())
-        request.session["attendance_error"] = f"Yoklama kaydedilirken bir hata oluştu: {str(e)}"
-        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new", status_code=302)
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 
 # UI: Enrollment - create
@@ -1839,6 +1660,9 @@ def login_admin_form(request: Request):
             <button type="submit">Giriş Yap</button>
         </form>
         <p class="info">Sadece yönetici girişi içindir.</p>
+        <div class="setup-link">
+            <a href="/setup-database">🔧 Veritabanını Başlat (İlk Kurulum)</a>
+        </div>
     </div>
 </body>
 </html>"""
@@ -1880,9 +1704,8 @@ def login_admin(request: Request, username: str = Form(...), password: str = For
             "role": "admin",
             "teacher_id": getattr(user, 'teacher_id', None),
         }
-        # Hata mesajını ve last_role'ü temizle
+        # Hata mesajını temizle
         request.session.pop("login_error", None)
-        request.session.pop("last_role", None)
         return RedirectResponse(url="/dashboard", status_code=302)
     
     except Exception as e:
@@ -1954,8 +1777,6 @@ def login_teacher(request: Request, username: str = Form(...), password: str = F
         "role": "teacher",
         "teacher_id": getattr(user, 'teacher_id', None),
     }
-    # last_role'ü temizle
-    request.session.pop("last_role", None)
     return RedirectResponse(url="/ui/teacher", status_code=302)
 
 # Personel için giriş (örnek rol adı: staff)
@@ -2018,12 +1839,10 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
         "role": "staff",
         "teacher_id": getattr(user, 'teacher_id', None),
     }
-    # last_role'ü temizle
-    request.session.pop("last_role", None)
     return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)
-def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, lesson_date: str | None = None, db: Session = Depends(get_db)):
+def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
@@ -2036,19 +1855,11 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         else:
             return RedirectResponse(url="/login/staff", status_code=302)
     try:
-        from datetime import date, datetime
-        # Tarih seçimi: eğer seçilmediyse bugünü kullan
-        selected_date = date.today()
-        if lesson_date:
-            try:
-                selected_date = datetime.strptime(lesson_date, "%Y-%m-%d").date()
-            except ValueError:
-                selected_date = date.today()
-        
         # Tüm öğretmenleri getir
         teachers = crud.list_teachers(db)
         
-        # Her öğretmen için seçilen tarihe göre ders programını hazırla
+        # Her öğretmen için haftalık ders programını hazırla
+        from datetime import datetime
         weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
         teachers_schedules = []
         
@@ -2057,14 +1868,12 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             formatted_lessons = []
             for entry in lessons_with_students:
                 lesson = entry["lesson"]
-                # Sadece seçilen tarihe ait dersleri göster
-                if lesson.lesson_date == selected_date:
-                    weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-                    formatted_lessons.append({
-                        "weekday": weekday,
-                        "lesson": lesson,
-                        "students": entry["students"],
-                    })
+                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                formatted_lessons.append({
+                    "weekday": weekday,
+                    "lesson": lesson,
+                    "students": entry["students"],
+                })
             teachers_schedules.append({
                 "teacher": teacher,
                 "lessons": formatted_lessons
@@ -2096,9 +1905,7 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             # Seçilen öğrencinin bilgilerini ve derslerini getir
             selected_student = crud.get_student(db, student_id)
             if selected_student:
-                student_lessons_all = crud.list_lessons_by_student(db, student_id)
-                # Sadece seçilen tarihe ait dersleri filtrele
-                student_lessons = [l for l in student_lessons_all if l.lesson_date == selected_date]
+                student_lessons = crud.list_lessons_by_student(db, student_id)
                 # Dersleri haftalık formata çevir
                 from datetime import time as time_type
                 for lesson in student_lessons:
@@ -2118,16 +1925,16 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         # Ödeme durumu tablosu için tüm öğrencileri getir
         all_students = crud.list_students(db)
         payment_status_list = []
+        from datetime import date
         today = date.today()
         
         for student in all_students:
-            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
-            # Geriye dönük uyumluluk için LATE'i de dahil et
+            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
             total_lessons = db.scalars(
                 select(func.count(models.Attendance.id))
                 .where(
                     models.Attendance.student_id == student.id,
-                    models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"])
+                    models.Attendance.status.in_(["PRESENT", "LATE"])
                 )
             ).first() or 0
             
@@ -2175,9 +1982,7 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             "selected_student": selected_student,
             "student_lessons": student_lessons_formatted,
             "payment_status_list": payment_status_list,
-            "today": today,
-            "selected_date": selected_date,
-            "lesson_date": lesson_date or selected_date.strftime("%Y-%m-%d")
+            "today": today
         })
     except Exception as e:
         import logging

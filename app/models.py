@@ -96,13 +96,14 @@ class Lesson(Base):
 
 class Attendance(Base):
 	__tablename__ = "attendances"
-	# Unique constraint kaldırıldı - aynı ders için farklı tarihlerde yoklama alınabilir
-	# Her yoklama girişi ayrı bir kayıt olarak oluşturulur
+	__table_args__ = (
+		UniqueConstraint("lesson_id", "student_id", name="uq_lesson_student"),
+	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
 	student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
-	status: Mapped[str] = mapped_column(String(20), nullable=False)  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, TELAFI
+	status: Mapped[str] = mapped_column(String(20), nullable=False)  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, LATE
 	note: Mapped[str | None] = mapped_column(Text, nullable=True)
 	marked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

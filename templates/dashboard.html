@@ -256,7 +256,7 @@
             <option value="PRESENT" {% if filters.status == 'PRESENT' %}selected{% endif %}>Geldi</option>
             <option value="UNEXCUSED_ABSENT" {% if filters.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>Habersiz gelmedi</option>
             <option value="EXCUSED_ABSENT" {% if filters.status == 'EXCUSED_ABSENT' %}selected{% endif %}>Haberli gelmedi</option>
-            <option value="TELAFI" {% if filters.status == 'TELAFI' or filters.status == 'LATE' %}selected{% endif %}>Telafi</option>
+            <option value="LATE" {% if filters.status == 'LATE' %}selected{% endif %}>Geç</option>
         </select>
         <select name="order_by">
             <option value="marked_at_desc" {% if filters.order_by == 'marked_at_desc' %}selected{% endif %}>Yoklama Zamanı (Yeni → Eski)</option>
@@ -302,10 +302,10 @@
                         <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                     {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                         <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
-                    {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
-                        <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                    {% elif entry.attendance.status == 'LATE' %}
+                        <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geç</span>
                     {% elif entry.attendance.status == 'ABSENT' %}
-                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok (Eski)</span>
+                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
                     {% else %}
                         {{ entry.attendance.status }}
                     {% endif %}
@@ -351,10 +351,10 @@
                             <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                         {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                             <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
-                        {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
-                            <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                        {% elif entry.attendance.status == 'LATE' %}
+                            <span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geç</span>
                         {% elif entry.attendance.status == 'ABSENT' %}
-                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok (Eski)</span>
+                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
                         {% else %}
                             {{ entry.attendance.status }}
                         {% endif %}
@@ -377,7 +377,7 @@
 <div class="card">
     <h3 class="h2">Puantaj Tablosu</h3>
     <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">
-        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi (EXCUSED_ABSENT) durumları tabloya işlenmez.
+        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
     </p>
     {% if attendance_report %}
         {% for teacher_report in attendance_report %}
@@ -391,10 +391,9 @@
                     <thead>
                         <tr>
                             <th>Öğrenci</th>
-                            <th>Geldi (PRESENT)</th>
-                            <th>Habersiz Gelmedi (UNEXCUSED_ABSENT)</th>
-                            <th>Haberli Gelmedi (EXCUSED_ABSENT)</th>
-                            <th>Telafi (TELAFI)</th>
+                            <th>Geldi</th>
+                            <th>Habersiz Gelmedi</th>
+                            <th>Geç Geldi</th>
                             <th>Toplam Ders</th>
                         </tr>
                     </thead>
@@ -404,16 +403,10 @@
                             <td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
                             <td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>
                             <td style="text-align:center;color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</td>
-                            <td style="text-align:center;color:#3b82f6;font-weight:600;">{{ student_data.excused_absent }}</td>
-                            <td style="text-align:center;color:#f59e0b;font-weight:600;">{{ student_data.telafi }}</td>
+                            <td style="text-align:center;color:#f59e0b;font-weight:600;">{{ student_data.late }}</td>
                             <td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>
                         </tr>
                         {% endfor %}
-                        {% set teacher_total = teacher_report.students | sum(attribute='total') %}
-                        <tr>
-                            <td colspan="5" style="text-align:right;font-weight:600;">Bu öğretmen için toplam ders sayısı:</td>
-                            <td style="text-align:center;font-weight:700;">{{ teacher_total }}</td>
-                        </tr>
                     </tbody>
                 </table>
                 <div class="mobile-card-view">
@@ -424,20 +417,16 @@
                             <div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></div>
                         </div>
                         <div class="mobile-card-row">
-                            <div class="mobile-card-label">Geldi (PRESENT)</div>
+                            <div class="mobile-card-label">Geldi</div>
                             <div class="mobile-card-value" style="color:#10b981;font-weight:600;">{{ student_data.present }}</div>
                         </div>
                         <div class="mobile-card-row">
-                            <div class="mobile-card-label">Habersiz Gelmedi (UNEXCUSED_ABSENT)</div>
+                            <div class="mobile-card-label">Habersiz Gelmedi</div>
                             <div class="mobile-card-value" style="color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</div>
                         </div>
                         <div class="mobile-card-row">
-                            <div class="mobile-card-label">Haberli Gelmedi (EXCUSED_ABSENT)</div>
-                            <div class="mobile-card-value" style="color:#3b82f6;font-weight:600;">{{ student_data.excused_absent }}</div>
-                        </div>
-                        <div class="mobile-card-row">
-                            <div class="mobile-card-label">Telafi (TELAFI)</div>
-                            <div class="mobile-card-value" style="color:#f59e0b;font-weight:600;">{{ student_data.telafi }}</div>
+                            <div class="mobile-card-label">Geç Geldi</div>
+                            <div class="mobile-card-value" style="color:#f59e0b;font-weight:600;">{{ student_data.late }}</div>
                         </div>
                         <div class="mobile-card-row">
                             <div class="mobile-card-label">Toplam Ders</div>

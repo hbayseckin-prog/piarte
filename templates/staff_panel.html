@@ -132,12 +132,9 @@
 				placeholder="Öğrenci adı veya soyadı ile ara..." 
 				style="flex:1;min-width:200px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
 			/>
-			{% if lesson_date %}
-			<input type="hidden" name="lesson_date" value="{{ lesson_date }}" />
-			{% endif %}
 			<button type="submit" style="padding:10px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Ara</button>
 			{% if search %}
-			<a href="/ui/staff{% if lesson_date %}?lesson_date={{ lesson_date }}{% endif %}" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;">Temizle</a>
+			<a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;">Temizle</a>
 			{% endif %}
 		</div>
 	</form>
@@ -148,7 +145,7 @@
 		<div style="display:flex;flex-direction:column;gap:8px;">
 			{% for item in search_results %}
 			<a 
-				href="/ui/staff?student_id={{ item.student.id }}{% if lesson_date %}&lesson_date={{ lesson_date }}{% endif %}" 
+				href="/ui/staff?student_id={{ item.student.id }}" 
 				style="display:block;padding:12px;background:{% if item.needs_payment %}#fee2e2{% else %}#f9fafb{% endif %};border:1px solid {% if item.needs_payment %}#ef4444{% else %}var(--border){% endif %};border-radius:8px;text-decoration:none;color:#0f172a;transition:all 0.2s;border-left:4px solid {% if item.needs_payment %}#ef4444{% else %}transparent{% endif %};"
 				onmouseover="this.style.background='{% if item.needs_payment %}#fecaca{% else %}#f1f5f9{% endif %}';this.style.borderColor='#0ea5e9';"
 				onmouseout="this.style.background='{% if item.needs_payment %}#fee2e2{% else %}#f9fafb{% endif %}';this.style.borderColor='{% if item.needs_payment %}#ef4444{% else %}var(--border){% endif %}';"
@@ -174,77 +171,51 @@
 	<div style="margin-top:20px;padding:16px;background:#f0f9ff;border:1px solid #0ea5e9;border-radius:12px;">
 		<h4 style="margin:0 0 12px 0;color:#0f172a;font-size:16px;font-weight:600;">
 			{{ selected_student.first_name }} {{ selected_student.last_name }} - Ders Programı
-			{% if selected_date %}
-			<span style="font-size:14px;color:#64748b;font-weight:400;">({{ selected_date.strftime('%d.%m.%Y') }})</span>
-			{% endif %}
 		</h4>
 		{% if student_lessons %}
-		<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-			{% for entry in student_lessons %}
-			<div style="padding:12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:14px">
-				<div style="font-weight:600;color:#0f172a;margin-bottom:6px;font-size:16px">{{ entry.lesson.course.name }}</div>
-				<div style="color:#64748b;font-size:13px;margin-bottom:4px">
-					{% if entry.lesson.start_time or entry.lesson.end_time %}
-						🕐 {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
-					{% else %}
-						🕐 Saat belirtilmemiş
-					{% endif %}
+		{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
+		<div class="weekly-schedule" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px">
+			{% for day_name in weekdays %}
+			<div style="border:1px solid var(--border);border-radius:12px;padding:12px;background:#fff">
+				<h4 style="margin:0 0 8px 0;font-size:14px;color:#2563eb;font-weight:600">{{ day_name }}</h4>
+				<div style="display:flex;flex-direction:column;gap:8px">
+					{% for entry in student_lessons %}
+						{% if entry.weekday == day_name %}
+						<div style="padding:8px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);font-size:12px">
+							<div style="font-weight:600;color:#0f172a;margin-bottom:4px">{{ entry.lesson.course.name }}</div>
+							<div style="color:#64748b;font-size:11px;margin-bottom:4px">
+								{% if entry.lesson.start_time or entry.lesson.end_time %}
+									{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+								{% endif %}
+							</div>
+							<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+							<div style="color:#0ea5e9;font-size:11px;font-weight:600;margin-top:4px">
+								Öğretmen: {{ entry.lesson.teacher.first_name }} {{ entry.lesson.teacher.last_name }}
+							</div>
+							{% if entry.lesson_number %}
+							<div style="margin-top:6px;padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:11px;font-weight:600;display:inline-block;">
+								{{ entry.lesson_number }}. Ders
+								{% if entry.total_same_day > 1 %}
+								<span style="opacity:0.8;">({{ entry.total_same_day }} ders)</span>
+								{% endif %}
+							</div>
+							{% endif %}
+						</div>
+						{% endif %}
+					{% endfor %}
 				</div>
-				<div style="color:#0ea5e9;font-size:13px;font-weight:600;margin-top:6px">
-					👨‍🏫 Öğretmen: {{ entry.lesson.teacher.first_name }} {{ entry.lesson.teacher.last_name }}
-				</div>
-				{% if entry.lesson_number %}
-				<div style="margin-top:8px;padding:6px 12px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">
-					{{ entry.lesson_number }}. Ders
-					{% if entry.total_same_day > 1 %}
-					<span style="opacity:0.9;">({{ entry.total_same_day }} ders)</span>
-					{% endif %}
-				</div>
-				{% endif %}
-				{% if entry.lesson.description %}
-				<div style="margin-top:8px;padding:8px;background:#f9fafb;border-radius:6px;color:#64748b;font-size:12px;border-left:3px solid #0ea5e9;">
-					{{ entry.lesson.description }}
-				</div>
-				{% endif %}
 			</div>
 			{% endfor %}
 		</div>
 		{% else %}
-		<p style="color:#64748b;text-align:center;padding:20px;">
-			{% if selected_date %}
-				Bu öğrencinin <strong>{{ selected_date.strftime('%d.%m.%Y') }}</strong> tarihinde ders kaydı bulunmuyor.
-			{% else %}
-				Bu öğrencinin henüz ders kaydı bulunmuyor.
-			{% endif %}
-		</p>
+		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğrencinin henüz ders kaydı bulunmuyor.</p>
 		{% endif %}
 	</div>
 	{% endif %}
 </div>
 
 <div class="card">
-	<h3 class="h2">Öğretmen ve Öğrenci Ders Programları</h3>
-	<form method="get" action="/ui/staff" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-		<label style="font-weight:500;color:#0f172a;">📅 Tarih Seç:</label>
-		<input 
-			type="date" 
-			name="lesson_date" 
-			value="{{ lesson_date }}" 
-			style="padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;"
-		/>
-		<button type="submit" style="padding:10px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Filtrele</button>
-		{% if lesson_date %}
-		<a href="/ui/staff{% if search %}?search={{ search }}{% endif %}{% if student_id %}{% if search %}&{% else %}?{% endif %}student_id={{ student_id }}{% endif %}" 
-		   style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;">Bugün</a>
-		{% endif %}
-	</form>
-	<p style="color:#64748b;margin-bottom:16px;font-size:14px;">
-		{% if selected_date %}
-			📌 Seçilen Tarih: <strong>{{ selected_date.strftime('%d.%m.%Y') }}</strong> ({{ selected_date.strftime('%A') }})
-		{% else %}
-			📌 Bugün: <strong>{{ today.strftime('%d.%m.%Y') }}</strong>
-		{% endif %}
-	</p>
+	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
 	<div class="tabs-container" style="margin-bottom:16px;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
@@ -260,56 +231,44 @@
 	</div>
 	
 	<!-- Öğretmen Programları -->
+	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
 	{% for schedule in teachers_schedules %}
 	<div class="teacher-schedule" id="teacher-{{ schedule.teacher.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};">
 		<h4 style="margin-bottom:12px;color:#0f172a;font-size:16px;font-weight:600;">
-			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Ders Programı
-			{% if selected_date %}
-			<span style="font-size:14px;color:#64748b;font-weight:400;">({{ selected_date.strftime('%d.%m.%Y') }})</span>
-			{% endif %}
+			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Haftalık Program
 		</h4>
 		{% if schedule.lessons %}
-		<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-			{% for entry in schedule.lessons %}
-			<div style="padding:12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:14px">
-				<div style="font-weight:600;color:#0f172a;margin-bottom:6px;font-size:16px">{{ entry.lesson.course.name }}</div>
-				<div style="color:#64748b;font-size:13px;margin-bottom:4px">
-					{% if entry.lesson.start_time or entry.lesson.end_time %}
-						🕐 {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
-					{% else %}
-						🕐 Saat belirtilmemiş
-					{% endif %}
+		<div class="weekly-schedule" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px">
+			{% for day_name in weekdays %}
+			<div style="border:1px solid var(--border);border-radius:12px;padding:12px;background:#f9fafb">
+				<h4 style="margin:0 0 8px 0;font-size:14px;color:#2563eb;font-weight:600">{{ day_name }}</h4>
+				<div style="display:flex;flex-direction:column;gap:8px">
+					{% for entry in schedule.lessons %}
+						{% if entry.weekday == day_name %}
+						<div style="padding:8px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:12px">
+							<div style="font-weight:600;color:#0f172a;margin-bottom:4px">{{ entry.lesson.course.name }}</div>
+							<div style="color:#64748b;font-size:11px;margin-bottom:4px">
+								{% if entry.lesson.start_time or entry.lesson.end_time %}
+									{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+								{% endif %}
+							</div>
+							<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+							{% if entry.students %}
+							<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+								{% for s in entry.students %}
+									<div style="font-size:11px;color:#475569">{{ s.first_name }} {{ s.last_name }}</div>
+								{% endfor %}
+							</div>
+							{% endif %}
+						</div>
+						{% endif %}
+					{% endfor %}
 				</div>
-				{% if entry.students %}
-				<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-					<div style="color:#64748b;font-size:12px;margin-bottom:6px;font-weight:500">👥 Öğrenciler:</div>
-					<div style="display:flex;flex-wrap:wrap;gap:6px">
-						{% for s in entry.students %}
-							<span style="padding:4px 10px;background:#e0e7ff;color:#4338ca;border-radius:6px;font-size:12px;font-weight:500;">{{ s.first_name }} {{ s.last_name }}</span>
-						{% endfor %}
-					</div>
-				</div>
-				{% else %}
-				<div style="margin-top:8px;padding:6px;background:#f9fafb;border-radius:6px;color:#64748b;font-size:12px;">
-					👥 Öğrenci kaydı bulunmuyor
-				</div>
-				{% endif %}
-				{% if entry.lesson.description %}
-				<div style="margin-top:8px;padding:8px;background:#f9fafb;border-radius:6px;color:#64748b;font-size:12px;border-left:3px solid #0ea5e9;">
-					{{ entry.lesson.description }}
-				</div>
-				{% endif %}
 			</div>
 			{% endfor %}
 		</div>
 		{% else %}
-		<p style="color:#64748b;text-align:center;padding:20px;">
-			{% if selected_date %}
-				Bu öğretmenin <strong>{{ selected_date.strftime('%d.%m.%Y') }}</strong> tarihinde ders kaydı bulunmuyor.
-			{% else %}
-				Bu öğretmen için henüz ders kaydı bulunmuyor.
-			{% endif %}
-		</p>
+		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğretmen için henüz ders kaydı bulunmuyor.</p>
 		{% endif %}
 	</div>
 	{% endfor %}

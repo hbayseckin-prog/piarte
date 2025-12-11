@@ -1051,25 +1051,33 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
         # Form'dan gelen değeri al ve temizle
-        status = (value or "").strip().upper()
+        # ÖNEMLİ: Değeri olduğu gibi kullan, sadece boşlukları temizle
+        status_raw = (value or "").strip()
         
         # Boş değerleri atla
-        if not status:
+        if not status_raw:
             continue
         
         # DEBUG: Ham değeri logla
         import logging
-        logging.info(f"Form'dan gelen yoklama durumu: Öğrenci {sid}, Ham değer: '{value}', İşlenmiş: '{status}'")
+        logging.info(f"=== YOKLAMA KAYDI BAŞLADI ===")
+        logging.info(f"Form'dan gelen yoklama durumu: Öğrenci {sid}")
+        logging.info(f"  Ham değer (raw): '{value}'")
+        logging.info(f"  Temizlenmiş değer: '{status_raw}'")
+        
+        # Status değerini büyük harfe çevir (form'dan gelen değer zaten büyük harf olmalı ama emin olalım)
+        status = status_raw.upper()
+        logging.info(f"  Büyük harf: '{status}'")
         
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-            logging.info(f"ABSENT -> UNEXCUSED_ABSENT dönüştürüldü (öğrenci {sid})")
+            logging.info(f"  Dönüşüm: ABSENT -> UNEXCUSED_ABSENT")
         
         # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
         if status == "LATE":
             status = "TELAFI"
-            logging.info(f"LATE -> TELAFI dönüştürüldü (öğrenci {sid})")
+            logging.info(f"  Dönüşüm: LATE -> TELAFI")
         
         # Geçerli status değerlerini kontrol et
         # PRESENT -> "Geldi"
@@ -1079,7 +1087,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
         if status not in valid_statuses:
             # Geçersiz status değerini logla
-            logging.warning(f"Geçersiz yoklama durumu: '{status}' (öğrenci {sid}, ham değer: '{value}')")
+            logging.error(f"  ❌ GEÇERSİZ YOKLAMA DURUMU: '{status}' (öğrenci {sid}, ham değer: '{value}')")
             continue
         
         # DEBUG: Geçerli status değerini logla
@@ -1089,7 +1097,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             "TELAFI": "Telafi",
             "UNEXCUSED_ABSENT": "Habersiz Gelmedi"
         }
-        logging.info(f"Geçerli yoklama durumu: Öğrenci {sid}, Status: {status} ({status_map.get(status, 'Bilinmeyen')})")
+        logging.info(f"  ✅ Geçerli durum: {status} -> {status_map.get(status, 'Bilinmeyen')}")
+        logging.info(f"=== YOKLAMA KAYDI DEVAM EDİYOR ===")
         to_create.append(
             schemas.AttendanceCreate(
                 lesson_id=lesson_id,

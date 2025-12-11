@@ -322,12 +322,15 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 			"TELAFI": "Telafi",
 			"UNEXCUSED_ABSENT": "Habersiz Gelmedi"
 		}
-		logging.info(f"Yoklama güncelleniyor: Öğrenci {data.student_id}, Ders {data.lesson_id}")
-		logging.info(f"  Eski durum: {old_status} ({status_map.get(old_status, 'Bilinmeyen')})")
-		logging.info(f"  Yeni durum: {new_status} ({status_map.get(new_status, 'Bilinmeyen')})")
+		logging.info(f"=== YOKLAMA GÜNCELLEME ===")
+		logging.info(f"Öğrenci: {data.student_id}, Ders: {data.lesson_id}")
+		logging.info(f"  data.status değeri: '{data.status}' (tip: {type(data.status)})")
+		logging.info(f"  Eski durum (DB): {old_status} ({status_map.get(old_status, 'Bilinmeyen')})")
+		logging.info(f"  Yeni durum (Form): {new_status} ({status_map.get(new_status, 'Bilinmeyen')})")
 		
-		# Status'u güncelle - DOĞRUDAN data.status'tan al
-		existing.status = new_status
+		# Status'u güncelle - DOĞRUDAN data.status'tan al, DEĞİŞTİRME!
+		existing.status = str(new_status).strip().upper()  # Ekstra güvenlik için
+		logging.info(f"  Güncellenen durum: {existing.status} ({status_map.get(existing.status, 'Bilinmeyen')})")
 		
 		# marked_at varsa güncelle
 		if hasattr(data, 'marked_at') and data.marked_at is not None:

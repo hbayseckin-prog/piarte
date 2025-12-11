@@ -415,10 +415,12 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	
 	# Always use LEFT JOIN to ensure all attendances are included, even if lesson is missing
 	# This prevents filtering out attendances with orphaned lesson references
+	# IMPORTANT: Even if no filters need join, we still join to be able to access lesson data in dashboard
 	if needs_join:
 		stmt = select(models.Attendance).outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
 	else:
-		stmt = select(models.Attendance)
+		# Even without filters, join to access lesson data (but use outerjoin to not filter out orphaned records)
+		stmt = select(models.Attendance).outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
 	
 	# Filtreleme
 	if teacher_id:

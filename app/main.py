@@ -1321,15 +1321,30 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     logging.info(f"=== YOKLAMA KAYIT İŞLEMİ TAMAMLANDI ===")
     logging.info(f"Başarılı: {success_count}, Hatalı: {error_count}")
     
+    # #region agent log - Final verification: Check all attendances in DB
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Final check: Get all attendances from DB to verify they were saved
+        all_attendances_final = db.scalars(select(models.Attendance)).all()
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_final_check", "timestamp": int(time.time() * 1000), "location": "main.py:1321", "message": "Final check - all attendances in DB after save", "data": {"total_count": len(all_attendances_final), "attendance_ids": [a.id for a in all_attendances_final], "lesson_ids": list(set([a.lesson_id for a in all_attendances_final])), "success_count": success_count, "error_count": error_count}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:
         request.session["attendance_success"] = success_count
     if error_count > 0:
         request.session["attendance_errors"] = error_count
     
-    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ TAMAMLANDI ===")
-    logging.info(f"Başarılı: {success_count}, Hatalı: {error_count}")
-    
+    # Role'e göre yönlendir
+    user = request.session.get("user")
+    if user and user.get("role") == "teacher":
+        return RedirectResponse(url="/ui/teacher", status_code=302)
     return RedirectResponse(url="/dashboard", status_code=302)
 
 

@@ -1072,6 +1072,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     errors = []
     
     # Tüm yoklamaları commit olmadan ekle
+    # ÖNEMLİ: Hata durumunda rollback yapmıyoruz, sadece o kaydı atlıyoruz
+    # Böylece önceki başarılı kayıtlar korunur
     for item in to_create:
         try:
             result = crud.mark_attendance(db, item, commit=False)
@@ -1082,17 +1084,14 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
         except Exception as e:
             error_count += 1
-            errors.append(f"Yoklama kayıt hatası: {e}")
+            errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
             # Hata loglama
             import logging
             import traceback
             logging.error(f"Yoklama kayıt hatası: {e}")
             logging.error(traceback.format_exc())
-            # Hata durumunda rollback yap ama devam et
-            try:
-                db.rollback()
-            except:
-                pass
+            # Hata durumunda rollback YAPMIYORUZ - sadece bu kaydı atlıyoruz
+            # Böylece önceki başarılı kayıtlar korunur
             continue
     
     # Tüm yoklamalar başarıyla eklendiyse tek seferde commit et

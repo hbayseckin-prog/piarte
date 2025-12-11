@@ -320,6 +320,9 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 		if commit:
 			db.commit()
 			db.refresh(existing)
+		else:
+			# commit=False olduğunda da değişiklikleri session'a yaz
+			db.flush()
 		return existing
 	else:
 		# Yeni yoklama kaydı oluştur

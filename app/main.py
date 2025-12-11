@@ -1050,22 +1050,46 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             continue
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             continue
+        # Form'dan gelen değeri al ve temizle
         status = (value or "").strip().upper()
+        
         # Boş değerleri atla
         if not status:
             continue
+        
+        # DEBUG: Ham değeri logla
+        import logging
+        logging.info(f"Form'dan gelen yoklama durumu: Öğrenci {sid}, Ham değer: '{value}', İşlenmiş: '{status}'")
+        
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
+            logging.info(f"ABSENT -> UNEXCUSED_ABSENT dönüştürüldü (öğrenci {sid})")
+        
         # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
         if status == "LATE":
             status = "TELAFI"
+            logging.info(f"LATE -> TELAFI dönüştürüldü (öğrenci {sid})")
+        
         # Geçerli status değerlerini kontrol et
-        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}:
+        # PRESENT -> "Geldi"
+        # EXCUSED_ABSENT -> "Haberli Gelmedi"
+        # TELAFI -> "Telafi"
+        # UNEXCUSED_ABSENT -> "Habersiz Gelmedi"
+        valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
+        if status not in valid_statuses:
             # Geçersiz status değerini logla
-            import logging
             logging.warning(f"Geçersiz yoklama durumu: '{status}' (öğrenci {sid}, ham değer: '{value}')")
             continue
+        
+        # DEBUG: Geçerli status değerini logla
+        status_map = {
+            "PRESENT": "Geldi",
+            "EXCUSED_ABSENT": "Haberli Gelmedi",
+            "TELAFI": "Telafi",
+            "UNEXCUSED_ABSENT": "Habersiz Gelmedi"
+        }
+        logging.info(f"Geçerli yoklama durumu: Öğrenci {sid}, Status: {status} ({status_map.get(status, 'Bilinmeyen')})")
         to_create.append(
             schemas.AttendanceCreate(
                 lesson_id=lesson_id,

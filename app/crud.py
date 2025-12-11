@@ -310,25 +310,40 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 	
 	if existing:
 		# Mevcut yoklamayı güncelle
-		# ÖNEMLİ: Status değerini doğrudan data.status'tan al
+		# ÖNEMLİ: Status değerini doğrudan data.status'tan al - DEĞİŞTİRME!
 		old_status = existing.status
-		existing.status = data.status
+		new_status = data.status
+		
+		# DEBUG: Status değişikliğini logla
+		import logging
+		status_map = {
+			"PRESENT": "Geldi",
+			"EXCUSED_ABSENT": "Haberli Gelmedi",
+			"TELAFI": "Telafi",
+			"UNEXCUSED_ABSENT": "Habersiz Gelmedi"
+		}
+		logging.info(f"Yoklama güncelleniyor: Öğrenci {data.student_id}, Ders {data.lesson_id}")
+		logging.info(f"  Eski durum: {old_status} ({status_map.get(old_status, 'Bilinmeyen')})")
+		logging.info(f"  Yeni durum: {new_status} ({status_map.get(new_status, 'Bilinmeyen')})")
+		
+		# Status'u güncelle - DOĞRUDAN data.status'tan al
+		existing.status = new_status
+		
 		# marked_at varsa güncelle
 		if hasattr(data, 'marked_at') and data.marked_at is not None:
 			existing.marked_at = data.marked_at
 		# note varsa güncelle
 		if hasattr(data, 'note') and data.note is not None:
 			existing.note = data.note
-		# Debug: Status değişikliğini logla
-		if old_status != data.status:
-			import logging
-			logging.info(f"Yoklama güncellendi: Öğrenci {data.student_id}, Ders {data.lesson_id}, Eski: {old_status}, Yeni: {data.status}")
+		
 		if commit:
 			db.commit()
 			db.refresh(existing)
+			logging.info(f"Yoklama güncellendi (commit=True): Öğrenci {data.student_id}, Durum: {existing.status}")
 		else:
 			# commit=False olduğunda da değişiklikleri session'a yaz
 			db.flush()
+			logging.info(f"Yoklama session'a yazıldı (commit=False): Öğrenci {data.student_id}, Durum: {existing.status}")
 		return existing
 	else:
 		# Yeni yoklama kaydı oluştur
@@ -338,11 +353,26 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 			from datetime import datetime
 			attendance_data['marked_at'] = datetime.utcnow()
 		
+		# DEBUG: Yeni kayıt oluşturuluyor
+		import logging
+		status_map = {
+			"PRESENT": "Geldi",
+			"EXCUSED_ABSENT": "Haberli Gelmedi",
+			"TELAFI": "Telafi",
+			"UNEXCUSED_ABSENT": "Habersiz Gelmedi"
+		}
+		logging.info(f"Yeni yoklama kaydı oluşturuluyor: Öğrenci {data.student_id}, Ders {data.lesson_id}, Durum: {data.status} ({status_map.get(data.status, 'Bilinmeyen')})")
+		
 		attendance = models.Attendance(**attendance_data)
 		db.add(attendance)
 		if commit:
 			db.commit()
 			db.refresh(attendance)
+			logging.info(f"Yeni yoklama kaydedildi (commit=True): Öğrenci {data.student_id}, Durum: {attendance.status}")
+		else:
+			# commit=False olduğunda da session'a yaz
+			db.flush()
+			logging.info(f"Yeni yoklama session'a yazıldı (commit=False): Öğrenci {data.student_id}, Durum: {attendance.status}")
 		return attendance
 
 

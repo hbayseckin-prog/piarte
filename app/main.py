@@ -1243,6 +1243,18 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     for item in to_create:
         logging.info(f"  Öğrenci {item.student_id} -> Durum: {item.status}")
     
+    # #region agent log - to_create listesi kontrolü
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_to_create", "timestamp": int(time.time() * 1000), "location": "main.py:1195", "message": "to_create list before processing", "data": {"count": len(to_create), "items": [{"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status} for item in to_create]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     # ÖNEMLİ: Her kaydı ayrı ayrı commit et - daha güvenli
     # Böylece bir kayıt başarısız olsa bile diğerleri kaydedilir
     import logging
@@ -1251,6 +1263,15 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     
     logging.info(f"=== YOKLAMA KAYIT İŞLEMİ BAŞLADI ===")
     logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
+    
+    # Eğer to_create boşsa, hata ver
+    if len(to_create) == 0:
+        logging.error("❌ HATA: to_create listesi boş! Form verileri parse edilemedi!")
+        request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen öğrenci durumlarını seçin."
+        user = request.session.get("user")
+        if user and user.get("role") == "teacher":
+            return RedirectResponse(url="/ui/teacher", status_code=302)
+        return RedirectResponse(url="/dashboard", status_code=302)
     
     for item in to_create:
         try:
@@ -1318,23 +1339,38 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                     logging.error(f"Debug log error: {e}")
                 # #endregion
             
-            # Hemen commit et
-            db.commit()
-            logging.info(f"[{item.student_id}] ✅ COMMIT BAŞARILI")
+            # Hemen commit et - exception handling ile
+            try:
+                db.commit()
+                # Refresh yap
+                if existing:
+                    db.refresh(existing)
+                else:
+                    db.refresh(attendance)
+                logging.info(f"[{item.student_id}] ✅ COMMIT BAŞARILI")
+            except Exception as commit_error:
+                db.rollback()
+                error_count += 1
+                errors.append(f"Commit hatası (öğrenci {item.student_id}): {commit_error}")
+                logging.error(f"[{item.student_id}] ❌ COMMIT HATASI: {commit_error}")
+                logging.error(traceback.format_exc())
+                continue
             
             # #region agent log
             import json, os, time
             log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
             try:
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                attendance_id = existing.id if existing else (attendance.id if 'attendance' in locals() else None)
                 with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_commit", "timestamp": int(time.time() * 1000), "location": "main.py:1229", "message": "Attendance commit successful", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_commit", "timestamp": int(time.time() * 1000), "location": "main.py:1322", "message": "Attendance commit successful", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status, "attendance_id": attendance_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
             except Exception as e:
                 import logging
                 logging.error(f"Debug log error: {e}")
             # #endregion
             
-            # Doğrula
+            # Doğrula - YENİ SESSION ile (commit sonrası)
+            db.flush()  # Önce flush yap
             saved = db.scalars(
                 select(models.Attendance).where(
                     models.Attendance.lesson_id == item.lesson_id,
@@ -1343,12 +1379,9 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             ).first()
             
             # #region agent log
-            import json, os, time
-            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
             try:
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
                 with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_verify", "timestamp": int(time.time() * 1000), "location": "main.py:1246", "message": "Attendance verification query", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "found": saved is not None, "saved_id": saved.id if saved else None, "saved_status": saved.status if saved else None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_verify", "timestamp": int(time.time() * 1000), "location": "main.py:1348", "message": "Attendance verification query", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "found": saved is not None, "saved_id": saved.id if saved else None, "saved_status": saved.status if saved else None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
             except Exception as e:
                 import logging
                 logging.error(f"Debug log error: {e}")

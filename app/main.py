@@ -1281,7 +1281,11 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         logging.error("❌ HATA: to_create listesi boş! Form verileri parse edilemedi!")
         logging.error(f"❌ HATA: Form'da {len(status_fields)} status field var ama hepsi boş!")
         logging.error(f"❌ HATA: Derse atanmış öğrenci sayısı: {len(lesson_students) if 'lesson_students' in locals() else 0}")
-        request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
+        # Eğer hiç öğrenci yoksa farklı mesaj göster
+        if len(lesson_students) == 0:
+            request.session["attendance_errors"] = "Bu derse henüz öğrenci atanmamış. Lütfen önce öğrenci atayın."
+        else:
+            request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
         # Hata mesajı ile birlikte form sayfasına geri dön
         return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?error=no_data", status_code=302)
     

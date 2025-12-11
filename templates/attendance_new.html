@@ -79,25 +79,8 @@
 			</div>
 		</div>
 		<div style="margin-top:16px;">
-			<button type="submit" onclick="return validateForm()" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
+			<button type="submit" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
 		</div>
 	</form>
 </div>
-<script>
-function validateForm() {
-	var hasSelection = false;
-	var selects = document.querySelectorAll('select[name^="status_"]');
-	for (var i = 0; i < selects.length; i++) {
-		if (selects[i].value && selects[i].value !== '') {
-			hasSelection = true;
-			break;
-		}
-	}
-	if (!hasSelection) {
-		alert('Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi).');
-		return false;
-	}
-	return true;
-}
-</script>
 {% endblock %}

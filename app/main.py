@@ -497,22 +497,30 @@ def dashboard(
     # #endregion
     
     # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
+    # ÖNEMLİ: Tüm yoklamaları göster, lesson/student yoksa bile
     attendances_with_details = []
     orphaned_count = 0
     for att in attendances:
         lesson = db.get(models.Lesson, att.lesson_id)
         student = db.get(models.Student, att.student_id)
-        if lesson and student:
-            teacher = db.get(models.Teacher, lesson.teacher_id) if lesson.teacher_id else None
-            course = db.get(models.Course, lesson.course_id) if lesson.course_id else None
-            attendances_with_details.append({
-                "attendance": att,
-                "lesson": lesson,
-                "student": student,
-                "teacher": teacher,
-                "course": course,
-            })
-        else:
+        # Lesson veya student yoksa bile yoklamayı göster (sadece uyarı ver)
+        if not lesson:
+            import logging
+            logging.warning(f"Yoklama {att.id} için lesson {att.lesson_id} bulunamadı!")
+        if not student:
+            import logging
+            logging.warning(f"Yoklama {att.id} için student {att.student_id} bulunamadı!")
+        
+        teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
+        course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+        attendances_with_details.append({
+            "attendance": att,
+            "lesson": lesson,  # None olabilir
+            "student": student,  # None olabilir
+            "teacher": teacher,
+            "course": course,
+        })
+        if not lesson or not student:
             orphaned_count += 1
     
     # #region agent log

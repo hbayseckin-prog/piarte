@@ -413,8 +413,10 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	# Join gerekip gerekmediğini kontrol et
 	needs_join = teacher_id is not None or course_id is not None or start_date is not None or end_date is not None or order_by.startswith("lesson_date")
 	
+	# Always use LEFT JOIN to ensure all attendances are included, even if lesson is missing
+	# This prevents filtering out attendances with orphaned lesson references
 	if needs_join:
-		stmt = select(models.Attendance).join(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
+		stmt = select(models.Attendance).outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
 	else:
 		stmt = select(models.Attendance)
 	

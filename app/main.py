@@ -1306,61 +1306,29 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 logging.error(f"Debug log error: {e}")
             # #endregion
             
-            # Önce mevcut kaydı kontrol et
-            existing = db.scalars(
-                select(models.Attendance).where(
-                    models.Attendance.lesson_id == item.lesson_id,
-                    models.Attendance.student_id == item.student_id
-                )
-            ).first()
-            
+            # Her yoklama ayrı bir kayıt olarak oluşturulur - mevcut kayıt kontrolü yok
+            from datetime import datetime
             import logging
-            if existing:
-                logging.warning(f"🔍 [{item.student_id}] Mevcut kayıt BULUNDU: ID={existing.id}, Durum='{existing.status}', Ders={item.lesson_id}")
-            else:
-                logging.warning(f"🔍 [{item.student_id}] Mevcut kayıt BULUNAMADI, yeni kayıt oluşturulacak: Ders={item.lesson_id}")
             
-            if existing:
-                # Mevcut kaydı güncelle
-                old_status = existing.status
-                existing.status = str(item.status).strip().upper()
-                if item.marked_at:
-                    existing.marked_at = item.marked_at
-                logging.warning(f"🔄 [{item.student_id}] Mevcut kayıt GÜNCELLENİYOR: ID={existing.id}, Eski Durum='{old_status}' -> Yeni Durum='{existing.status}'")
-                
-                # #region agent log
-                import json, os, time
-                log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-                try:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_update", "timestamp": int(time.time() * 1000), "location": "main.py:1183", "message": "Existing attendance record updated", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "existing_id": existing.id, "old_status": existing.status, "new_status": str(item.status).strip().upper()}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                except Exception as e:
-                    import logging
-                    logging.error(f"Debug log error: {e}")
-                # #endregion
-            else:
-                # Yeni kayıt oluştur
-                from datetime import datetime
-                attendance = models.Attendance(
-                    lesson_id=item.lesson_id,
-                    student_id=item.student_id,
-                    status=str(item.status).strip().upper(),
-                    marked_at=item.marked_at or datetime.utcnow()
-                )
-                db.add(attendance)
-                logging.warning(f"➕ [{item.student_id}] YENİ kayıt oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
-                
-                # #region agent log
-                import json, os, time
-                log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-                try:
-                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_create", "timestamp": int(time.time() * 1000), "location": "main.py:1218", "message": "New attendance record created", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": attendance.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                except Exception as e:
-                    import logging
-                    logging.error(f"Debug log error: {e}")
-                # #endregion
+            attendance = models.Attendance(
+                lesson_id=item.lesson_id,
+                student_id=item.student_id,
+                status=str(item.status).strip().upper(),
+                marked_at=item.marked_at or datetime.utcnow()
+            )
+            db.add(attendance)
+            logging.warning(f"➕ [{item.student_id}] YENİ yoklama kaydı oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
+            
+            # #region agent log
+            import json, os, time
+            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_create", "timestamp": int(time.time() * 1000), "location": "main.py:attendance_create", "message": "New attendance record created", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": attendance.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+            except Exception as e:
+                logging.error(f"Debug log error: {e}")
+            # #endregion
             
             # Hemen commit et - exception handling ile
             try:

@@ -96,9 +96,7 @@ class Lesson(Base):
 
 class Attendance(Base):
 	__tablename__ = "attendances"
-	__table_args__ = (
-		UniqueConstraint("lesson_id", "student_id", name="uq_lesson_student"),
-	)
+	# Unique constraint kaldırıldı - aynı ders ve öğrenci için birden fazla yoklama kaydı olabilir
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)

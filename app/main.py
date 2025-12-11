@@ -1142,6 +1142,24 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         try:
             db.commit()
             logging.info(f"✅ COMMIT BAŞARILI: {success_count} yoklama kaydı veritabanına yazıldı")
+            
+            # Commit sonrası tüm kayıtları refresh et
+            for item in to_create:
+                try:
+                    # Kaydedilen yoklamayı veritabanından oku ve doğrula
+                    from sqlalchemy import select
+                    saved = db.scalars(
+                        select(models.Attendance).where(
+                            models.Attendance.lesson_id == item.lesson_id,
+                            models.Attendance.student_id == item.student_id
+                        )
+                    ).first()
+                    if saved:
+                        logging.info(f"✅ DOĞRULAMA: Öğrenci {item.student_id}, Ders {item.lesson_id}, Durum: '{saved.status}' - VERİTABANINDA MEVCUT")
+                    else:
+                        logging.error(f"❌ DOĞRULAMA HATASI: Öğrenci {item.student_id}, Ders {item.lesson_id} - VERİTABANINDA BULUNAMADI!")
+                except Exception as verify_error:
+                    logging.error(f"❌ Doğrulama hatası (Öğrenci {item.student_id}): {verify_error}")
         except Exception as e:
             db.rollback()
             import traceback

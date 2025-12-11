@@ -299,7 +299,7 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 
 
 # Attendance
-def mark_attendance(db: Session, data: schemas.AttendanceCreate):
+def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = True):
 	# Aynı ders ve öğrenci için zaten bir yoklama var mı kontrol et
 	existing = db.scalars(
 		select(models.Attendance).where(
@@ -317,8 +317,9 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		# note varsa güncelle
 		if hasattr(data, 'note') and data.note is not None:
 			existing.note = data.note
-		db.commit()
-		db.refresh(existing)
+		if commit:
+			db.commit()
+			db.refresh(existing)
 		return existing
 	else:
 		# Yeni yoklama kaydı oluştur
@@ -330,8 +331,9 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 		
 		attendance = models.Attendance(**attendance_data)
 		db.add(attendance)
-		db.commit()
-		db.refresh(attendance)
+		if commit:
+			db.commit()
+			db.refresh(attendance)
 		return attendance
 
 

@@ -445,15 +445,26 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 		stmt = stmt.order_by(models.Attendance.marked_at.desc())
 	
 	stmt = stmt.limit(limit)
-	result = db.scalars(stmt).all()
 	
-	# #region agent log
+	# #region agent log - Log the SQL query
 	import json, os, time
 	log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
 	try:
 		os.makedirs(os.path.dirname(log_path), exist_ok=True)
 		with open(log_path, "a", encoding="utf-8") as f:
-			f.write(json.dumps({"id": f"log_{int(time.time())}_list_result", "timestamp": int(time.time() * 1000), "location": "crud.py:448", "message": "list_all_attendances result", "data": {"count": len(result), "attendance_ids": [a.id for a in result], "lesson_ids": [a.lesson_id for a in result], "student_ids": [a.student_id for a in result]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+			f.write(json.dumps({"id": f"log_{int(time.time())}_list_query", "timestamp": int(time.time() * 1000), "location": "crud.py:447", "message": "list_all_attendances SQL query", "data": {"needs_join": needs_join, "has_teacher_filter": teacher_id is not None, "has_course_filter": course_id is not None, "has_date_filter": start_date is not None or end_date is not None, "limit": limit}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+	except Exception as e:
+		import logging
+		logging.error(f"Debug log error: {e}")
+	# #endregion
+	
+	result = db.scalars(stmt).all()
+	
+	# #region agent log
+	try:
+		os.makedirs(os.path.dirname(log_path), exist_ok=True)
+		with open(log_path, "a", encoding="utf-8") as f:
+			f.write(json.dumps({"id": f"log_{int(time.time())}_list_result", "timestamp": int(time.time() * 1000), "location": "crud.py:456", "message": "list_all_attendances result", "data": {"count": len(result), "attendance_ids": [a.id for a in result], "lesson_ids": list(set([a.lesson_id for a in result])), "student_ids": list(set([a.student_id for a in result]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
 	except Exception as e:
 		import logging
 		logging.error(f"Debug log error: {e}")
@@ -576,6 +587,20 @@ def get_attendance_report_by_teacher(db: Session):
             continue
         
         # Bu derslere ait tüm yoklamaları getir
+        # #region agent log - Before query
+        import json, os, time
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            # First check all attendances directly
+            all_attendances_all_lessons = db.scalars(select(models.Attendance)).all()
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"id": f"log_{int(time.time())}_report_before_query", "timestamp": int(time.time() * 1000), "location": "crud.py:569", "message": "Before query - all attendances in DB", "data": {"teacher_id": teacher.id, "lesson_ids": lesson_ids, "total_attendances_in_db": len(all_attendances_all_lessons), "all_lesson_ids_in_db": list(set([a.lesson_id for a in all_attendances_all_lessons]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
+        except Exception as e:
+            import logging
+            logging.error(f"Debug log error: {e}")
+        # #endregion
+        
         attendances = db.scalars(
             select(models.Attendance)
             .where(
@@ -584,12 +609,10 @@ def get_attendance_report_by_teacher(db: Session):
         ).all()
         
         # #region agent log
-        import json, os, time
-        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
         try:
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
             with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:575", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+                f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:585", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances])), "expected_lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
         except Exception as e:
             import logging
             logging.error(f"Debug log error: {e}")

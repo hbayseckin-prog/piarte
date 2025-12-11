@@ -459,6 +459,20 @@ def dashboard(
         except Exception:
             pass
     
+    # #region agent log - Direct DB query before list_all_attendances
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Direct query to check all attendances in DB
+        all_attendances_direct = db.scalars(select(models.Attendance)).all()
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_direct_query", "timestamp": int(time.time() * 1000), "location": "main.py:462", "message": "Direct DB query - all attendances", "data": {"total_count": len(all_attendances_direct), "attendance_ids": [a.id for a in all_attendances_direct], "lesson_ids": list(set([a.lesson_id for a in all_attendances_direct])), "student_ids": list(set([a.student_id for a in all_attendances_direct]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     # Tüm yoklamaları getir (filtrelerle)
     attendances = crud.list_all_attendances(
         db,
@@ -473,12 +487,10 @@ def dashboard(
     )
     
     # #region agent log
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_attendances", "timestamp": int(time.time() * 1000), "location": "main.py:473", "message": "Dashboard attendances fetched", "data": {"count": len(attendances), "attendance_ids": [a.id for a in attendances]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_attendances", "timestamp": int(time.time() * 1000), "location": "main.py:480", "message": "Dashboard attendances fetched via list_all_attendances", "data": {"count": len(attendances), "attendance_ids": [a.id for a in attendances], "filters": {"teacher_id": teacher_id_int, "student_id": student_id_int, "course_id": course_id_int, "status": status}}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
     except Exception as e:
         import logging
         logging.error(f"Debug log error: {e}")

@@ -1314,12 +1314,19 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 )
             ).first()
             
+            import logging
+            if existing:
+                logging.warning(f"🔍 [{item.student_id}] Mevcut kayıt BULUNDU: ID={existing.id}, Durum='{existing.status}', Ders={item.lesson_id}")
+            else:
+                logging.warning(f"🔍 [{item.student_id}] Mevcut kayıt BULUNAMADI, yeni kayıt oluşturulacak: Ders={item.lesson_id}")
+            
             if existing:
                 # Mevcut kaydı güncelle
+                old_status = existing.status
                 existing.status = str(item.status).strip().upper()
                 if item.marked_at:
                     existing.marked_at = item.marked_at
-                logging.info(f"[{item.student_id}] Mevcut kayıt güncelleniyor: {existing.status}")
+                logging.warning(f"🔄 [{item.student_id}] Mevcut kayıt GÜNCELLENİYOR: ID={existing.id}, Eski Durum='{old_status}' -> Yeni Durum='{existing.status}'")
                 
                 # #region agent log
                 import json, os, time
@@ -1341,7 +1348,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                     marked_at=item.marked_at or datetime.utcnow()
                 )
                 db.add(attendance)
-                logging.info(f"[{item.student_id}] Yeni kayıt oluşturuluyor: {attendance.status}")
+                logging.warning(f"➕ [{item.student_id}] YENİ kayıt oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
                 
                 # #region agent log
                 import json, os, time

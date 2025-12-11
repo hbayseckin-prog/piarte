@@ -1643,6 +1643,59 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
+@app.post("/attendances/{attendance_id}/delete")
+def delete_attendance_endpoint(
+	attendance_id: int,
+	request: Request,
+	db: Session = Depends(get_db),
+):
+	"""Tek bir yoklama kaydını sil (sadece admin)"""
+	if not request.session.get("user"):
+		return RedirectResponse(url="/", status_code=302)
+	user = request.session.get("user")
+	if user.get("role") != "admin":
+		raise HTTPException(status_code=403, detail="Sadece admin bu işlemi yapabilir")
+	
+	try:
+		attendance = crud.delete_attendance(db, attendance_id)
+		if attendance:
+			import logging
+			logging.warning(f"Yoklama kaydı silindi: ID={attendance_id}, Öğrenci={attendance.student_id}, Ders={attendance.lesson_id}")
+			request.session["delete_attendance_success"] = "Yoklama kaydı başarıyla silindi"
+		else:
+			request.session["delete_attendance_error"] = "Yoklama kaydı bulunamadı"
+	except Exception as e:
+		import logging
+		import traceback
+		logging.error(f"Yoklama kaydı silinirken hata: {e}")
+		logging.error(traceback.format_exc())
+		request.session["delete_attendance_error"] = str(e)
+	
+	# Filtreleri koruyarak dashboard'a yönlendir
+	from urllib.parse import urlencode
+	params = {}
+	if request.query_params.get("teacher_id"):
+		params["teacher_id"] = request.query_params.get("teacher_id")
+	if request.query_params.get("student_id"):
+		params["student_id"] = request.query_params.get("student_id")
+	if request.query_params.get("course_id"):
+		params["course_id"] = request.query_params.get("course_id")
+	if request.query_params.get("status"):
+		params["status"] = request.query_params.get("status")
+	if request.query_params.get("start_date"):
+		params["start_date"] = request.query_params.get("start_date")
+	if request.query_params.get("end_date"):
+		params["end_date"] = request.query_params.get("end_date")
+	if request.query_params.get("order_by"):
+		params["order_by"] = request.query_params.get("order_by")
+	
+	redirect_url = "/dashboard"
+	if params:
+		redirect_url += "?" + urlencode(params)
+	
+	return RedirectResponse(url=redirect_url, status_code=302)
+
+
 @app.get("/admin/clear-all-attendances")
 @app.post("/admin/clear-all-attendances")
 def clear_all_attendances(request: Request, db: Session = Depends(get_db)):

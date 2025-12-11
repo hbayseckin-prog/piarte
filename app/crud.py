@@ -149,6 +149,16 @@ def reset_teacher_student_links(db: Session):
 	db.commit()
 
 
+def delete_attendance(db: Session, attendance_id: int):
+	"""Tek bir yoklama kaydını sil"""
+	attendance = db.get(models.Attendance, attendance_id)
+	if not attendance:
+		return None
+	db.delete(attendance)
+	db.commit()
+	return attendance
+
+
 def delete_all_attendances(db: Session):
 	"""Tüm yoklama kayıtlarını sil"""
 	from sqlalchemy import delete

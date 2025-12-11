@@ -471,8 +471,22 @@ def dashboard(
         end_date=end_date_obj,
         order_by=order_by
     )
+    
+    # #region agent log
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_attendances", "timestamp": int(time.time() * 1000), "location": "main.py:473", "message": "Dashboard attendances fetched", "data": {"count": len(attendances), "attendance_ids": [a.id for a in attendances]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
     attendances_with_details = []
+    orphaned_count = 0
     for att in attendances:
         lesson = db.get(models.Lesson, att.lesson_id)
         student = db.get(models.Student, att.student_id)
@@ -486,10 +500,36 @@ def dashboard(
                 "teacher": teacher,
                 "course": course,
             })
+        else:
+            orphaned_count += 1
+    
+    # #region agent log
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_details", "timestamp": int(time.time() * 1000), "location": "main.py:500", "message": "Dashboard attendances with details", "data": {"total_attendances": len(attendances), "with_details": len(attendances_with_details), "orphaned_count": orphaned_count}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
     # Puantaj raporunu getir (sadece admin için)
     attendance_report = []
     if user.get("role") == "admin":
         attendance_report = crud.get_attendance_report_by_teacher(db)
+        
+        # #region agent log
+        import json, os, time
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_report", "timestamp": int(time.time() * 1000), "location": "main.py:511", "message": "Dashboard attendance report fetched", "data": {"report_count": len(attendance_report), "teachers_in_report": [r["teacher"].id for r in attendance_report]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+        except Exception as e:
+            import logging
+            logging.error(f"Debug log error: {e}")
+        # #endregion
     
     context = {
         "request": request,
@@ -1008,6 +1048,18 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
 
 @app.post("/lessons/{lesson_id}/attendance/new")
 async def attendance_create(lesson_id: int, request: Request, db: Session = Depends(get_db)):
+    # #region agent log
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_entry", "timestamp": int(time.time() * 1000), "location": "main.py:1009", "message": "attendance_create endpoint called", "data": {"lesson_id": lesson_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     user = request.session.get("user")
@@ -1118,43 +1170,136 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     
     # ÖNEMLİ: Her kaydı ayrı ayrı commit et - daha güvenli
     # Böylece bir kayıt başarısız olsa bile diğerleri kaydedilir
+    import logging
+    import traceback
+    from sqlalchemy import select
+    
+    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ BAŞLADI ===")
+    logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
+    
     for item in to_create:
         try:
-            logging.info(f"Kaydediliyor: Öğrenci {item.student_id}, Durum: '{item.status}', Ders: {item.lesson_id}")
-            # Her kaydı ayrı ayrı commit et
-            result = crud.mark_attendance(db, item, commit=True)
-            if result:
-                success_count += 1
-                logging.info(f"✅ BAŞARILI (COMMIT): Öğrenci {item.student_id}, Durum: '{result.status}' - VERİTABANINA YAZILDI")
+            logging.info(f"[{item.student_id}] Kaydediliyor: Durum='{item.status}', Ders={item.lesson_id}")
+            
+            # #region agent log
+            import json, os, time
+            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+            try:
+                lesson_check = db.get(models.Lesson, item.lesson_id)
+                student_check = db.get(models.Student, item.student_id)
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_precheck", "timestamp": int(time.time() * 1000), "location": "main.py:1158", "message": "Pre-check before saving attendance", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "lesson_exists": lesson_check is not None, "student_exists": student_check is not None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
+            except Exception as e:
+                import logging
+                logging.error(f"Debug log error: {e}")
+            # #endregion
+            
+            # Önce mevcut kaydı kontrol et
+            existing = db.scalars(
+                select(models.Attendance).where(
+                    models.Attendance.lesson_id == item.lesson_id,
+                    models.Attendance.student_id == item.student_id
+                )
+            ).first()
+            
+            if existing:
+                # Mevcut kaydı güncelle
+                existing.status = str(item.status).strip().upper()
+                if item.marked_at:
+                    existing.marked_at = item.marked_at
+                logging.info(f"[{item.student_id}] Mevcut kayıt güncelleniyor: {existing.status}")
                 
-                # Hemen doğrula
-                from sqlalchemy import select
-                saved = db.scalars(
-                    select(models.Attendance).where(
-                        models.Attendance.lesson_id == item.lesson_id,
-                        models.Attendance.student_id == item.student_id
-                    )
-                ).first()
-                if saved:
-                    logging.info(f"✅ DOĞRULAMA: Öğrenci {item.student_id} - VERİTABANINDA MEVCUT (ID: {saved.id})")
-                else:
-                    logging.error(f"❌ DOĞRULAMA HATASI: Öğrenci {item.student_id} - VERİTABANINDA BULUNAMADI!")
+                # #region agent log
+                import json, os, time
+                log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+                try:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_update", "timestamp": int(time.time() * 1000), "location": "main.py:1183", "message": "Existing attendance record updated", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "existing_id": existing.id, "old_status": existing.status, "new_status": str(item.status).strip().upper()}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                except Exception as e:
+                    import logging
+                    logging.error(f"Debug log error: {e}")
+                # #endregion
+            else:
+                # Yeni kayıt oluştur
+                from datetime import datetime
+                attendance = models.Attendance(
+                    lesson_id=item.lesson_id,
+                    student_id=item.student_id,
+                    status=str(item.status).strip().upper(),
+                    marked_at=item.marked_at or datetime.utcnow()
+                )
+                db.add(attendance)
+                logging.info(f"[{item.student_id}] Yeni kayıt oluşturuluyor: {attendance.status}")
+                
+                # #region agent log
+                import json, os, time
+                log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+                try:
+                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_create", "timestamp": int(time.time() * 1000), "location": "main.py:1218", "message": "New attendance record created", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": attendance.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                except Exception as e:
+                    import logging
+                    logging.error(f"Debug log error: {e}")
+                # #endregion
+            
+            # Hemen commit et
+            db.commit()
+            logging.info(f"[{item.student_id}] ✅ COMMIT BAŞARILI")
+            
+            # #region agent log
+            import json, os, time
+            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_commit", "timestamp": int(time.time() * 1000), "location": "main.py:1229", "message": "Attendance commit successful", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+            except Exception as e:
+                import logging
+                logging.error(f"Debug log error: {e}")
+            # #endregion
+            
+            # Doğrula
+            saved = db.scalars(
+                select(models.Attendance).where(
+                    models.Attendance.lesson_id == item.lesson_id,
+                    models.Attendance.student_id == item.student_id
+                )
+            ).first()
+            
+            # #region agent log
+            import json, os, time
+            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_verify", "timestamp": int(time.time() * 1000), "location": "main.py:1246", "message": "Attendance verification query", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "found": saved is not None, "saved_id": saved.id if saved else None, "saved_status": saved.status if saved else None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+            except Exception as e:
+                import logging
+                logging.error(f"Debug log error: {e}")
+            # #endregion
+            
+            if saved:
+                success_count += 1
+                logging.info(f"[{item.student_id}] ✅ DOĞRULAMA BAŞARILI - ID: {saved.id}, Durum: {saved.status}")
             else:
                 error_count += 1
-                errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
-                logging.error(f"❌ Başarısız: Öğrenci {item.student_id}")
+                logging.error(f"[{item.student_id}] ❌ DOĞRULAMA BAŞARISIZ - VERİTABANINDA BULUNAMADI!")
+                errors.append(f"Yoklama doğrulanamadı: {item.student_id}")
+                
         except Exception as e:
             error_count += 1
             errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
-            import traceback
-            logging.error(f"❌ HATA (Öğrenci {item.student_id}): {e}")
+            logging.error(f"[{item.student_id}] ❌ HATA: {e}")
             logging.error(traceback.format_exc())
-            # Hata durumunda rollback yap ama devam et
             try:
                 db.rollback()
             except:
                 pass
             continue
+    
+    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ TAMAMLANDI ===")
+    logging.info(f"Başarılı: {success_count}, Hatalı: {error_count}")
     
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:

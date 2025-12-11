@@ -397,6 +397,18 @@ def list_attendance_for_lesson(db: Session, lesson_id: int):
 
 
 def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, status: str | None = None, start_date: date | None = None, end_date: date | None = None, order_by: str = "marked_at_desc"):
+	# #region agent log
+	import json, os, time
+	log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+	try:
+		os.makedirs(os.path.dirname(log_path), exist_ok=True)
+		with open(log_path, "a", encoding="utf-8") as f:
+			f.write(json.dumps({"id": f"log_{int(time.time())}_list_entry", "timestamp": int(time.time() * 1000), "location": "crud.py:399", "message": "list_all_attendances called", "data": {"teacher_id": teacher_id, "student_id": student_id, "course_id": course_id, "status": status, "limit": limit}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+	except Exception as e:
+		import logging
+		logging.error(f"Debug log error: {e}")
+	# #endregion
+	
 	# Tüm yoklamaları getir
 	# Join gerekip gerekmediğini kontrol et
 	needs_join = teacher_id is not None or course_id is not None or start_date is not None or end_date is not None or order_by.startswith("lesson_date")
@@ -433,7 +445,21 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 		stmt = stmt.order_by(models.Attendance.marked_at.desc())
 	
 	stmt = stmt.limit(limit)
-	return db.scalars(stmt).all()
+	result = db.scalars(stmt).all()
+	
+	# #region agent log
+	import json, os, time
+	log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+	try:
+		os.makedirs(os.path.dirname(log_path), exist_ok=True)
+		with open(log_path, "a", encoding="utf-8") as f:
+			f.write(json.dumps({"id": f"log_{int(time.time())}_list_result", "timestamp": int(time.time() * 1000), "location": "crud.py:448", "message": "list_all_attendances result", "data": {"count": len(result), "attendance_ids": [a.id for a in result], "lesson_ids": [a.lesson_id for a in result], "student_ids": [a.student_id for a in result]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+	except Exception as e:
+		import logging
+		logging.error(f"Debug log error: {e}")
+	# #endregion
+	
+	return result
 
 
 # Payments
@@ -514,6 +540,18 @@ def mark_overdue_invoices(db: Session):
 
 def get_attendance_report_by_teacher(db: Session):
     """Öğretmenlere göre yoklama raporu oluşturur"""
+    # #region agent log
+    import json, os, time
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": f"log_{int(time.time())}_report_entry", "timestamp": int(time.time() * 1000), "location": "crud.py:541", "message": "get_attendance_report_by_teacher called", "data": {}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+    except Exception as e:
+        import logging
+        logging.error(f"Debug log error: {e}")
+    # #endregion
+    
     teachers = list_teachers(db)
     report = []
     
@@ -521,6 +559,18 @@ def get_attendance_report_by_teacher(db: Session):
         # Öğretmene ait tüm dersleri getir
         lessons = list_lessons_by_teacher(db, teacher.id)
         lesson_ids = [lesson.id for lesson in lessons]
+        
+        # #region agent log
+        import json, os, time
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"id": f"log_{int(time.time())}_report_teacher", "timestamp": int(time.time() * 1000), "location": "crud.py:557", "message": "Teacher lessons fetched", "data": {"teacher_id": teacher.id, "lesson_count": len(lessons), "lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
+        except Exception as e:
+            import logging
+            logging.error(f"Debug log error: {e}")
+        # #endregion
         
         if not lesson_ids:
             continue
@@ -532,6 +582,18 @@ def get_attendance_report_by_teacher(db: Session):
                 models.Attendance.lesson_id.in_(lesson_ids)
             )
         ).all()
+        
+        # #region agent log
+        import json, os, time
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:575", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+        except Exception as e:
+            import logging
+            logging.error(f"Debug log error: {e}")
+        # #endregion
         
         # Öğrenci bazında grupla
         student_stats = {}

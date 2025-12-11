@@ -404,12 +404,12 @@ def check_student_payment_status(db: Session, student_id: int):
 	from datetime import date
 	today = date.today()
 	
-	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
+	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
 	total_lessons = db.scalars(
 		select(func.count(models.Attendance.id))
 		.where(
 			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "LATE"])
+			models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"])  # LATE eski kayıtlar için
 		)
 	).first() or 0
 	
@@ -471,12 +471,11 @@ def get_attendance_report_by_teacher(db: Session):
         if not lesson_ids:
             continue
         
-        # Bu derslere ait yoklamaları getir (EXCUSED_ABSENT hariç)
+        # Bu derslere ait tüm yoklamaları getir
         attendances = db.scalars(
             select(models.Attendance)
             .where(
-                models.Attendance.lesson_id.in_(lesson_ids),
-                models.Attendance.status != "EXCUSED_ABSENT"
+                models.Attendance.lesson_id.in_(lesson_ids)
             )
         ).all()
         
@@ -491,19 +490,28 @@ def get_attendance_report_by_teacher(db: Session):
                 student_stats[student_id] = {
                     "student": student,
                     "present": 0,
+                    "excused_absent": 0,
+                    "telafi": 0,
                     "unexcused_absent": 0,
-                    "late": 0,
                     "total": 0
                 }
             
-            if att.status == "PRESENT":
+            # Eski LATE değerlerini TELAFI olarak say (geriye dönük uyumluluk)
+            status = att.status
+            if status == "LATE":
+                status = "TELAFI"
+            
+            if status == "PRESENT":
                 student_stats[student_id]["present"] += 1
                 student_stats[student_id]["total"] += 1
-            elif att.status == "UNEXCUSED_ABSENT":
-                student_stats[student_id]["unexcused_absent"] += 1
+            elif status == "EXCUSED_ABSENT":
+                student_stats[student_id]["excused_absent"] += 1
                 student_stats[student_id]["total"] += 1
-            elif att.status == "LATE":
-                student_stats[student_id]["late"] += 1
+            elif status == "TELAFI":
+                student_stats[student_id]["telafi"] += 1
+                student_stats[student_id]["total"] += 1
+            elif status == "UNEXCUSED_ABSENT":
+                student_stats[student_id]["unexcused_absent"] += 1
                 student_stats[student_id]["total"] += 1
         
         if student_stats:

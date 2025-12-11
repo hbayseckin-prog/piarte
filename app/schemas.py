@@ -114,7 +114,7 @@ class LessonOut(BaseModel):
 class AttendanceCreate(BaseModel):
 	lesson_id: int
 	student_id: int
-	status: str  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, LATE
+	status: str  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, TELAFI
 	note: Optional[str] = None
 	marked_at: Optional[datetime] = None
 

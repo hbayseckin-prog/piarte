@@ -1039,7 +1039,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = datetime.combine(chosen_date, base_time)
         except Exception:
             marked_at_dt = None
-    # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|LATE
+    # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI
     to_create = []
     for key, value in form.items():
         if not key.startswith("status_"):
@@ -1054,7 +1054,10 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "LATE"}:
+        # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
+        if status == "LATE":
+            status = "TELAFI"
+        if status not in {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}:
             continue
         to_create.append(
             schemas.AttendanceCreate(
@@ -1066,6 +1069,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         )
     success_count = 0
     error_count = 0
+    errors = []
+    
     # Tüm yoklamaları commit olmadan ekle
     for item in to_create:
         try:
@@ -1074,15 +1079,20 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                 success_count += 1
             else:
                 error_count += 1
+                errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
         except Exception as e:
             error_count += 1
+            errors.append(f"Yoklama kayıt hatası: {e}")
             # Hata loglama
             import logging
             import traceback
             logging.error(f"Yoklama kayıt hatası: {e}")
             logging.error(traceback.format_exc())
-            # Hata durumunda rollback yap
-            db.rollback()
+            # Hata durumunda rollback yap ama devam et
+            try:
+                db.rollback()
+            except:
+                pass
             continue
     
     # Tüm yoklamalar başarıyla eklendiyse tek seferde commit et
@@ -1092,7 +1102,9 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         except Exception as e:
             db.rollback()
             import logging
+            import traceback
             logging.error(f"Yoklama commit hatası: {e}")
+            logging.error(traceback.format_exc())
             error_count += success_count
             success_count = 0
     
@@ -1956,12 +1968,12 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         today = date.today()
         
         for student in all_students:
-            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya LATE)
+            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
             total_lessons = db.scalars(
                 select(func.count(models.Attendance.id))
                 .where(
                     models.Attendance.student_id == student.id,
-                    models.Attendance.status.in_(["PRESENT", "LATE"])
+                    models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"])  # LATE eski kayıtlar için
                 )
             ).first() or 0
             

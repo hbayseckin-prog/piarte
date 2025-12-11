@@ -1068,14 +1068,26 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     error_count = 0
     for item in to_create:
         try:
-            crud.mark_attendance(db, item)
-            success_count += 1
+            result = crud.mark_attendance(db, item)
+            if result:
+                success_count += 1
+            else:
+                error_count += 1
         except Exception as e:
             error_count += 1
-            # Hata loglama (geliştirme için)
+            # Hata loglama
             import logging
+            import traceback
             logging.error(f"Yoklama kayıt hatası: {e}")
+            logging.error(traceback.format_exc())
+            # Hata olsa bile devam et
             continue
+    
+    # Tüm işlemler tamamlandıktan sonra commit et (ek güvenlik için)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
     
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:

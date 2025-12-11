@@ -311,16 +311,24 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate):
 	if existing:
 		# Mevcut yoklamayı güncelle
 		existing.status = data.status
-		if data.marked_at:
+		# marked_at varsa güncelle, yoksa mevcut değeri koru
+		if data.marked_at is not None:
 			existing.marked_at = data.marked_at
-		if data.note is not None:
+		# note varsa güncelle
+		if hasattr(data, 'note') and data.note is not None:
 			existing.note = data.note
 		db.commit()
 		db.refresh(existing)
 		return existing
 	else:
 		# Yeni yoklama kaydı oluştur
-		attendance = models.Attendance(**data.model_dump())
+		attendance_data = data.model_dump()
+		# marked_at yoksa None olarak bırak (model default kullanır)
+		if 'marked_at' not in attendance_data or attendance_data['marked_at'] is None:
+			from datetime import datetime
+			attendance_data['marked_at'] = datetime.utcnow()
+		
+		attendance = models.Attendance(**attendance_data)
 		db.add(attendance)
 		db.commit()
 		db.refresh(attendance)

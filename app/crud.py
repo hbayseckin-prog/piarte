@@ -593,7 +593,7 @@ def get_attendance_report_by_teacher(db: Session):
                 student_stats[student_id]["total"] += 1
             elif status == "EXCUSED_ABSENT":
                 student_stats[student_id]["excused_absent"] += 1
-                student_stats[student_id]["total"] += 1
+                # Haberli gelmedi durumunda toplam ders sayısına eklenmez
             elif status == "TELAFI":
                 student_stats[student_id]["telafi"] += 1
                 student_stats[student_id]["total"] += 1

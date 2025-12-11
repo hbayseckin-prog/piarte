@@ -152,8 +152,12 @@ def reset_teacher_student_links(db: Session):
 def delete_all_attendances(db: Session):
 	"""Tüm yoklama kayıtlarını sil"""
 	from sqlalchemy import delete
-	count = db.execute(delete(models.Attendance)).rowcount
+	import logging
+	logging.warning("Tüm yoklama kayıtları siliniyor...")
+	result = db.execute(delete(models.Attendance))
+	count = result.rowcount
 	db.commit()
+	logging.warning(f"{count} yoklama kaydı silindi")
 	return count
 
 

@@ -1141,14 +1141,16 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     if success_count > 0:
         try:
             db.commit()
+            logging.info(f"✅ COMMIT BAŞARILI: {success_count} yoklama kaydı veritabanına yazıldı")
         except Exception as e:
             db.rollback()
-            import logging
             import traceback
-            logging.error(f"Yoklama commit hatası: {e}")
+            logging.error(f"❌ COMMIT HATASI: {e}")
             logging.error(traceback.format_exc())
             error_count += success_count
             success_count = 0
+            # Kullanıcıya hata mesajı göster
+            request.session["attendance_commit_error"] = str(e)
     
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:
@@ -1162,6 +1164,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
+@app.get("/admin/clear-all-attendances")
 @app.post("/admin/clear-all-attendances")
 def clear_all_attendances(request: Request, db: Session = Depends(get_db)):
 	"""Tüm yoklama kayıtlarını sil (sadece admin)"""
@@ -1175,11 +1178,15 @@ def clear_all_attendances(request: Request, db: Session = Depends(get_db)):
 		count = crud.delete_all_attendances(db)
 		import logging
 		logging.warning(f"Tüm yoklama kayıtları silindi: {count} kayıt")
-		return {"success": True, "deleted_count": count, "message": f"{count} yoklama kaydı silindi"}
+		request.session["clear_attendances_success"] = f"{count} yoklama kaydı silindi"
+		return RedirectResponse(url="/dashboard", status_code=302)
 	except Exception as e:
 		import logging
+		import traceback
 		logging.error(f"Yoklama kayıtları silinirken hata: {e}")
-		raise HTTPException(status_code=500, detail=f"Hata: {e}")
+		logging.error(traceback.format_exc())
+		request.session["clear_attendances_error"] = str(e)
+		return RedirectResponse(url="/dashboard", status_code=302)
 
 
 # UI: Enrollment - create

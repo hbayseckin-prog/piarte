@@ -704,7 +704,7 @@ def export_punctuality_excel(
     
     # Başlık satırı
     row = 1
-    ws.merge_cells(f'A{row}:F{row}')
+    ws.merge_cells(f'A{row}:G{row}')
     title_cell = ws[f'A{row}']
     title_cell.value = f"Puantaj Raporu - {datetime.now().strftime('%d.%m.%Y %H:%M')}"
     title_cell.font = Font(bold=True, size=14)
@@ -714,7 +714,7 @@ def export_punctuality_excel(
     # Her öğretmen için ayrı bölüm
     for teacher_report in attendance_report:
         # Öğretmen başlığı
-        ws.merge_cells(f'A{row}:F{row}')
+        ws.merge_cells(f'A{row}:G{row}')
         teacher_cell = ws[f'A{row}']
         teacher_cell.value = f"Öğretmen: {teacher_report['teacher'].first_name} {teacher_report['teacher'].last_name}"
         teacher_cell.font = Font(bold=True, size=12, color="001F2937")
@@ -734,7 +734,7 @@ def export_punctuality_excel(
             pass
         
         if not students_data:
-            ws.merge_cells(f'A{row}:F{row}')
+            ws.merge_cells(f'A{row}:G{row}')
             no_data_cell = ws[f'A{row}']
             no_data_cell.value = "Bu öğretmen için filtre kriterlerine uygun veri bulunmuyor."
             no_data_cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -742,7 +742,7 @@ def export_punctuality_excel(
             continue
         
         # Tablo başlıkları
-        headers = ["Öğrenci", "Geldi", "Haberli Gelmedi", "Telafi", "Habersiz Gelmedi", "Toplam Ders"]
+        headers = ["Öğrenci", "Geldi", "Haberli Gelmedi", "Telafi", "Habersiz Gelmedi", "Toplam Ders", "Yoklama Tarihleri"]
         for col_idx, header in enumerate(headers, start=1):
             cell = ws.cell(row=row, column=col_idx)
             cell.value = header
@@ -795,6 +795,19 @@ def export_punctuality_excel(
             cell.alignment = center_alignment
             cell.font = Font(bold=True)
             
+            # Yoklama Tarihleri
+            cell = ws.cell(row=row, column=7)
+            dates = student_data.get('dates', [])
+            if dates:
+                # Tarihleri sırala ve tekrar edenleri kaldır
+                unique_dates = sorted(list(set(dates)))
+                cell.value = ', '.join(unique_dates)
+            else:
+                cell.value = '-'
+            cell.border = border_style
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            cell.font = Font(size=10)
+            
             row += 1
         
         # Öğretmen bölümü sonrası boş satır
@@ -807,6 +820,7 @@ def export_punctuality_excel(
     ws.column_dimensions['D'].width = 12
     ws.column_dimensions['E'].width = 20
     ws.column_dimensions['F'].width = 15
+    ws.column_dimensions['G'].width = 50  # Yoklama Tarihleri sütunu için geniş sütun
     
     # Excel dosyasını memory'de oluştur
     output = BytesIO()

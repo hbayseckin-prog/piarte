@@ -580,8 +580,16 @@ def get_attendance_report_by_teacher(db: Session):
                     "excused_absent": 0,
                     "telafi": 0,
                     "unexcused_absent": 0,
-                    "total": 0
+                    "total": 0,
+                    "dates": []  # Yoklama tarihlerini saklamak için
                 }
+            
+            # Ders tarihini al (lesson varsa lesson_date, yoksa marked_at'in tarih kısmı)
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.lesson_date:
+                date_str = lesson.lesson_date.strftime('%d.%m.%Y')
+            else:
+                date_str = att.marked_at.strftime('%d.%m.%Y') if att.marked_at else ''
             
             # Eski LATE değerlerini TELAFI olarak say (geriye dönük uyumluluk)
             status = att.status
@@ -591,15 +599,19 @@ def get_attendance_report_by_teacher(db: Session):
             if status == "PRESENT":
                 student_stats[student_id]["present"] += 1
                 student_stats[student_id]["total"] += 1
+                student_stats[student_id]["dates"].append(date_str)
             elif status == "EXCUSED_ABSENT":
                 student_stats[student_id]["excused_absent"] += 1
+                student_stats[student_id]["dates"].append(date_str)
                 # Haberli gelmedi durumunda toplam ders sayısına eklenmez
             elif status == "TELAFI":
                 student_stats[student_id]["telafi"] += 1
                 student_stats[student_id]["total"] += 1
+                student_stats[student_id]["dates"].append(date_str)
             elif status == "UNEXCUSED_ABSENT":
                 student_stats[student_id]["unexcused_absent"] += 1
                 student_stats[student_id]["total"] += 1
+                student_stats[student_id]["dates"].append(date_str)
         
         if student_stats:
             report.append({

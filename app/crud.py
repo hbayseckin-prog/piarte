@@ -300,11 +300,31 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 
 # Attendance
 def mark_attendance(db: Session, data: schemas.AttendanceCreate):
-	attendance = models.Attendance(**data.model_dump())
-	db.add(attendance)
-	db.commit()
-	db.refresh(attendance)
-	return attendance
+	# Aynı ders ve öğrenci için zaten bir yoklama var mı kontrol et
+	existing = db.scalars(
+		select(models.Attendance).where(
+			models.Attendance.lesson_id == data.lesson_id,
+			models.Attendance.student_id == data.student_id
+		)
+	).first()
+	
+	if existing:
+		# Mevcut yoklamayı güncelle
+		existing.status = data.status
+		if data.marked_at:
+			existing.marked_at = data.marked_at
+		if data.note is not None:
+			existing.note = data.note
+		db.commit()
+		db.refresh(existing)
+		return existing
+	else:
+		# Yeni yoklama kaydı oluştur
+		attendance = models.Attendance(**data.model_dump())
+		db.add(attendance)
+		db.commit()
+		db.refresh(attendance)
+		return attendance
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):

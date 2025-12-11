@@ -1116,15 +1116,29 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     for item in to_create:
         logging.info(f"  Öğrenci {item.student_id} -> Durum: {item.status}")
     
-    # Tüm yoklamaları commit olmadan ekle
-    # ÖNEMLİ: Her öğrenci için ayrı ayrı işlem yap
+    # ÖNEMLİ: Her kaydı ayrı ayrı commit et - daha güvenli
+    # Böylece bir kayıt başarısız olsa bile diğerleri kaydedilir
     for item in to_create:
         try:
             logging.info(f"Kaydediliyor: Öğrenci {item.student_id}, Durum: '{item.status}', Ders: {item.lesson_id}")
-            result = crud.mark_attendance(db, item, commit=False)
+            # Her kaydı ayrı ayrı commit et
+            result = crud.mark_attendance(db, item, commit=True)
             if result:
                 success_count += 1
-                logging.info(f"✅ Başarılı: Öğrenci {item.student_id}, Kaydedilen Durum: '{result.status}'")
+                logging.info(f"✅ BAŞARILI (COMMIT): Öğrenci {item.student_id}, Durum: '{result.status}' - VERİTABANINA YAZILDI")
+                
+                # Hemen doğrula
+                from sqlalchemy import select
+                saved = db.scalars(
+                    select(models.Attendance).where(
+                        models.Attendance.lesson_id == item.lesson_id,
+                        models.Attendance.student_id == item.student_id
+                    )
+                ).first()
+                if saved:
+                    logging.info(f"✅ DOĞRULAMA: Öğrenci {item.student_id} - VERİTABANINDA MEVCUT (ID: {saved.id})")
+                else:
+                    logging.error(f"❌ DOĞRULAMA HATASI: Öğrenci {item.student_id} - VERİTABANINDA BULUNAMADI!")
             else:
                 error_count += 1
                 errors.append(f"Yoklama kaydedilemedi: {item.student_id}")
@@ -1133,42 +1147,14 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             error_count += 1
             errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
             import traceback
-            logging.error(f"❌ Hata (Öğrenci {item.student_id}): {e}")
+            logging.error(f"❌ HATA (Öğrenci {item.student_id}): {e}")
             logging.error(traceback.format_exc())
+            # Hata durumunda rollback yap ama devam et
+            try:
+                db.rollback()
+            except:
+                pass
             continue
-    
-    # Tüm yoklamalar başarıyla eklendiyse tek seferde commit et
-    if success_count > 0:
-        try:
-            db.commit()
-            logging.info(f"✅ COMMIT BAŞARILI: {success_count} yoklama kaydı veritabanına yazıldı")
-            
-            # Commit sonrası tüm kayıtları refresh et
-            for item in to_create:
-                try:
-                    # Kaydedilen yoklamayı veritabanından oku ve doğrula
-                    from sqlalchemy import select
-                    saved = db.scalars(
-                        select(models.Attendance).where(
-                            models.Attendance.lesson_id == item.lesson_id,
-                            models.Attendance.student_id == item.student_id
-                        )
-                    ).first()
-                    if saved:
-                        logging.info(f"✅ DOĞRULAMA: Öğrenci {item.student_id}, Ders {item.lesson_id}, Durum: '{saved.status}' - VERİTABANINDA MEVCUT")
-                    else:
-                        logging.error(f"❌ DOĞRULAMA HATASI: Öğrenci {item.student_id}, Ders {item.lesson_id} - VERİTABANINDA BULUNAMADI!")
-                except Exception as verify_error:
-                    logging.error(f"❌ Doğrulama hatası (Öğrenci {item.student_id}): {verify_error}")
-        except Exception as e:
-            db.rollback()
-            import traceback
-            logging.error(f"❌ COMMIT HATASI: {e}")
-            logging.error(traceback.format_exc())
-            error_count += success_count
-            success_count = 0
-            # Kullanıcıya hata mesajı göster
-            request.session["attendance_commit_error"] = str(e)
     
     # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:

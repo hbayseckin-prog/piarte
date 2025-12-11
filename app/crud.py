@@ -403,3 +403,60 @@ def mark_overdue_invoices(db: Session):
     return updated
 
 
+def get_attendance_report_by_teacher(db: Session):
+    """Öğretmenlere göre yoklama raporu oluşturur"""
+    teachers = list_teachers(db)
+    report = []
+    
+    for teacher in teachers:
+        # Öğretmene ait tüm dersleri getir
+        lessons = list_lessons_by_teacher(db, teacher.id)
+        lesson_ids = [lesson.id for lesson in lessons]
+        
+        if not lesson_ids:
+            continue
+        
+        # Bu derslere ait yoklamaları getir (EXCUSED_ABSENT hariç)
+        attendances = db.scalars(
+            select(models.Attendance)
+            .where(
+                models.Attendance.lesson_id.in_(lesson_ids),
+                models.Attendance.status != "EXCUSED_ABSENT"
+            )
+        ).all()
+        
+        # Öğrenci bazında grupla
+        student_stats = {}
+        for att in attendances:
+            student_id = att.student_id
+            if student_id not in student_stats:
+                student = db.get(models.Student, student_id)
+                if not student:
+                    continue
+                student_stats[student_id] = {
+                    "student": student,
+                    "present": 0,
+                    "unexcused_absent": 0,
+                    "late": 0,
+                    "total": 0
+                }
+            
+            if att.status == "PRESENT":
+                student_stats[student_id]["present"] += 1
+                student_stats[student_id]["total"] += 1
+            elif att.status == "UNEXCUSED_ABSENT":
+                student_stats[student_id]["unexcused_absent"] += 1
+                student_stats[student_id]["total"] += 1
+            elif att.status == "LATE":
+                student_stats[student_id]["late"] += 1
+                student_stats[student_id]["total"] += 1
+        
+        if student_stats:
+            report.append({
+                "teacher": teacher,
+                "students": list(student_stats.values())
+            })
+    
+    return report
+
+

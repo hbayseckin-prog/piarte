@@ -44,7 +44,7 @@
 				</div>
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Tarih</div>
-					<div class="mobile-card-value">{{ entry.lesson.lesson_date.strftime('%d.%m.%Y') }}</div>
+					<div class="mobile-card-value">{{ entry.current_lesson_date.strftime('%d.%m.%Y') if entry.current_lesson_date else entry.lesson.lesson_date.strftime('%d.%m.%Y') }}</div>
 				</div>
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Kurs</div>
@@ -105,7 +105,7 @@
 								{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
 							{% endif %}
 						</div>
-						<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+						<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.current_lesson_date.strftime('%d.%m') if entry.current_lesson_date else entry.lesson.lesson_date.strftime('%d.%m') }}</div>
 						{% if entry.students %}
 						<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
 							{% for s in entry.students %}

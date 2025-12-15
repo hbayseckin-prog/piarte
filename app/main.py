@@ -28,6 +28,34 @@ def redirect_teacher(user):
     return None
 
 
+def calculate_next_lesson_date(original_date):
+    """
+    Haftalık tekrarlanan dersler için bugünden sonraki ilgili günü hesaplar.
+    Örneğin: Orijinal tarih Pazartesi ise, bugün Pazartesi ise bugünü, 
+    değilse bugünden sonraki Pazartesi'yi döndürür.
+    
+    Args:
+        original_date: Orijinal ders tarihi (date objesi)
+    
+    Returns:
+        Bugün veya bugünden sonraki ilgili günün tarihi (date objesi)
+    """
+    from datetime import date, timedelta
+    
+    today = date.today()
+    original_weekday = original_date.weekday()  # 0=Pazartesi, 6=Pazar
+    today_weekday = today.weekday()
+    
+    # Bugünden sonraki ilgili günü bul
+    days_ahead = original_weekday - today_weekday
+    if days_ahead < 0:  # Bu hafta geçtiyse gelecek hafta
+        days_ahead += 7
+    # days_ahead == 0 ise bugün o gün, bugünü döndür
+    
+    next_date = today + timedelta(days=days_ahead)
+    return next_date
+
+
 # Alt klasör desteği için root_path (eğer /piarte altında çalışıyorsa)
 # Production'da environment variable veya Nginx yapılandırması ile ayarlanabilir
 ROOT_PATH = os.getenv("ROOT_PATH", "")  # Varsayılan: boş (root'ta çalışır)
@@ -887,9 +915,12 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
         for entry in lessons_with_students:
             lesson = entry["lesson"]
             weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+            # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
+            current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
             formatted_lessons.append({
                 "weekday": weekday,
                 "lesson": lesson,
+                "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                 "students": entry["students"],
             })
         # Öğretmene atanmış öğrencileri getir
@@ -2512,9 +2543,12 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
             for entry in lessons_with_students:
                 lesson = entry["lesson"]
                 weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
+                current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
                 formatted_lessons.append({
                     "weekday": weekday,
                     "lesson": lesson,
+                    "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                     "students": entry["students"],
                 })
             teachers_schedules.append({
@@ -2553,6 +2587,8 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
                 from datetime import time as time_type
                 for lesson in student_lessons:
                     weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                    # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
+                    current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
                     # Öğrencinin bu derste kaçıncı ders olduğunu bul (aynı gün içinde)
                     same_day_lessons = [l for l in student_lessons if l.lesson_date == lesson.lesson_date]
                     # Start time'a göre sırala
@@ -2561,6 +2597,7 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
                     student_lessons_formatted.append({
                         "weekday": weekday,
                         "lesson": lesson,
+                        "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                         "lesson_number": lesson_number,
                         "total_same_day": len(same_day_lessons)
                     })

@@ -1283,8 +1283,8 @@ def lesson_create(
             db.rollback()
             # Hata olsa bile derse yönlendir (ders oluşturuldu)
     
-    # Dilersen derse yoklama otomatik açabilirsin...
-    return RedirectResponse(url=f"/lessons/{lesson.id}/attendance/new", status_code=302)
+    # Ders oluşturuldu, dashboard'a yönlendir
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 
 @app.get("/lessons/{lesson_id}/attendance/new", response_class=HTMLResponse)

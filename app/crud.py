@@ -586,6 +586,19 @@ def get_attendance_report_by_teacher(db: Session):
             logging.error(f"Debug log error: {e}")
         # #endregion
         
+        # Önce her lesson_id için "Resim" kursu kontrolü yap ve aynı saatteki öğrenci sayısını hesapla
+        # Resim kursu için: aynı lesson_id'deki yoklama sayısı = o saatteki öğrenci sayısı
+        lesson_student_counts = {}  # lesson_id -> o saatteki öğrenci sayısı
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            if lesson and lesson.course:
+                # Kurs adı "Resim" ise, o lesson_id için öğrenci sayısını hesapla
+                if lesson.course.name == "Resim":
+                    if att.lesson_id not in lesson_student_counts:
+                        # Aynı lesson_id'deki tüm yoklamaları say (öğrenci sayısı)
+                        same_lesson_attendances = [a for a in attendances if a.lesson_id == att.lesson_id]
+                        lesson_student_counts[att.lesson_id] = len(same_lesson_attendances)
+        
         # Öğrenci bazında grupla
         student_stats = {}
         for att in attendances:
@@ -616,21 +629,25 @@ def get_attendance_report_by_teacher(db: Session):
             if status == "LATE":
                 status = "TELAFI"
             
+            # Resim kursu için özel hesaplama: o saatteki öğrenci sayısı kadar ders sayılır
+            is_resim_course = lesson and lesson.course and lesson.course.name == "Resim"
+            lesson_count = lesson_student_counts.get(att.lesson_id, 1) if is_resim_course else 1
+            
             if status == "PRESENT":
-                student_stats[student_id]["present"] += 1
-                student_stats[student_id]["total"] += 1
+                student_stats[student_id]["present"] += lesson_count
+                student_stats[student_id]["total"] += lesson_count
                 student_stats[student_id]["dates"].append(date_str)
             elif status == "EXCUSED_ABSENT":
-                student_stats[student_id]["excused_absent"] += 1
+                student_stats[student_id]["excused_absent"] += lesson_count
                 student_stats[student_id]["dates"].append(date_str)
                 # Haberli gelmedi durumunda toplam ders sayısına eklenmez
             elif status == "TELAFI":
-                student_stats[student_id]["telafi"] += 1
-                student_stats[student_id]["total"] += 1
+                student_stats[student_id]["telafi"] += lesson_count
+                student_stats[student_id]["total"] += lesson_count
                 student_stats[student_id]["dates"].append(date_str)
             elif status == "UNEXCUSED_ABSENT":
-                student_stats[student_id]["unexcused_absent"] += 1
-                student_stats[student_id]["total"] += 1
+                student_stats[student_id]["unexcused_absent"] += lesson_count
+                student_stats[student_id]["total"] += lesson_count
                 student_stats[student_id]["dates"].append(date_str)
         
         if student_stats:

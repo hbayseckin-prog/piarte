@@ -232,40 +232,58 @@
 	
 	<!-- Öğretmen Programları -->
 	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
+	{% set hours = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] %}
 	{% for schedule in teachers_schedules %}
 	<div class="teacher-schedule" id="teacher-{{ schedule.teacher.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};">
 		<h4 style="margin-bottom:12px;color:#0f172a;font-size:16px;font-weight:600;">
 			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Haftalık Program
 		</h4>
 		{% if schedule.lessons %}
-		<div class="weekly-schedule" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px">
-			{% for day_name in weekdays %}
-			<div style="border:1px solid var(--border);border-radius:12px;padding:12px;background:#f9fafb">
-				<h4 style="margin:0 0 8px 0;font-size:14px;color:#2563eb;font-weight:600">{{ day_name }}</h4>
-				<div style="display:flex;flex-direction:column;gap:8px">
-					{% for entry in schedule.lessons %}
-						{% if entry.weekday == day_name %}
-						<div style="padding:8px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:12px">
-							<div style="font-weight:600;color:#0f172a;margin-bottom:4px">{{ entry.lesson.course.name }}</div>
-							<div style="color:#64748b;font-size:11px;margin-bottom:4px">
-								{% if entry.lesson.start_time or entry.lesson.end_time %}
-									{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+		<div style="overflow-x:auto;margin-top:12px;">
+			<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);background:#fff;">
+				<thead>
+					<tr>
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:left;font-size:12px;font-weight:600;min-width:60px;">Saat</th>
+						{% for day_name in weekdays %}
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;min-width:120px;">{{ day_name }}</th>
+						{% endfor %}
+					</tr>
+				</thead>
+				<tbody>
+					{% for hour in hours %}
+					<tr>
+						<td style="padding:8px;background:#f9fafb;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;vertical-align:top;">{{ hour }}:00</td>
+						{% for day_name in weekdays %}
+						<td style="padding:4px;border:1px solid var(--border);vertical-align:top;min-height:60px;">
+							{% for entry in schedule.lessons %}
+								{% if entry.weekday == day_name %}
+									{% set lesson_start_hour = entry.lesson.start_time.hour if entry.lesson.start_time else None %}
+									{% if lesson_start_hour == hour %}
+									<div style="padding:6px;background:#e0e7ff;border-radius:6px;margin-bottom:4px;font-size:11px;border-left:3px solid #6366f1;">
+										<div style="font-weight:600;color:#0f172a;margin-bottom:2px;">{{ entry.lesson.course.name }}</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">
+											{% if entry.lesson.start_time or entry.lesson.end_time %}
+												{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+											{% endif %}
+										</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">{{ entry.current_lesson_date.strftime('%d.%m') if entry.current_lesson_date else entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+										{% if entry.students %}
+										<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,0.1);">
+											{% for s in entry.students %}
+												<div style="font-size:10px;color:#475569;">{{ s.first_name }} {{ s.last_name }}</div>
+											{% endfor %}
+										</div>
+										{% endif %}
+									</div>
+									{% endif %}
 								{% endif %}
-							</div>
-							<div style="color:#64748b;font-size:11px;margin-bottom:4px">{{ entry.lesson.lesson_date.strftime('%d.%m') }}</div>
-							{% if entry.students %}
-							<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-								{% for s in entry.students %}
-									<div style="font-size:11px;color:#475569">{{ s.first_name }} {{ s.last_name }}</div>
-								{% endfor %}
-							</div>
-							{% endif %}
-						</div>
-						{% endif %}
+							{% endfor %}
+						</td>
+						{% endfor %}
+					</tr>
 					{% endfor %}
-				</div>
-			</div>
-			{% endfor %}
+				</tbody>
+			</table>
 		</div>
 		{% else %}
 		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğretmen için henüz ders kaydı bulunmuyor.</p>

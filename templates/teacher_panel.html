@@ -138,6 +138,74 @@
 	{% endif %}
 </div>
 
+<div class="card">
+	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
+	{% if teachers_schedules %}
+	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
+	{% set hours = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] %}
+	{% for schedule in teachers_schedules %}
+	<div style="margin-top:12px;">
+		<h4 style="margin-bottom:12px;color:#0f172a;font-size:16px;font-weight:600;">
+			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Haftalık Program
+		</h4>
+		{% if schedule.lessons %}
+		<div style="overflow-x:auto;">
+			<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);background:#fff;">
+				<thead>
+					<tr>
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:left;font-size:12px;font-weight:600;min-width:60px;">Saat</th>
+						{% for day_name in weekdays %}
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;min-width:120px;">{{ day_name }}</th>
+						{% endfor %}
+					</tr>
+				</thead>
+				<tbody>
+					{% for hour in hours %}
+					<tr>
+						<td style="padding:8px;background:#f9fafb;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;vertical-align:top;">{{ hour }}:00</td>
+						{% for day_name in weekdays %}
+						<td style="padding:4px;border:1px solid var(--border);vertical-align:top;min-height:60px;">
+							{% for entry in schedule.lessons %}
+								{% if entry.weekday == day_name %}
+									{% set lesson_start_hour = entry.lesson.start_time.hour if entry.lesson.start_time else None %}
+									{% if lesson_start_hour == hour %}
+									<div style="padding:6px;background:#e0e7ff;border-radius:6px;margin-bottom:4px;font-size:11px;border-left:3px solid #6366f1;">
+										<div style="font-weight:600;color:#0f172a;margin-bottom:2px;">{{ entry.lesson.course.name }}</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">
+											{% if entry.lesson.start_time or entry.lesson.end_time %}
+												{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+											{% endif %}
+										</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">{{ entry.current_lesson_date.strftime('%d.%m') if entry.current_lesson_date else entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+										{% if entry.students %}
+										<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,0.1);">
+											{% for s in entry.students %}
+												<div style="font-size:10px;color:#475569;">{{ s.first_name }} {{ s.last_name }}</div>
+											{% endfor %}
+										</div>
+										{% endif %}
+										<a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="display:inline-block;margin-top:4px;padding:2px 6px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:10px;">Yoklama</a>
+									</div>
+									{% endif %}
+								{% endif %}
+							{% endfor %}
+						</td>
+						{% endfor %}
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		{% else %}
+		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğretmen için henüz ders kaydı bulunmuyor.</p>
+		{% endif %}
+	</div>
+	{% endfor %}
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
+	{% endif %}
+</div>
+
 {% endblock %}
 
 

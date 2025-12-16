@@ -629,6 +629,29 @@ def dashboard(
             logging.error(f"Debug log error: {e}")
         # #endregion
     
+    # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
+    from datetime import datetime
+    weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    teachers_schedules = []
+    for teacher in teachers:
+        lessons_with_students = crud.lessons_with_students_by_teacher(db, teacher.id)
+        formatted_lessons = []
+        for entry in lessons_with_students:
+            lesson = entry["lesson"]
+            weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+            # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
+            current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
+            formatted_lessons.append({
+                "weekday": weekday,
+                "lesson": lesson,
+                "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
+                "students": entry["students"],
+            })
+        teachers_schedules.append({
+            "teacher": teacher,
+            "lessons": formatted_lessons
+        })
+    
     context = {
         "request": request,
         "courses": courses,
@@ -637,6 +660,7 @@ def dashboard(
         "staff_users": staff_users,
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
+        "teachers_schedules": teachers_schedules,
         "user": user,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
@@ -948,10 +972,21 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
                 import logging
                 logging.error(f"Öğrenci listesi hatası: {e}")
                 teacher_students = []
+        
+        # Öğretmen için haftalık program verisini hazırla (saat bazlı grid için)
+        teacher = db.get(models.Teacher, teacher_id)
+        teachers_schedules = []
+        if teacher:
+            teachers_schedules.append({
+                "teacher": teacher,
+                "lessons": formatted_lessons
+            })
+        
         context = {
             "request": request,
             "lessons_with_students": formatted_lessons,
             "teacher_students": teacher_students,
+            "teachers_schedules": teachers_schedules,
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:

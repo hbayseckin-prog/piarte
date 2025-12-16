@@ -502,6 +502,138 @@
     {% endif %}
 </div>
 {% endif %}
+
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+<div class="card">
+	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
+	{% if teachers_schedules %}
+	<!-- Sekme Butonları -->
+	<div class="tabs-container" style="margin-bottom:16px;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
+		{% for schedule in teachers_schedules %}
+		<button 
+			class="tab-button" 
+			data-teacher-id="{{ schedule.teacher.id }}"
+			style="padding:10px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px 8px 0 0;cursor:pointer;font-weight:500;font-size:14px;transition:all 0.2s;{% if loop.first %}background:#0ea5e9;color:#fff;{% endif %}"
+			onclick="showTeacherSchedule({{ schedule.teacher.id }})">
+			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }}
+		</button>
+		{% endfor %}
+	</div>
+	
+	<!-- Öğretmen Programları -->
+	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
+	{% set hours = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] %}
+	{% for schedule in teachers_schedules %}
+	<div class="teacher-schedule" id="teacher-{{ schedule.teacher.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};">
+		<h4 style="margin-bottom:12px;color:#0f172a;font-size:16px;font-weight:600;">
+			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Haftalık Program
+		</h4>
+		{% if schedule.lessons %}
+		<div style="overflow-x:auto;margin-top:12px;">
+			<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);background:#fff;">
+				<thead>
+					<tr>
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:left;font-size:12px;font-weight:600;min-width:60px;">Saat</th>
+						{% for day_name in weekdays %}
+						<th style="padding:8px;background:#f1f5f9;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;min-width:120px;">{{ day_name }}</th>
+						{% endfor %}
+					</tr>
+				</thead>
+				<tbody>
+					{% for hour in hours %}
+					<tr>
+						<td style="padding:8px;background:#f9fafb;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:600;vertical-align:top;">{{ hour }}:00</td>
+						{% for day_name in weekdays %}
+						<td style="padding:4px;border:1px solid var(--border);vertical-align:top;min-height:60px;">
+							{% for entry in schedule.lessons %}
+								{% if entry.weekday == day_name %}
+									{% set lesson_start_hour = entry.lesson.start_time.hour if entry.lesson.start_time else None %}
+									{% if lesson_start_hour == hour %}
+									<div style="padding:6px;background:#e0e7ff;border-radius:6px;margin-bottom:4px;font-size:11px;border-left:3px solid #6366f1;">
+										<div style="font-weight:600;color:#0f172a;margin-bottom:2px;">{{ entry.lesson.course.name }}</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">
+											{% if entry.lesson.start_time or entry.lesson.end_time %}
+												{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+											{% endif %}
+										</div>
+										<div style="color:#64748b;font-size:10px;margin-bottom:2px;">{{ entry.current_lesson_date.strftime('%d.%m') if entry.current_lesson_date else entry.lesson.lesson_date.strftime('%d.%m') }}</div>
+										{% if entry.students %}
+										<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,0.1);">
+											{% for s in entry.students %}
+												<div style="font-size:10px;color:#475569;">{{ s.first_name }} {{ s.last_name }}</div>
+											{% endfor %}
+										</div>
+										{% endif %}
+									</div>
+									{% endif %}
+								{% endif %}
+							{% endfor %}
+						</td>
+						{% endfor %}
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		{% else %}
+		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğretmen için henüz ders kaydı bulunmuyor.</p>
+		{% endif %}
+	</div>
+	{% endfor %}
+	
+	<style>
+		.tab-button:hover {
+			background:#e2e8f0 !important;
+		}
+		.tab-button.active {
+			background:#0ea5e9 !important;
+			color:#fff !important;
+		}
+		@media (max-width: 768px) {
+			.tabs-container {
+				overflow-x: auto;
+				-webkit-overflow-scrolling: touch;
+			}
+			.tab-button {
+				white-space: nowrap;
+				font-size: 12px;
+				padding: 8px 16px;
+			}
+		}
+	</style>
+	
+	<script>
+		function showTeacherSchedule(teacherId) {
+			// Tüm öğretmen programlarını gizle
+			document.querySelectorAll('.teacher-schedule').forEach(function(el) {
+				el.style.display = 'none';
+			});
+			
+			// Tüm sekme butonlarını pasif yap
+			document.querySelectorAll('.tab-button').forEach(function(btn) {
+				btn.style.background = '#f1f5f9';
+				btn.style.color = '#475569';
+			});
+			
+			// Seçilen öğretmen programını göster
+			const scheduleEl = document.getElementById('teacher-' + teacherId);
+			if (scheduleEl) {
+				scheduleEl.style.display = 'block';
+			}
+			
+			// Seçilen sekme butonunu aktif yap
+			const activeBtn = document.querySelector('[data-teacher-id="' + teacherId + '"]');
+			if (activeBtn) {
+				activeBtn.style.background = '#0ea5e9';
+				activeBtn.style.color = '#fff';
+			}
+		}
+	</script>
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
+	{% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 

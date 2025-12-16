@@ -141,15 +141,29 @@
 <div class="card">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}
+	<!-- Sekme Butonları -->
+	<div class="tabs-container" style="margin-bottom:16px;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
+		{% for schedule in teachers_schedules %}
+		<button 
+			class="tab-button" 
+			data-teacher-id="{{ schedule.teacher.id }}"
+			style="padding:10px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px 8px 0 0;cursor:pointer;font-weight:500;font-size:14px;transition:all 0.2s;{% if schedule.teacher.id == selected_teacher_id %}background:#0ea5e9;color:#fff;{% endif %}"
+			onclick="showTeacherSchedule({{ schedule.teacher.id }})">
+			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }}
+		</button>
+		{% endfor %}
+	</div>
+	
+	<!-- Öğretmen Programları -->
 	{% set weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] %}
 	{% set hours = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] %}
 	{% for schedule in teachers_schedules %}
-	<div style="margin-top:12px;">
+	<div class="teacher-schedule" id="teacher-{{ schedule.teacher.id }}" style="display:{% if schedule.teacher.id == selected_teacher_id %}block{% else %}none{% endif %};">
 		<h4 style="margin-bottom:12px;color:#0f172a;font-size:16px;font-weight:600;">
 			{{ schedule.teacher.first_name }} {{ schedule.teacher.last_name }} - Haftalık Program
 		</h4>
 		{% if schedule.lessons %}
-		<div style="overflow-x:auto;">
+		<div style="overflow-x:auto;margin-top:12px;">
 			<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);background:#fff;">
 				<thead>
 					<tr>
@@ -184,7 +198,9 @@
 											{% endfor %}
 										</div>
 										{% endif %}
+										{% if schedule.teacher.id == current_teacher_id %}
 										<a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="display:inline-block;margin-top:4px;padding:2px 6px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:10px;">Yoklama</a>
+										{% endif %}
 									</div>
 									{% endif %}
 								{% endif %}
@@ -201,6 +217,34 @@
 		{% endif %}
 	</div>
 	{% endfor %}
+	
+	<style>
+		.tab-button:hover {
+			background:#e2e8f0 !important;
+		}
+		.tab-button.active {
+			background:#0ea5e9 !important;
+			color:#fff !important;
+		}
+		@media (max-width: 768px) {
+			.tabs-container {
+				overflow-x: auto;
+				-webkit-overflow-scrolling: touch;
+			}
+			.tab-button {
+				white-space: nowrap;
+				font-size: 12px;
+				padding: 8px 16px;
+			}
+		}
+	</style>
+	
+	<script>
+		function showTeacherSchedule(teacherId) {
+			// URL'yi güncelle
+			window.location.href = '/ui/teacher?selected_teacher_id=' + teacherId;
+		}
+	</script>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
 	{% endif %}

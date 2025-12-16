@@ -905,7 +905,7 @@ def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
 
 # UI: Teacher panel
 @app.get("/ui/teacher", response_class=HTMLResponse)
-def teacher_panel(request: Request, db: Session = Depends(get_db)):
+def teacher_panel(request: Request, selected_teacher_id: int | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/teacher", status_code=302)
@@ -917,8 +917,8 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
             return RedirectResponse(url="/ui/staff", status_code=302)
         else:
             return RedirectResponse(url="/login/teacher", status_code=302)
-    teacher_id = user.get("teacher_id")
-    if not teacher_id:
+    current_teacher_id = user.get("teacher_id")
+    if not current_teacher_id:
         # Öğretmen ID yoksa hata göster
         return HTMLResponse(content="""
         <!DOCTYPE html>
@@ -932,7 +932,14 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
         </html>
         """, status_code=400)
     try:
-        lessons_with_students = crud.lessons_with_students_by_teacher(db, teacher_id)
+        # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
+        display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
+        
+        # Tüm öğretmenleri getir
+        all_teachers = crud.list_teachers(db)
+        
+        # Seçilen öğretmenin derslerini getir
+        lessons_with_students = crud.lessons_with_students_by_teacher(db, display_teacher_id)
         from datetime import datetime
         weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
         formatted_lessons = []
@@ -949,9 +956,9 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
             })
         # Öğretmene atanmış öğrencileri getir
         teacher_students = []
-        if teacher_id:
+        if current_teacher_id:
             try:
-                teacher_students = crud.list_students_by_teacher(db, teacher_id)
+                teacher_students = crud.list_students_by_teacher(db, current_teacher_id)
                 # Debug: Eğer öğrenci yoksa, tüm öğrencileri kontrol et
                 if not teacher_students:
                     # Tüm öğrencileri getir ve öğretmene atanmış olanları filtrele
@@ -962,7 +969,7 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
                             select(models.TeacherStudent)
                             .where(
                                 models.TeacherStudent.student_id == student.id,
-                                models.TeacherStudent.teacher_id == teacher_id
+                                models.TeacherStudent.teacher_id == current_teacher_id
                             )
                         ).first()
                         if link:
@@ -973,13 +980,25 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
                 logging.error(f"Öğrenci listesi hatası: {e}")
                 teacher_students = []
         
-        # Öğretmen için haftalık program verisini hazırla (saat bazlı grid için)
-        teacher = db.get(models.Teacher, teacher_id)
+        # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
         teachers_schedules = []
-        if teacher:
+        for teacher in all_teachers:
+            teacher_lessons = crud.lessons_with_students_by_teacher(db, teacher.id)
+            teacher_formatted_lessons = []
+            for entry in teacher_lessons:
+                lesson = entry["lesson"]
+                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
+                current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
+                teacher_formatted_lessons.append({
+                    "weekday": weekday,
+                    "lesson": lesson,
+                    "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
+                    "students": entry["students"],
+                })
             teachers_schedules.append({
                 "teacher": teacher,
-                "lessons": formatted_lessons
+                "lessons": teacher_formatted_lessons
             })
         
         context = {
@@ -987,6 +1006,9 @@ def teacher_panel(request: Request, db: Session = Depends(get_db)):
             "lessons_with_students": formatted_lessons,
             "teacher_students": teacher_students,
             "teachers_schedules": teachers_schedules,
+            "all_teachers": all_teachers,
+            "selected_teacher_id": display_teacher_id,
+            "current_teacher_id": current_teacher_id,
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:

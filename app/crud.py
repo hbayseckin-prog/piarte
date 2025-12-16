@@ -448,6 +448,16 @@ def list_payments_by_student(db: Session, student_id: int):
 	return db.scalars(stmt).all()
 
 
+def delete_payment(db: Session, payment_id: int):
+	"""Ödeme kaydını siler"""
+	payment = db.get(models.Payment, payment_id)
+	if payment:
+		db.delete(payment)
+		db.commit()
+		return True
+	return False
+
+
 def check_student_payment_status(db: Session, student_id: int):
 	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
 	from datetime import date

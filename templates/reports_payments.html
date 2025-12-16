@@ -2,6 +2,18 @@
 {% block title %}Ödeme Raporu - Piarte{% endblock %}
 {% block content %}
 <h2>Ödeme Raporu</h2>
+
+{% if request.session.get('delete_payment_success') %}
+<div style="padding:12px 16px;background:#10b981;color:#fff;border-radius:8px;margin-bottom:16px;">
+    {{ request.session.pop('delete_payment_success') }}
+</div>
+{% endif %}
+{% if request.session.get('delete_payment_error') %}
+<div style="padding:12px 16px;background:#ef4444;color:#fff;border-radius:8px;margin-bottom:16px;">
+    {{ request.session.pop('delete_payment_error') }}
+</div>
+{% endif %}
+
 <form method="get" action="/ui/reports/payments" style="margin-bottom:12px">
 	<label>Başlangıç</label>
 	<input type="date" name="start" value="{{ start }}" />
@@ -33,7 +45,18 @@
 </div>
 
 <table>
-	<thead><tr><th>Tarih</th><th>Öğrenci</th><th>Tutar</th><th>Yöntem</th><th>Not</th></tr></thead>
+	<thead>
+		<tr>
+			<th>Tarih</th>
+			<th>Öğrenci</th>
+			<th>Tutar</th>
+			<th>Yöntem</th>
+			<th>Not</th>
+			{% if is_admin %}
+			<th>İşlem</th>
+			{% endif %}
+		</tr>
+	</thead>
 	<tbody>
 	{% for p in items %}
 	<tr>
@@ -42,9 +65,18 @@
 		<td>{{ '%.2f'|format(p.amount_try) }}</td>
 		<td>{{ p.method or '-' }}</td>
 		<td>{{ p.note or '' }}</td>
+		{% if is_admin %}
+		<td>
+			<form method="post" action="/payments/{{ p.id }}/delete?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
+				  style="display:inline;margin:0;" 
+				  onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
+				<button type="submit" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">Sil</button>
+			</form>
+		</td>
+		{% endif %}
 	</tr>
 	{% else %}
-	<tr><td colspan="5">Kayıt bulunmuyor.</td></tr>
+	<tr><td colspan="{% if is_admin %}6{% else %}5{% endif %}">Kayıt bulunmuyor.</td></tr>
 	{% endfor %}
 	</tbody>
 </table>

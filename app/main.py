@@ -2239,7 +2239,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     total = float(sum_q.scalar() or 0)
     courses = crud.list_courses(db)
     teachers = crud.list_teachers(db)
-    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or ""})
+    user = request.session.get("user")
+    is_admin = user and user.get("role") == "admin"
+    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or "", "is_admin": is_admin})
 
 
 @app.get("/ui/reports/payments.csv")
@@ -2768,5 +2770,39 @@ def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_
         db.delete(teacher)
         db.commit()
     return RedirectResponse(url="/ui/teachers", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/payments/{payment_id}/delete")
+def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None):
+    """Ödeme kaydını siler (sadece admin için)"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
+    
+    # Ödemeyi sil
+    success = crud.delete_payment(db, payment_id)
+    
+    # Filtre parametrelerini koruyarak geri yönlendir
+    params = []
+    if start:
+        params.append(f"start={start}")
+    if end:
+        params.append(f"end={end}")
+    if course_id:
+        params.append(f"course_id={course_id}")
+    if teacher_id:
+        params.append(f"teacher_id={teacher_id}")
+    
+    query_string = "&".join(params)
+    redirect_url = f"/ui/reports/payments"
+    if query_string:
+        redirect_url += "?" + query_string
+    
+    # Başarı/hata mesajı için session kullan
+    if success:
+        request.session["delete_payment_success"] = "Ödeme kaydı başarıyla silindi."
+    else:
+        request.session["delete_payment_error"] = "Ödeme kaydı silinemedi."
+    
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 

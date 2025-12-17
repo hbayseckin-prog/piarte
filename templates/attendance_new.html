@@ -65,10 +65,13 @@
 					<div class="mobile-card-row">
 						<div class="mobile-card-label">Durum</div>
 						<div class="mobile-card-value">
-							<!-- Mobile view'da table'daki select kullanılıyor, burada sadece gösterim için -->
-							<!-- Table'daki select mobile view'da da görünür olacak şekilde CSS ile ayarlanmalı -->
-							<span id="status_display_{{ item.student.id }}" style="padding:8px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;display:inline-block;min-width:120px;">-</span>
-							<small style="color:#64748b;display:block;margin-top:4px;">Yukarıdaki tablodan seçim yapın</small>
+							<select name="status_{{ item.student.id }}" style="width:100%;max-width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+								<option value="">-</option>
+								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
+								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
+								<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
+								<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz Gelmedi</option>
+							</select>
 						</div>
 					</div>
 				</div>
@@ -80,28 +83,4 @@
 		</div>
 	</form>
 </div>
-<script>
-// Mobile view'da select değiştiğinde display'i güncelle
-document.addEventListener('DOMContentLoaded', function() {
-	// Sadece table'daki select'leri al
-	var selects = document.querySelectorAll('table select[name^="status_"]');
-	selects.forEach(function(select) {
-		select.addEventListener('change', function() {
-			var studentId = this.name.replace('status_', '');
-			var display = document.getElementById('status_display_' + studentId);
-			if (display) {
-				var option = this.options[this.selectedIndex];
-				display.textContent = option.textContent;
-			}
-		});
-		// İlk yüklemede de display'i güncelle
-		var studentId = select.name.replace('status_', '');
-		var display = document.getElementById('status_display_' + studentId);
-		if (display && select.value) {
-			var option = select.options[select.selectedIndex];
-			display.textContent = option.textContent;
-		}
-	});
-});
-</script>
 {% endblock %}

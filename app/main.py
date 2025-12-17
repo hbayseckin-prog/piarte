@@ -2736,22 +2736,37 @@ def staff_panel(
                 selected_weekday = selected_date_obj.weekday()
                 logging.info(f"📅 Selected date weekday: {selected_weekday} (0=Mon, 6=Sun)")
                 
+                # Öğretmene atanmış tüm öğrencileri getir
+                teacher_students = db.scalars(
+                    select(models.Student)
+                    .join(models.TeacherStudent, models.TeacherStudent.student_id == models.Student.id)
+                    .where(models.TeacherStudent.teacher_id == teacher_id)
+                    .order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
+                ).all()
+                logging.info(f"👥 Total students for teacher: {len(teacher_students)}")
+                
                 # Öğretmenin o gün hangi dersleri olduğunu bul (haftalık tekrar mantığına göre)
-                all_lessons = crud.lessons_with_students_by_teacher(db, teacher_id)
+                from sqlalchemy.orm import joinedload
+                all_lessons = db.query(models.Lesson).options(
+                    joinedload(models.Lesson.course),
+                    joinedload(models.Lesson.teacher)
+                ).filter(models.Lesson.teacher_id == teacher_id).order_by(
+                    models.Lesson.lesson_date.asc(),
+                    models.Lesson.start_time.asc()
+                ).all()
                 logging.info(f"📚 Total lessons for teacher: {len(all_lessons)}")
                 
-                for entry in all_lessons:
-                    lesson = entry["lesson"]
+                for lesson in all_lessons:
                     lesson_weekday = lesson.lesson_date.weekday()
-                    logging.info(f"  - Lesson {lesson.id}: {lesson.course.name}, weekday={lesson_weekday}, students={len(entry['students'])}")
+                    logging.info(f"  - Lesson {lesson.id}: {lesson.course.name}, weekday={lesson_weekday}")
                     
                     # Dersin haftanın hangi günü olduğunu kontrol et
                     if lesson_weekday == selected_weekday:
-                        logging.info(f"    ✅ MATCH! Adding lesson {lesson.id} to selected_teacher_lessons")
-                        # Aynı gün içindeki dersler için öğrenci listesini ekle
+                        logging.info(f"    ✅ MATCH! Adding lesson {lesson.id} with {len(teacher_students)} students")
+                        # Aynı gün içindeki dersler için öğretmene atanmış TÜM öğrencileri ekle
                         selected_teacher_lessons.append({
                             "lesson": lesson,
-                            "students": entry["students"]
+                            "students": teacher_students  # Öğretmene atanmış tüm öğrenciler
                         })
                     else:
                         logging.info(f"    ❌ NO MATCH: {lesson_weekday} != {selected_weekday}")

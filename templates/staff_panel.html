@@ -2,6 +2,19 @@
 {% block title %}Personel Paneli - Piarte{% endblock %}
 {% block content %}
 <div class="h1">🔑 Personel Paneli</div>
+
+<!-- Başarı/Hata Mesajları -->
+{% if success %}
+<div style="padding:12px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ success }}
+</div>
+{% endif %}
+{% if error %}
+<div style="padding:12px;background:#fee2e2;color:#991b1b;border:1px solid #ef4444;border-radius:8px;margin-bottom:16px;">
+	❌ {{ error }}
+</div>
+{% endif %}
+
 <div class="card">
   <div style="margin-bottom:16px;">Hoş geldiniz. Buradan temel işlemleri kolayca erişebilirsiniz:</div>
   <div class="btn-group">
@@ -9,6 +22,169 @@
     <a href="/lessons/new" style="text-decoration:none;"><button style="width:100%;">Ders Seçimi / Kayıt</button></a>
     <a href="/payments/new" style="text-decoration:none;"><button style="width:100%;">Ödeme Al</button></a>
   </div>
+</div>
+
+<!-- Geçmişe Dönük Kayıt Bölümü -->
+<div class="card">
+	<h3 class="h2">📅 Geçmişe Dönük Kayıt</h3>
+	<p style="color:#64748b;margin-bottom:16px;font-size:14px;">
+		Öğretmen seçerek geçmiş bir tarih için yoklama ve ödeme kaydı oluşturabilirsiniz.
+	</p>
+	
+	<!-- Öğretmen ve Tarih Seçimi -->
+	<form method="get" action="/ui/staff" style="margin-bottom:16px;">
+		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+			<div style="flex:1;min-width:200px;">
+				<label for="teacher_id" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğretmen</label>
+				<select 
+					name="teacher_id" 
+					id="teacher_id" 
+					required
+					style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+					<option value="">Öğretmen Seçin</option>
+					{% for teacher in teachers %}
+					<option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+						{{ teacher.first_name }} {{ teacher.last_name }}
+					</option>
+					{% endfor %}
+				</select>
+			</div>
+			<div style="flex:1;min-width:200px;">
+				<label for="selected_date" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Tarih</label>
+				<input 
+					type="date" 
+					name="selected_date" 
+					id="selected_date" 
+					value="{{ selected_date or '' }}"
+					required
+					style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+				/>
+			</div>
+			<button type="submit" style="padding:10px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Öğrencileri Getir</button>
+		</div>
+	</form>
+	
+	<!-- Öğrenci Listesi ve Yoklama Formu -->
+	{% if selected_teacher and selected_date %}
+	<div style="margin-top:20px;padding:16px;background:#f0f9ff;border:1px solid #0ea5e9;border-radius:12px;">
+		<h4 style="margin:0 0 12px 0;color:#0f172a;font-size:16px;font-weight:600;">
+			{{ selected_teacher.first_name }} {{ selected_teacher.last_name }} - {{ selected_date }} Yoklama Girişi
+		</h4>
+		
+		{% if selected_teacher_lessons %}
+		<form method="post" action="/ui/staff/attendance/retrospective">
+			<input type="hidden" name="teacher_id" value="{{ selected_teacher_id }}" />
+			<input type="hidden" name="selected_date" value="{{ selected_date }}" />
+			
+			<div style="display:flex;flex-direction:column;gap:16px;">
+				{% for entry in selected_teacher_lessons %}
+				<div style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;">
+					<h5 style="margin:0 0 8px 0;color:#0f172a;font-size:14px;font-weight:600;">
+						{{ entry.lesson.course.name }}
+						{% if entry.lesson.start_time or entry.lesson.end_time %}
+						- {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+						{% endif %}
+					</h5>
+					
+					{% if entry.students %}
+					<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+						{% for student in entry.students %}
+						<div style="display:flex;align-items:center;gap:12px;padding:8px;background:#f9fafb;border-radius:6px;">
+							<div style="flex:1;font-size:14px;color:#0f172a;font-weight:500;">
+								{{ student.first_name }} {{ student.last_name }}
+							</div>
+							<select 
+								name="status_{{ entry.lesson.id }}_{{ student.id }}" 
+								style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-width:150px;">
+								<option value="">Durum Seçin</option>
+								<option value="PRESENT">✅ Geldi</option>
+								<option value="ABSENT">❌ Gelmedi</option>
+								<option value="EXCUSED_ABSENT">📝 Haberli Gelmedi</option>
+								<option value="TELAFI">🔄 Telafi</option>
+							</select>
+						</div>
+						{% endfor %}
+					</div>
+					{% else %}
+					<p style="color:#64748b;font-size:13px;margin:8px 0 0 0;">Bu derse kayıtlı öğrenci yok.</p>
+					{% endif %}
+				</div>
+				{% endfor %}
+			</div>
+			
+			<div style="margin-top:16px;display:flex;gap:8px;">
+				<button type="submit" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">💾 Yoklama Kaydet</button>
+				<a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;">İptal</a>
+			</div>
+		</form>
+		{% else %}
+		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğretmenin seçilen günde dersi bulunmuyor.</p>
+		{% endif %}
+	</div>
+	
+	<!-- Geçmişe Dönük Ödeme Formu -->
+	<div style="margin-top:20px;padding:16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:12px;">
+		<h4 style="margin:0 0 12px 0;color:#0f172a;font-size:16px;font-weight:600;">
+			💰 Geçmişe Dönük Ödeme Kaydı
+		</h4>
+		<form method="post" action="/ui/staff/payment/retrospective">
+			<div style="display:flex;flex-direction:column;gap:12px;">
+				<div>
+					<label for="payment_student_id" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci</label>
+					<select 
+						name="student_id" 
+						id="payment_student_id" 
+						required
+						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+						<option value="">Öğrenci Seçin</option>
+						{% if selected_teacher_lessons %}
+							{% for entry in selected_teacher_lessons %}
+								{% for student in entry.students %}
+								<option value="{{ student.id }}">{{ student.first_name }} {{ student.last_name }}</option>
+								{% endfor %}
+							{% endfor %}
+						{% endif %}
+					</select>
+				</div>
+				<div>
+					<label for="payment_amount" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Ödeme Tutarı (TL)</label>
+					<input 
+						type="number" 
+						name="amount" 
+						id="payment_amount" 
+						step="0.01" 
+						required
+						placeholder="Örn: 1500"
+						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+					/>
+				</div>
+				<div>
+					<label for="payment_date" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Ödeme Tarihi</label>
+					<input 
+						type="date" 
+						name="payment_date" 
+						id="payment_date" 
+						value="{{ selected_date or '' }}"
+						required
+						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+					/>
+				</div>
+				<div>
+					<label for="payment_note" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Not (Opsiyonel)</label>
+					<textarea 
+						name="note" 
+						id="payment_note" 
+						rows="2"
+						placeholder="İsteğe bağlı not..."
+						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;"></textarea>
+				</div>
+				<div>
+					<button type="submit" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">💰 Ödeme Kaydet</button>
+				</div>
+			</div>
+		</form>
+	</div>
+	{% endif %}
 </div>
 
 <div class="card">

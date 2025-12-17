@@ -1638,10 +1638,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             try:
                 db.commit()
                 # Refresh yap
-                if existing:
-                    db.refresh(existing)
-                else:
-                    db.refresh(attendance)
+                db.refresh(attendance)
                 logging.info(f"[{item.student_id}] ✅ COMMIT BAŞARILI")
             except Exception as commit_error:
                 db.rollback()
@@ -1656,7 +1653,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
             try:
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                attendance_id = existing.id if existing else (attendance.id if 'attendance' in locals() else None)
+                attendance_id = attendance.id if 'attendance' in locals() else None
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_commit", "timestamp": int(time.time() * 1000), "location": "main.py:1322", "message": "Attendance commit successful", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status, "attendance_id": attendance_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
             except Exception as e:
@@ -2575,7 +2572,16 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
     return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)
-def staff_panel(request: Request, search: str | None = None, student_id: int | None = None, db: Session = Depends(get_db)):
+def staff_panel(
+    request: Request, 
+    search: str | None = None, 
+    student_id: int | None = None, 
+    teacher_id: int | None = None,
+    selected_date: str | None = None,
+    success: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db)
+):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
@@ -2713,15 +2719,47 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)
         payment_status_list.sort(key=lambda x: (not x["needs_payment"], x["student"].first_name, x["student"].last_name))
         
+        # Geçmişe dönük yoklama için öğretmen ve tarih seçildiğinde öğrencileri getir
+        selected_teacher = None
+        selected_teacher_lessons = []
+        if teacher_id and selected_date:
+            try:
+                selected_teacher = crud.get_teacher(db, teacher_id)
+                # Seçilen tarihe ait dersleri getir
+                from datetime import datetime
+                selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+                
+                # Öğretmenin o gün hangi dersleri olduğunu bul (haftalık tekrar mantığına göre)
+                all_lessons = crud.lessons_with_students_by_teacher(db, teacher_id)
+                for entry in all_lessons:
+                    lesson = entry["lesson"]
+                    # Dersin haftanın hangi günü olduğunu kontrol et
+                    if lesson.lesson_date.weekday() == selected_date_obj.weekday():
+                        # Aynı gün içindeki dersler için öğrenci listesini ekle
+                        selected_teacher_lessons.append({
+                            "lesson": lesson,
+                            "students": entry["students"]
+                        })
+            except Exception as e:
+                import logging
+                logging.error(f"Error fetching teacher lessons for date: {e}")
+        
         return templates.TemplateResponse("staff_panel.html", {
             "request": request,
+            "teachers": teachers,
             "teachers_schedules": teachers_schedules,
             "search": search or "",
             "search_results": search_results,
             "selected_student": selected_student,
             "student_lessons": student_lessons_formatted,
             "payment_status_list": payment_status_list,
-            "today": today
+            "today": today,
+            "selected_teacher": selected_teacher,
+            "selected_teacher_id": teacher_id,
+            "selected_date": selected_date,
+            "selected_teacher_lessons": selected_teacher_lessons,
+            "success": success,
+            "error": error
         })
     except Exception as e:
         import logging
@@ -2740,6 +2778,105 @@ def staff_panel(request: Request, search: str | None = None, student_id: int | N
         </body>
         </html>
         """)
+
+@app.post("/ui/staff/attendance/retrospective")
+async def staff_retrospective_attendance(
+    request: Request,
+    teacher_id: int = Form(...),
+    selected_date: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Geçmişe dönük yoklama kaydı oluştur"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "staff":
+        return RedirectResponse(url="/login/staff", status_code=302)
+    
+    try:
+        from datetime import datetime
+        
+        # Form verilerini al
+        form_data = await request.form()
+        attendance_date = datetime.strptime(selected_date, "%Y-%m-%d").date()
+        
+        # Yoklama kayıtlarını oluştur
+        attendance_count = 0
+        for key, value in form_data.items():
+            if key.startswith("status_"):
+                # Format: status_lessonId_studentId
+                parts = key.split("_")
+                if len(parts) == 3:
+                    lesson_id = int(parts[1])
+                    student_id = int(parts[2])
+                    status_value = value.strip().upper()
+                    
+                    if status_value:  # Boş değilse
+                        # Yoklama kaydı oluştur
+                        attendance_data = schemas.AttendanceCreate(
+                            lesson_id=lesson_id,
+                            student_id=student_id,
+                            status=status_value,
+                            marked_at=datetime.combine(attendance_date, datetime.min.time()),
+                            note=f"Geçmişe dönük kayıt - {selected_date}"
+                        )
+                        crud.mark_attendance(db, attendance_data, commit=True)
+                        attendance_count += 1
+        
+        if attendance_count > 0:
+            return RedirectResponse(
+                url=f"/ui/staff?teacher_id={teacher_id}&selected_date={selected_date}&success={attendance_count} yoklama kaydı başarıyla oluşturuldu",
+                status_code=303
+            )
+        else:
+            return RedirectResponse(
+                url=f"/ui/staff?teacher_id={teacher_id}&selected_date={selected_date}&error=Hiçbir yoklama durumu seçilmedi",
+                status_code=303
+            )
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating retrospective attendance: {e}")
+        return RedirectResponse(
+            url=f"/ui/staff?teacher_id={teacher_id}&selected_date={selected_date}&error=Yoklama kaydı oluşturulurken hata: {str(e)}",
+            status_code=303
+        )
+
+@app.post("/ui/staff/payment/retrospective")
+async def staff_retrospective_payment(
+    request: Request,
+    student_id: int = Form(...),
+    amount: float = Form(...),
+    payment_date: str = Form(...),
+    note: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Geçmişe dönük ödeme kaydı oluştur"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "staff":
+        return RedirectResponse(url="/login/staff", status_code=302)
+    
+    try:
+        from datetime import datetime
+        
+        # Ödeme kaydı oluştur
+        payment_date_obj = datetime.strptime(payment_date, "%Y-%m-%d").date()
+        payment_data = schemas.PaymentCreate(
+            student_id=student_id,
+            amount=amount,
+            payment_date=payment_date_obj,
+            note=note or f"Geçmişe dönük ödeme - {payment_date}"
+        )
+        crud.create_payment(db, payment_data)
+        
+        return RedirectResponse(
+            url=f"/ui/staff?success=Ödeme kaydı başarıyla oluşturuldu",
+            status_code=303
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating retrospective payment: {e}")
+        return RedirectResponse(
+            url=f"/ui/staff?error=Ödeme kaydı oluşturulurken hata: {str(e)}",
+            status_code=303
+        )
 
 @app.post("/students/{student_id}/delete")
 def delete_student(student_id: int, request: Request, db: Session = Depends(get_db)):

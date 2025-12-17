@@ -94,6 +94,10 @@ def list_teachers(db: Session):
 	return db.scalars(select(models.Teacher).order_by(models.Teacher.created_at.desc())).all()
 
 
+def get_teacher(db: Session, teacher_id: int):
+	return db.get(models.Teacher, teacher_id)
+
+
 def find_teacher_by_name(db: Session, first_name: str, last_name: str):
 	stmt = select(models.Teacher).where(
 		func.lower(models.Teacher.first_name) == func.lower(first_name),

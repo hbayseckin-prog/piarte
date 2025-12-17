@@ -2724,25 +2724,44 @@ def staff_panel(
         selected_teacher_lessons = []
         if teacher_id and selected_date:
             try:
+                import logging
+                logging.info(f"🔍 Retrospective attendance: teacher_id={teacher_id}, selected_date={selected_date}")
+                
                 selected_teacher = crud.get_teacher(db, teacher_id)
+                logging.info(f"✅ Teacher found: {selected_teacher.first_name if selected_teacher else 'None'}")
+                
                 # Seçilen tarihe ait dersleri getir
                 from datetime import datetime
                 selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+                selected_weekday = selected_date_obj.weekday()
+                logging.info(f"📅 Selected date weekday: {selected_weekday} (0=Mon, 6=Sun)")
                 
                 # Öğretmenin o gün hangi dersleri olduğunu bul (haftalık tekrar mantığına göre)
                 all_lessons = crud.lessons_with_students_by_teacher(db, teacher_id)
+                logging.info(f"📚 Total lessons for teacher: {len(all_lessons)}")
+                
                 for entry in all_lessons:
                     lesson = entry["lesson"]
+                    lesson_weekday = lesson.lesson_date.weekday()
+                    logging.info(f"  - Lesson {lesson.id}: {lesson.course.name}, weekday={lesson_weekday}, students={len(entry['students'])}")
+                    
                     # Dersin haftanın hangi günü olduğunu kontrol et
-                    if lesson.lesson_date.weekday() == selected_date_obj.weekday():
+                    if lesson_weekday == selected_weekday:
+                        logging.info(f"    ✅ MATCH! Adding lesson {lesson.id} to selected_teacher_lessons")
                         # Aynı gün içindeki dersler için öğrenci listesini ekle
                         selected_teacher_lessons.append({
                             "lesson": lesson,
                             "students": entry["students"]
                         })
+                    else:
+                        logging.info(f"    ❌ NO MATCH: {lesson_weekday} != {selected_weekday}")
+                
+                logging.info(f"📋 Final selected_teacher_lessons count: {len(selected_teacher_lessons)}")
             except Exception as e:
                 import logging
-                logging.error(f"Error fetching teacher lessons for date: {e}")
+                import traceback
+                logging.error(f"❌ Error fetching teacher lessons for date: {e}")
+                logging.error(traceback.format_exc())
         
         return templates.TemplateResponse("staff_panel.html", {
             "request": request,

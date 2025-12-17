@@ -323,7 +323,7 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 # Attendance
 def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = True):
 	# Her yoklama ayrı bir kayıt olarak oluşturulur - mevcut kayıt kontrolü yok
-		import logging
+	import logging
 	from datetime import datetime
 	
 	attendance = models.Attendance(
@@ -334,15 +334,16 @@ def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = 
 		note=data.note if hasattr(data, 'note') and data.note else None
 	)
 	db.add(attendance)
-		
-		if commit:
-			db.commit()
+	
+	if commit:
+		db.commit()
 		db.refresh(attendance)
 		logging.info(f"Yeni yoklama kaydı oluşturuldu: Öğrenci {data.student_id}, Ders {data.lesson_id}, Durum: {attendance.status}")
 	else:
-			db.flush()
+		db.flush()
 		logging.info(f"Yoklama session'a yazıldı (commit=False): Öğrenci {data.student_id}, Durum: {attendance.status}")
-		return attendance
+	
+	return attendance
 
 
 def list_attendance_for_lesson(db: Session, lesson_id: int):

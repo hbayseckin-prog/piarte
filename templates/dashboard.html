@@ -414,8 +414,8 @@
         <div>
             <h3 class="h2" style="margin:0;">Puantaj Tablosu</h3>
             <p style="color:var(--muted);margin-top:8px;margin-bottom:0;font-size:14px;">
-                Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
-            </p>
+        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
+    </p>
         </div>
         <div>
             <a href="/dashboard/export/excel?{% if filters.teacher_id %}teacher_id={{ filters.teacher_id }}&{% endif %}{% if filters.student_id %}student_id={{ filters.student_id }}&{% endif %}{% if filters.course_id %}course_id={{ filters.course_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.start_date %}start_date={{ filters.start_date }}&{% endif %}{% if filters.end_date %}end_date={{ filters.end_date }}&{% endif %}" 
@@ -631,7 +631,7 @@
 	</script>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
-	{% endif %}
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

@@ -2648,6 +2648,7 @@ def staff_panel(
         student_lessons = []
         student_lessons_formatted = []
         selected_student_payments = []
+        all_lesson_dates_sorted = []
         
         if search:
             # Öğrenci ara
@@ -2672,15 +2673,6 @@ def staff_panel(
                 student_lessons = crud.list_lessons_by_student(db, student_id)
                 # Öğrencinin ödemelerini de getir
                 selected_student_payments = crud.list_payments_by_student(db, student_id)
-                
-                # Öğrencinin toplam ders sayısını hesapla (yoklamalardan)
-                total_lessons_count = db.scalars(
-                    select(func.count(models.Attendance.id))
-                    .where(
-                        models.Attendance.student_id == student_id,
-                        models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE", "UNEXCUSED_ABSENT"])
-                    )
-                ).first() or 0
                 
                 # Öğrencinin tüm yoklamalarını tarihe göre sıralı getir (ders tarihleri için)
                 student_attendances = db.scalars(
@@ -2713,6 +2705,9 @@ def staff_panel(
                 
                 # Tüm tarihleri sırala
                 all_lesson_dates_sorted = sorted(all_lesson_dates)
+                
+                # Öğrencinin toplam ders sayısını hesapla (geçmiş + gelecek)
+                total_lessons_count = len(all_lesson_dates_sorted)
                 
                 # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(
@@ -2875,6 +2870,7 @@ def staff_panel(
             "selected_student_payments": selected_student_payments,
             "total_lessons_count": total_lessons_count if 'total_lessons_count' in locals() else 0,
             "student_attendances": student_attendances if 'student_attendances' in locals() else [],
+            "all_lesson_dates_sorted": all_lesson_dates_sorted if 'all_lesson_dates_sorted' in locals() else [],
             "payment_status_list": payment_status_list,
             "today": today,
             "selected_teacher": selected_teacher,

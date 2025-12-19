@@ -503,71 +503,85 @@ def dashboard(
     import logging
     logging.warning("🔍 Dashboard: list_all_attendances bypass ediliyor, direkt sorgu kullanılıyor!")
     
-    # Direkt sorgu ile tüm yoklamaları al
-    if 'all_attendances_direct' not in locals():
+    # Filtrelerin olup olmadığını kontrol et
+    has_filters = any([
+        teacher_id_int is not None,
+        student_id_int is not None,
+        course_id_int is not None,
+        status is not None and status.strip(),
+        start_date_obj is not None,
+        end_date_obj is not None
+    ])
+    
+    # Eğer hiçbir filtre yoksa, boş liste döndür
+    if not has_filters:
+        attendances = []
+        logging.warning("🔍 Dashboard: Hiçbir filtre yok, boş liste döndürülüyor")
+    else:
+        # Direkt sorgu ile tüm yoklamaları al
         all_attendances_direct = db.scalars(select(models.Attendance)).all()
         logging.warning(f"🔍 Dashboard: Direkt sorgu sonucu: {len(all_attendances_direct)} yoklama")
-    
-    # Filtreleri manuel uygula
-    attendances = list(all_attendances_direct)
-    logging.warning(f"🔍 Dashboard: Filtre öncesi: {len(attendances)} yoklama")
-    
-    # Teacher filter
-    if teacher_id_int:
-        filtered = []
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.teacher_id == teacher_id_int:
-                filtered.append(att)
-        attendances = filtered
-    
-    # Student filter
-    if student_id_int:
-        attendances = [a for a in attendances if a.student_id == student_id_int]
-    
-    # Status filter
-    if status:
-        attendances = [a for a in attendances if a.status.upper() == status.upper()]
-    
-    # Course filter
-    if course_id_int:
-        filtered = []
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.course_id == course_id_int:
-                filtered.append(att)
-        attendances = filtered
-    
-    # Date filters
-    if start_date_obj:
-        filtered = []
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.lesson_date and lesson.lesson_date >= start_date_obj:
-                filtered.append(att)
-        attendances = filtered
-    
-    if end_date_obj:
-        filtered = []
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.lesson_date and lesson.lesson_date <= end_date_obj:
-                filtered.append(att)
-        attendances = filtered
-    
-    # Sort
-    if order_by == "marked_at_desc":
-        attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
-    elif order_by == "marked_at_asc":
-        attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
-    elif order_by == "lesson_date_desc":
-        attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=True)
-    elif order_by == "lesson_date_asc":
-        attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=False)
-    
-    # Limit
-    attendances = attendances[:200]
-    logging.warning(f"🔍 Dashboard: Filtre sonrası: {len(attendances)} yoklama (limit: 200)")
+        
+        # Filtreleri manuel uygula
+        attendances = list(all_attendances_direct)
+        logging.warning(f"🔍 Dashboard: Filtre öncesi: {len(attendances)} yoklama")
+        
+        # Teacher filter
+        if teacher_id_int:
+            filtered = []
+            for att in attendances:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                if lesson and lesson.teacher_id == teacher_id_int:
+                    filtered.append(att)
+            attendances = filtered
+        
+        # Student filter
+        if student_id_int:
+            attendances = [a for a in attendances if a.student_id == student_id_int]
+        
+        # Status filter
+        if status:
+            attendances = [a for a in attendances if a.status.upper() == status.upper()]
+        
+        # Course filter
+        if course_id_int:
+            filtered = []
+            for att in attendances:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                if lesson and lesson.course_id == course_id_int:
+                    filtered.append(att)
+            attendances = filtered
+        
+        # Date filters
+        if start_date_obj:
+            filtered = []
+            for att in attendances:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                if lesson and lesson.lesson_date and lesson.lesson_date >= start_date_obj:
+                    filtered.append(att)
+            attendances = filtered
+        
+        if end_date_obj:
+            filtered = []
+            for att in attendances:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                if lesson and lesson.lesson_date and lesson.lesson_date <= end_date_obj:
+                    filtered.append(att)
+            attendances = filtered
+        
+        # Sort
+        if order_by == "marked_at_desc":
+            attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
+        elif order_by == "marked_at_asc":
+            attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
+        elif order_by == "lesson_date_desc":
+            attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=True)
+        elif order_by == "lesson_date_asc":
+            attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=False)
+        
+        # Limit
+        attendances = attendances[:200]
+        logging.warning(f"🔍 Dashboard: Filtre sonrası: {len(attendances)} yoklama (limit: 200)")
     if len(attendances) > 0:
         logging.warning(f"🔍 Dashboard: İlk 5 yoklama ID: {[a.id for a in attendances[:5]]}")
     

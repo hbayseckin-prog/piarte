@@ -629,7 +629,18 @@ def dashboard(
     # Puantaj raporunu getir (sadece admin için)
     attendance_report = []
     if user.get("role") == "admin":
-        attendance_report = crud.get_attendance_report_by_teacher(db)
+        # Filtreler varsa filtrelenmiş raporu getir, yoksa tüm raporu getir
+        if has_filters:
+            attendance_report = crud.get_attendance_report_by_teacher(
+                db,
+                teacher_id=teacher_id_int,
+                student_id=student_id_int,
+                course_id=course_id_int,
+                start_date=start_date_obj,
+                end_date=end_date_obj
+            )
+        else:
+            attendance_report = crud.get_attendance_report_by_teacher(db)
         
         # #region agent log
         import json, os, time

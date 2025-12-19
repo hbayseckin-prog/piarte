@@ -408,7 +408,7 @@
     {% endif %}
 </div>
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and (filters.teacher_id or filters.student_id or filters.course_id or filters.start_date or filters.end_date) %}
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>

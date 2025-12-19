@@ -2998,4 +2998,3 @@ def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_
     
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
-

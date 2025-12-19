@@ -408,13 +408,13 @@
     {% endif %}
 </div>
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and (filters.teacher_id or filters.student_id or filters.course_id or filters.start_date or filters.end_date) %}
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>
             <h3 class="h2" style="margin:0;">Puantaj Tablosu</h3>
             <p style="color:var(--muted);margin-top:8px;margin-bottom:0;font-size:14px;">
-        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez.
+        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez. Filtreleme sonuçları gösterilmektedir.
     </p>
         </div>
         <div>

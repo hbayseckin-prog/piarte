@@ -533,8 +533,8 @@ def mark_overdue_invoices(db: Session):
     return updated
 
 
-def get_attendance_report_by_teacher(db: Session):
-    """Öğretmenlere göre yoklama raporu oluşturur"""
+def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, start_date: date | None = None, end_date: date | None = None):
+    """Öğretmenlere göre yoklama raporu oluşturur. Filtreleme parametreleri ile çalışır."""
     # #region agent log
     import json, os, time
     log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
@@ -547,10 +547,16 @@ def get_attendance_report_by_teacher(db: Session):
         logging.error(f"Debug log error: {e}")
     # #endregion
     
-    teachers = list_teachers(db)
+    # Öğretmen filtresi varsa sadece o öğretmeni al, yoksa tüm öğretmenleri al
+    if teacher_id:
+        teachers = [db.get(models.Teacher, teacher_id)] if db.get(models.Teacher, teacher_id) else []
+    else:
+        teachers = list_teachers(db)
     report = []
     
     for teacher in teachers:
+        if not teacher:
+            continue
         # Öğretmene ait tüm dersleri getir
         lessons = list_lessons_by_teacher(db, teacher.id)
         lesson_ids = [lesson.id for lesson in lessons]
@@ -585,12 +591,37 @@ def get_attendance_report_by_teacher(db: Session):
             logging.error(f"Debug log error: {e}")
         # #endregion
         
-        attendances = db.scalars(
-            select(models.Attendance)
-            .where(
-                models.Attendance.lesson_id.in_(lesson_ids)
-            )
-        ).all()
+        # Yoklamaları getir
+        stmt = select(models.Attendance).where(
+            models.Attendance.lesson_id.in_(lesson_ids)
+        )
+        
+        # Öğrenci filtresi
+        if student_id:
+            stmt = stmt.where(models.Attendance.student_id == student_id)
+        
+        attendances = db.scalars(stmt).all()
+        
+        # Kurs ve tarih filtrelerini uygula (lesson bilgisi gerektiği için Python'da filtrele)
+        if course_id or start_date or end_date:
+            filtered_attendances = []
+            for att in attendances:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                if not lesson:
+                    continue
+                
+                # Kurs filtresi
+                if course_id and lesson.course_id != course_id:
+                    continue
+                
+                # Tarih filtreleri
+                if start_date and lesson.lesson_date and lesson.lesson_date < start_date:
+                    continue
+                if end_date and lesson.lesson_date and lesson.lesson_date > end_date:
+                    continue
+                
+                filtered_attendances.append(att)
+            attendances = filtered_attendances
         
         # #region agent log
         try:

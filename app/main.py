@@ -2691,7 +2691,30 @@ def staff_panel(
                 
                 # Dersleri haftalık formata çevir
                 from datetime import time as time_type, date as date_type
-                # Öğrencinin tüm derslerini tarihe göre sırala (toplam ders sırası için)
+                # Öğrencinin tüm derslerini birleştir (geçmiş + gelecek)
+                # Geçmiş dersler: student_attendances'tan (yoklama alınmış)
+                # Gelecek dersler: student_lessons'tan (atanmış)
+                
+                # Geçmiş derslerin tarihlerini al (yoklama tarihlerinden)
+                past_lesson_dates = []
+                for att in student_attendances:
+                    if att.marked_at:
+                        past_lesson_dates.append(att.marked_at.date())
+                
+                # Tüm ders tarihlerini birleştir (geçmiş + gelecek)
+                all_lesson_dates = []
+                for lesson in student_lessons:
+                    all_lesson_dates.append(lesson.lesson_date)
+                
+                # Geçmiş ders tarihlerini ekle (eğer gelecek dersler listesinde yoksa)
+                for past_date in past_lesson_dates:
+                    if past_date not in all_lesson_dates:
+                        all_lesson_dates.append(past_date)
+                
+                # Tüm tarihleri sırala
+                all_lesson_dates_sorted = sorted(all_lesson_dates)
+                
+                # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(
                     student_lessons,
                     key=lambda x: (x.lesson_date, x.start_time if x.start_time else time_type.min)
@@ -2703,10 +2726,13 @@ def staff_panel(
                     current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
                     
                     # Öğrencinin bu derste toplam dersler içinde kaçıncı ders olduğunu bul
-                    # Tarih ve saat sırasına göre
+                    # Geçmiş dersler + gelecek dersler birlikte sayılıyor
                     lesson_number = None
                     try:
-                        lesson_index = all_student_lessons_sorted.index(lesson)
+                        # Bu dersin tarihini bul
+                        lesson_date = lesson.lesson_date
+                        # Tüm tarihler içinde bu tarihin sırasını bul
+                        lesson_index = all_lesson_dates_sorted.index(lesson_date)
                         lesson_number = lesson_index + 1
                     except ValueError:
                         lesson_number = None
@@ -2716,7 +2742,7 @@ def staff_panel(
                         "lesson": lesson,
                         "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                         "lesson_number": lesson_number,
-                        "total_same_day": len(all_student_lessons_sorted)  # Toplam ders sayısı
+                        "total_same_day": len(all_lesson_dates_sorted)  # Toplam ders sayısı (geçmiş + gelecek)
                     })
             else:
                 total_lessons_count = 0

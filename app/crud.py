@@ -305,6 +305,18 @@ def list_lessons_by_teacher(db: Session, teacher_id: int):
 	return db.scalars(stmt).all()
 
 
+def list_lessons_by_student(db: Session, student_id: int):
+	"""Öğrencinin kayıtlı olduğu kurslardaki dersleri getirir"""
+	stmt = (
+		select(models.Lesson)
+		.join(models.Course, models.Lesson.course_id == models.Course.id)
+		.join(models.Enrollment, models.Enrollment.course_id == models.Course.id)
+		.where(models.Enrollment.student_id == student_id)
+		.order_by(models.Lesson.lesson_date.asc(), models.Lesson.start_time.asc())
+	)
+	return db.scalars(stmt).all()
+
+
 def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 	from sqlalchemy.orm import joinedload
 	# Öğretmene ait tüm dersleri getir (tarih ve saat sırasına göre)

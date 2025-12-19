@@ -2690,22 +2690,33 @@ def staff_panel(
                 ).all()
                 
                 # Dersleri haftalık formata çevir
-                from datetime import time as time_type
+                from datetime import time as time_type, date as date_type
+                # Öğrencinin tüm derslerini tarihe göre sırala (toplam ders sırası için)
+                all_student_lessons_sorted = sorted(
+                    student_lessons,
+                    key=lambda x: (x.lesson_date, x.start_time if x.start_time else time_type.min)
+                )
+                
                 for lesson in student_lessons:
                     weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
                     # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
                     current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
-                    # Öğrencinin bu derste kaçıncı ders olduğunu bul (aynı gün içinde)
-                    same_day_lessons = [l for l in student_lessons if l.lesson_date == lesson.lesson_date]
-                    # Start time'a göre sırala
-                    same_day_lessons.sort(key=lambda x: x.start_time if x.start_time else time_type.min)
-                    lesson_number = same_day_lessons.index(lesson) + 1 if lesson in same_day_lessons else None
+                    
+                    # Öğrencinin bu derste toplam dersler içinde kaçıncı ders olduğunu bul
+                    # Tarih ve saat sırasına göre
+                    lesson_number = None
+                    try:
+                        lesson_index = all_student_lessons_sorted.index(lesson)
+                        lesson_number = lesson_index + 1
+                    except ValueError:
+                        lesson_number = None
+                    
                     student_lessons_formatted.append({
                         "weekday": weekday,
                         "lesson": lesson,
                         "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                         "lesson_number": lesson_number,
-                        "total_same_day": len(same_day_lessons)
+                        "total_same_day": len(all_student_lessons_sorted)  # Toplam ders sayısı
                     })
             else:
                 total_lessons_count = 0

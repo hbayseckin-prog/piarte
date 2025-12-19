@@ -2687,24 +2687,22 @@ def staff_panel(
                 # Geçmiş dersler: student_attendances'tan (yoklama alınmış)
                 # Gelecek dersler: student_lessons'tan (atanmış)
                 
-                # Geçmiş derslerin tarihlerini al (yoklama tarihlerinden)
-                past_lesson_dates = []
+                # Geçmiş derslerin tarihlerini al (yoklama tarihlerinden) - tekrarları kaldır
+                past_lesson_dates = set()
                 for att in student_attendances:
                     if att.marked_at:
-                        past_lesson_dates.append(att.marked_at.date())
+                        past_lesson_dates.add(att.marked_at.date())
                 
                 # Tüm ders tarihlerini birleştir (geçmiş + gelecek)
-                all_lesson_dates = []
+                all_lesson_dates = set()
                 for lesson in student_lessons:
-                    all_lesson_dates.append(lesson.lesson_date)
+                    all_lesson_dates.add(lesson.lesson_date)
                 
-                # Geçmiş ders tarihlerini ekle (eğer gelecek dersler listesinde yoksa)
-                for past_date in past_lesson_dates:
-                    if past_date not in all_lesson_dates:
-                        all_lesson_dates.append(past_date)
+                # Geçmiş ders tarihlerini ekle
+                all_lesson_dates.update(past_lesson_dates)
                 
                 # Tüm tarihleri sırala
-                all_lesson_dates_sorted = sorted(all_lesson_dates)
+                all_lesson_dates_sorted = sorted(list(all_lesson_dates))
                 
                 # Öğrencinin toplam ders sayısını hesapla (geçmiş + gelecek)
                 total_lessons_count = len(all_lesson_dates_sorted)

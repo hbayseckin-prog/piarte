@@ -614,11 +614,23 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 if course_id and lesson.course_id != course_id:
                     continue
                 
-                # Tarih filtreleri
-                if start_date and lesson.lesson_date and lesson.lesson_date < start_date:
-                    continue
-                if end_date and lesson.lesson_date and lesson.lesson_date > end_date:
-                    continue
+                # Tarih filtreleri - yoklama zamanındaki tarihi kullan
+                if start_date:
+                    # marked_at'in tarih kısmını al
+                    if att.marked_at:
+                        attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
+                        if attendance_date < start_date:
+                            continue
+                    else:
+                        continue  # marked_at yoksa atla
+                if end_date:
+                    # marked_at'in tarih kısmını al
+                    if att.marked_at:
+                        attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
+                        if attendance_date > end_date:
+                            continue
+                    else:
+                        continue  # marked_at yoksa atla
                 
                 filtered_attendances.append(att)
             attendances = filtered_attendances
@@ -664,12 +676,12 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                     "dates": []  # Yoklama tarihlerini saklamak için
                 }
             
-            # Ders tarihini al (lesson varsa lesson_date, yoksa marked_at'in tarih kısmı)
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.lesson_date:
-                date_str = lesson.lesson_date.strftime('%d.%m.%Y')
+            # Yoklama zamanındaki tarihi kullan (marked_at)
+            if att.marked_at:
+                attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
+                date_str = attendance_date.strftime('%d.%m.%Y') if hasattr(attendance_date, 'strftime') else str(attendance_date)
             else:
-                date_str = att.marked_at.strftime('%d.%m.%Y') if att.marked_at else ''
+                date_str = ''
             
             # Eski LATE değerlerini TELAFI olarak say (geriye dönük uyumluluk)
             status = att.status

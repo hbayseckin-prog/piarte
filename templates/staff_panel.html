@@ -392,6 +392,42 @@
 		<p style="color:#64748b;text-align:center;padding:20px;">Bu öğrencinin henüz ders kaydı bulunmuyor.</p>
 		{% endif %}
 	</div>
+	
+	{% if selected_student %}
+	<div style="margin-top:20px;padding:16px;background:#f0fdf4;border:1px solid #10b981;border-radius:12px;">
+		<h4 style="margin:0 0 12px 0;color:#0f172a;font-size:16px;font-weight:600;">
+			Ödeme Geçmişi
+		</h4>
+		<div class="table-wrap">
+			<table style="width:100%;border-collapse:collapse;">
+				<thead>
+					<tr style="background:#f9fafb;border-bottom:2px solid var(--border);">
+						<th style="padding:10px;text-align:left;font-weight:600;color:#0f172a;font-size:14px;">Tarih</th>
+						<th style="padding:10px;text-align:left;font-weight:600;color:#0f172a;font-size:14px;">Tutar</th>
+						<th style="padding:10px;text-align:left;font-weight:600;color:#0f172a;font-size:14px;">Yöntem</th>
+						<th style="padding:10px;text-align:left;font-weight:600;color:#0f172a;font-size:14px;">Not</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% if selected_student_payments %}
+						{% for payment in selected_student_payments %}
+						<tr style="border-bottom:1px solid var(--border);">
+							<td style="padding:10px;color:#475569;font-size:14px;">{{ payment.payment_date.strftime('%d.%m.%Y') if payment.payment_date else '-' }}</td>
+							<td style="padding:10px;color:#0f172a;font-weight:600;font-size:14px;">{{ '%.2f'|format(payment.amount_try) }} ₺</td>
+							<td style="padding:10px;color:#64748b;font-size:14px;">{{ payment.method or '-' }}</td>
+							<td style="padding:10px;color:#64748b;font-size:14px;">{{ payment.note or '-' }}</td>
+						</tr>
+						{% endfor %}
+					{% else %}
+						<tr>
+							<td colspan="4" style="padding:20px;text-align:center;color:#64748b;">Ödeme kaydı bulunmuyor.</td>
+						</tr>
+					{% endif %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+	{% endif %}
 	{% endif %}
 </div>
 

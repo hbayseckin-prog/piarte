@@ -2626,6 +2626,7 @@ def staff_panel(
         selected_student = None
         student_lessons = []
         student_lessons_formatted = []
+        selected_student_payments = []
         
         if search:
             # Öğrenci ara
@@ -2648,6 +2649,8 @@ def staff_panel(
             selected_student = crud.get_student(db, student_id)
             if selected_student:
                 student_lessons = crud.list_lessons_by_student(db, student_id)
+                # Öğrencinin ödemelerini de getir
+                selected_student_payments = crud.list_payments_by_student(db, student_id)
                 # Dersleri haftalık formata çevir
                 from datetime import time as time_type
                 for lesson in student_lessons:
@@ -2666,6 +2669,10 @@ def staff_panel(
                         "lesson_number": lesson_number,
                         "total_same_day": len(same_day_lessons)
                     })
+            else:
+                selected_student_payments = []
+        else:
+            selected_student_payments = []
         
         # Ödeme durumu tablosu için tüm öğrencileri getir
         all_students = crud.list_students(db)
@@ -2786,6 +2793,7 @@ def staff_panel(
             "search_results": search_results,
             "selected_student": selected_student,
             "student_lessons": student_lessons_formatted,
+            "selected_student_payments": selected_student_payments,
             "payment_status_list": payment_status_list,
             "today": today,
             "selected_teacher": selected_teacher,

@@ -306,12 +306,11 @@ def list_lessons_by_teacher(db: Session, teacher_id: int):
 
 
 def list_lessons_by_student(db: Session, student_id: int):
-	"""Öğrencinin kayıtlı olduğu kurslardaki dersleri getirir"""
+	"""Öğrencinin atandığı dersleri getirir (LessonStudent tablosu üzerinden)"""
 	stmt = (
 		select(models.Lesson)
-		.join(models.Course, models.Lesson.course_id == models.Course.id)
-		.join(models.Enrollment, models.Enrollment.course_id == models.Course.id)
-		.where(models.Enrollment.student_id == student_id)
+		.join(models.LessonStudent, models.LessonStudent.lesson_id == models.Lesson.id)
+		.where(models.LessonStudent.student_id == student_id)
 		.order_by(models.Lesson.lesson_date.asc(), models.Lesson.start_time.asc())
 	)
 	return db.scalars(stmt).all()

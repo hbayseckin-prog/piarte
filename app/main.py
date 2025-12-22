@@ -2748,8 +2748,11 @@ def staff_panel(
                 for lesson in student_lessons:
                     all_lesson_dates.add(lesson.lesson_date)
                 
-                # Tüm tarihleri sırala
+                # Tüm tarihleri sırala (program gösterimi için - hem geçmiş hem gelecek)
                 all_lesson_dates_sorted = sorted(list(all_lesson_dates))
+                
+                # Sadece yoklama alınmış derslerin tarihlerini sırala (gösterim için)
+                attendance_dates_sorted = sorted(list(past_lesson_dates))
                 
                 # Öğrencinin toplam ders sayısını hesapla
                 # ÖNEMLİ: Sadece gerçekten yoklama alınmış dersleri say (kayıt yapılmış ama yoklama alınmamış dersler sayılmaz)
@@ -2917,6 +2920,7 @@ def staff_panel(
             "total_lessons_count": total_lessons_count if 'total_lessons_count' in locals() else 0,
             "student_attendances": student_attendances if 'student_attendances' in locals() else [],
             "all_lesson_dates_sorted": all_lesson_dates_sorted if 'all_lesson_dates_sorted' in locals() else [],
+            "attendance_dates_sorted": attendance_dates_sorted if 'attendance_dates_sorted' in locals() else [],
             "payment_status_list": payment_status_list,
             "today": today,
             "selected_teacher": selected_teacher,

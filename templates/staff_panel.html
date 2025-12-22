@@ -75,11 +75,11 @@
 					<strong style="color:#0f172a;font-size:14px;">Toplam Ders Sayısı:</strong>
 					<span style="color:#0ea5e9;font-size:16px;font-weight:600;margin-left:8px;">{{ total_lessons_count }}</span>
 				</div>
-				{% if all_lesson_dates_sorted %}
+				{% if attendance_dates_sorted %}
 				<div style="flex:2;min-width:300px;">
 					<strong style="color:#0f172a;font-size:14px;display:block;margin-bottom:4px;">Ders Tarihleri:</strong>
 					<div style="display:flex;flex-wrap:wrap;gap:6px;">
-						{% for lesson_date in all_lesson_dates_sorted %}
+						{% for lesson_date in attendance_dates_sorted %}
 							<span style="padding:4px 8px;background:#e0e7ff;color:#4338ca;border-radius:6px;font-size:12px;">
 								{{ lesson_date.strftime('%d.%m.%Y') if lesson_date else '' }}
 							</span>

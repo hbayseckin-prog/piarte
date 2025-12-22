@@ -156,34 +156,99 @@ def reset_teacher_student_links(db: Session):
 def delete_attendance(db: Session, attendance_id: int):
 	"""Tek bir yoklama kaydını sil ve öğrenciyi dersten çıkar"""
 	import logging
+	import sys
+	
+	# Logları hem console'a hem de dosyaya yaz
+	logging.basicConfig(
+		level=logging.INFO,
+		format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+		handlers=[
+			logging.StreamHandler(sys.stdout),
+			logging.FileHandler('attendance_deletion.log', encoding='utf-8')
+		]
+	)
+	
 	attendance = db.get(models.Attendance, attendance_id)
 	if not attendance:
-		logging.warning(f"Yoklama kaydı bulunamadı: ID={attendance_id}")
+		logging.warning(f"❌ Yoklama kaydı bulunamadı: ID={attendance_id}")
 		return None
 	
 	lesson_id = attendance.lesson_id
 	student_id = attendance.student_id
 	
-	logging.info(f"Yoklama siliniyor: ID={attendance_id}, Öğrenci={student_id}, Ders={lesson_id}")
+	logging.info(f"🔍 Yoklama silme işlemi başlatıldı: ID={attendance_id}, Öğrenci={student_id}, Ders={lesson_id}")
+	
+	# SİLME ÖNCESİ DURUM KONTROLÜ
+	lesson_student_before = db.scalars(
+		select(models.LessonStudent)
+		.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)
+	).first()
+	
+	attendances_before = db.scalars(
+		select(models.Attendance)
+		.where(models.Attendance.lesson_id == lesson_id, models.Attendance.student_id == student_id)
+	).all()
+	
+	logging.info(f"📊 SİLME ÖNCESİ DURUM:")
+	logging.info(f"   - LessonStudent ilişkisi var mı: {lesson_student_before is not None}")
+	logging.info(f"   - Toplam yoklama kaydı sayısı: {len(attendances_before)}")
 	
 	# Yoklama kaydını sil
 	db.delete(attendance)
+	logging.info(f"✅ Yoklama kaydı silindi: ID={attendance_id}")
 	
 	# Öğrenciyi o dersten çıkar (LessonStudent ilişkisini sil)
-	# Kullanıcı isteğine göre: Tek bir yoklama kaydını sildiğinde öğrenciyi dersten çıkar
 	lesson_student = db.scalars(
 		select(models.LessonStudent)
 		.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)
 	).first()
 	
 	if lesson_student:
-		logging.info(f"LessonStudent ilişkisi siliniyor: Ders={lesson_id}, Öğrenci={student_id}")
+		logging.info(f"✅ LessonStudent ilişkisi bulundu ve siliniyor: Ders={lesson_id}, Öğrenci={student_id}")
 		db.delete(lesson_student)
+		logging.info(f"✅ LessonStudent ilişkisi silindi")
 	else:
-		logging.warning(f"LessonStudent ilişkisi bulunamadı: Ders={lesson_id}, Öğrenci={student_id}")
+		logging.warning(f"⚠️ LessonStudent ilişkisi bulunamadı: Ders={lesson_id}, Öğrenci={student_id}")
 	
+	# Commit öncesi flush yap
+	db.flush()
+	logging.info(f"🔄 Flush yapıldı")
+	
+	# Commit yap
 	db.commit()
-	logging.info(f"Yoklama ve LessonStudent ilişkisi başarıyla silindi: ID={attendance_id}")
+	logging.info(f"💾 Commit yapıldı")
+	
+	# SİLME SONRASI DURUM KONTROLÜ (yeni session ile)
+	from .db import SessionLocal
+	check_db = SessionLocal()
+	try:
+		lesson_student_after = check_db.scalars(
+			select(models.LessonStudent)
+			.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)
+		).first()
+		
+		attendances_after = check_db.scalars(
+			select(models.Attendance)
+			.where(models.Attendance.lesson_id == lesson_id, models.Attendance.student_id == student_id)
+		).all()
+		
+		logging.info(f"📊 SİLME SONRASI DURUM:")
+		logging.info(f"   - LessonStudent ilişkisi var mı: {lesson_student_after is not None}")
+		logging.info(f"   - Toplam yoklama kaydı sayısı: {len(attendances_after)}")
+		
+		if lesson_student_after:
+			logging.error(f"❌ HATA: LessonStudent ilişkisi hala var! ID={lesson_student_after.id}")
+		else:
+			logging.info(f"✅ BAŞARILI: LessonStudent ilişkisi silindi")
+			
+		if len(attendances_after) > 0:
+			logging.warning(f"⚠️ UYARI: Hala {len(attendances_after)} yoklama kaydı var")
+		else:
+			logging.info(f"✅ BAŞARILI: Tüm yoklama kayıtları silindi")
+	finally:
+		check_db.close()
+	
+	logging.info(f"✅ Yoklama silme işlemi tamamlandı: ID={attendance_id}")
 	return attendance
 
 

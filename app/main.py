@@ -1656,6 +1656,11 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             db.add(attendance)
             logging.warning(f"➕ [{item.student_id}] YENİ yoklama kaydı oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
             
+            # Yoklama alındığında öğrenciyi derse ata (LessonStudent ilişkisi oluştur)
+            # Eğer zaten varsa, assign_student_to_lesson fonksiyonu mevcut olanı döndürür
+            crud.assign_student_to_lesson(db, item.lesson_id, item.student_id)
+            logging.info(f"📝 [{item.student_id}] Öğrenci derse atandı: Ders={item.lesson_id}")
+            
             # #region agent log
             import json, os, time
             log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
@@ -2733,11 +2738,12 @@ def staff_panel(
                         past_lesson_dates.add(att.marked_at.date())
                 
                 # Tüm ders tarihlerini birleştir (geçmiş + gelecek)
+                # ÖNEMLİ: Sadece LessonStudent tablosunda olan dersleri al (yoklama silindiğinde bu ilişki de silinir)
                 all_lesson_dates = set()
                 for lesson in student_lessons:
                     all_lesson_dates.add(lesson.lesson_date)
                 
-                # Geçmiş ders tarihlerini ekle
+                # Geçmiş ders tarihlerini ekle (sadece yoklama kayıtlarından)
                 all_lesson_dates.update(past_lesson_dates)
                 
                 # Tüm tarihleri sırala

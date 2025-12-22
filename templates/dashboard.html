@@ -645,57 +645,33 @@
 <div class="card">
 	<h3 class="h2">Ödeme Gerekli Öğrenciler</h3>
 	{% if students_needing_payment %}
-	<div class="table-wrap">
-		<table>
-			<thead>
-				<tr>
-					<th>Öğrenci</th>
-					<th>Telefon</th>
-					<th>E-posta</th>
-					<th>İşlemler</th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for student in students_needing_payment %}
-				<tr>
-					<td><strong>{{ student.first_name }} {{ student.last_name }}</strong></td>
-					<td>{{ student.phone or '-' }}</td>
-					<td>{{ student.email or '-' }}</td>
-					<td>
-						<a href="/ui/students/{{ student.id }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;">Detay</a>
-						<a href="/payments/new?student_id={{ student.id }}" style="padding:6px 12px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;margin-left:8px;">Ödeme Al</a>
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-		<div class="mobile-card-view">
-			{% for student in students_needing_payment %}
-			<div class="mobile-card" style="border-left:4px solid #ef4444;">
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Öğrenci</div>
-					<div class="mobile-card-value"><strong>{{ student.first_name }} {{ student.last_name }}</strong></div>
+	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+		{% for student in students_needing_payment %}
+		<div 
+			style="display:block;padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:8px;color:#0f172a;transition:all 0.2s;border-left:4px solid #ef4444;"
+			onmouseover="this.style.background='#fecaca';this.style.borderColor='#0ea5e9';"
+			onmouseout="this.style.background='#fee2e2';this.style.borderColor='#ef4444';"
+		>
+			<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+				<div style="flex:1;min-width:200px;">
+					<strong style="color:#dc2626;font-size:15px;">
+						{{ student.first_name }} {{ student.last_name }}
+						<span style="font-size:12px;color:#dc2626;margin-left:8px;">⚠️ Ödeme Gerekli</span>
+					</strong>
+					{% if student.phone %}
+					<div style="color:#64748b;font-size:13px;margin-top:4px;">📞 {{ student.phone }}</div>
+					{% endif %}
+					{% if student.email %}
+					<div style="color:#64748b;font-size:13px;margin-top:2px;">✉️ {{ student.email }}</div>
+					{% endif %}
 				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Telefon</div>
-					<div class="mobile-card-value">{{ student.phone or '-' }}</div>
-				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">E-posta</div>
-					<div class="mobile-card-value">{{ student.email or '-' }}</div>
-				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">İşlemler</div>
-					<div class="mobile-card-value">
-						<div style="display:flex;flex-direction:column;gap:8px;">
-							<a href="/ui/students/{{ student.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;display:block;text-align:center;">Detay</a>
-							<a href="/payments/new?student_id={{ student.id }}" style="padding:8px 12px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;display:block;text-align:center;">Ödeme Al</a>
-						</div>
-					</div>
+				<div style="display:flex;gap:8px;flex-wrap:wrap;">
+					<a href="/ui/students/{{ student.id }}" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Detay</a>
+					<a href="/payments/new?student_id={{ student.id }}" style="padding:8px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Ödeme Al</a>
 				</div>
 			</div>
-			{% endfor %}
 		</div>
+		{% endfor %}
 	</div>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Ödeme gerekli öğrenci bulunmuyor.</p>

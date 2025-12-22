@@ -519,6 +519,18 @@ def check_student_payment_status(db: Session, student_id: int):
 	return total_paid_sets < expected_paid_sets
 
 
+def list_students_needing_payment(db: Session):
+	"""Ödeme gerekli olan tüm öğrencileri listeler"""
+	all_students = list_students(db)
+	students_needing_payment = []
+	
+	for student in all_students:
+		if check_student_payment_status(db, student.id):
+			students_needing_payment.append(student)
+	
+	return students_needing_payment
+
+
 # Invoices
 def create_invoice(db: Session, data: schemas.InvoiceCreate):
     invoice = models.Invoice(**data.model_dump())

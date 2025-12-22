@@ -673,6 +673,11 @@ def dashboard(
             "lessons": formatted_lessons
         })
     
+    # Ödeme gerekli öğrencileri getir (sadece admin için)
+    students_needing_payment = []
+    if user.get("role") == "admin":
+        students_needing_payment = crud.list_students_needing_payment(db)
+    
     context = {
         "request": request,
         "courses": courses,
@@ -682,6 +687,7 @@ def dashboard(
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
         "teachers_schedules": teachers_schedules,
+        "students_needing_payment": students_needing_payment,
         "user": user,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
@@ -1188,14 +1194,20 @@ def teacher_update_form(
 
 # UI: Payments - create
 @app.get("/payments/new", response_class=HTMLResponse)
-def payment_form(request: Request, db: Session = Depends(get_db)):
+def payment_form(request: Request, db: Session = Depends(get_db), student_id: str | None = None):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     redirect = redirect_teacher(request.session.get("user"))
     if redirect:
         return redirect
     students = crud.list_students(db)
-    return templates.TemplateResponse("payment_new.html", {"request": request, "students": students})
+    selected_student_id = None
+    if student_id:
+        try:
+            selected_student_id = int(student_id)
+        except (ValueError, TypeError):
+            selected_student_id = None
+    return templates.TemplateResponse("payment_new.html", {"request": request, "students": students, "selected_student_id": selected_student_id})
 
 
 @app.post("/payments/new")

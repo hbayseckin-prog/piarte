@@ -6,7 +6,7 @@
 	<label>Öğrenci</label>
 	<select name="student_id" required>
 		{% for s in students %}
-		<option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+		<option value="{{ s.id }}" {% if selected_student_id and s.id == selected_student_id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
 		{% endfor %}
 	</select>
 	<label>Tutar</label>

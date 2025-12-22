@@ -170,6 +170,7 @@ def delete_attendance(db: Session, attendance_id: int):
 	db.delete(attendance)
 	
 	# Öğrenciyi o dersten çıkar (LessonStudent ilişkisini sil)
+	# Kullanıcı isteğine göre: Tek bir yoklama kaydını sildiğinde öğrenciyi dersten çıkar
 	lesson_student = db.scalars(
 		select(models.LessonStudent)
 		.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)

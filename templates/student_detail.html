@@ -81,6 +81,110 @@
 	</table>
 	<p><a href="/payments/new">Ödeme Gir</a></p>
 </div>
+
+<div class="card">
+	<h3>Yoklamalar</h3>
+	{% if attendances %}
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Ders Tarihi</th>
+					<th>Saat</th>
+					<th>Kurs</th>
+					<th>Öğretmen</th>
+					<th>Durum</th>
+					<th>Yoklama Zamanı</th>
+					<th>Not</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for entry in attendances %}
+				<tr>
+					<td>{{ entry.lesson.lesson_date.strftime('%d.%m.%Y') if entry.lesson and entry.lesson.lesson_date else '-' }}</td>
+					<td>
+						{% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+							{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+						{% else %}-{% endif %}
+					</td>
+					<td><strong>{{ entry.course.name if entry.course else '-' }}</strong></td>
+					<td>{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</td>
+					<td>
+						{% if entry.attendance.status == 'PRESENT' %}
+							<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+						{% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+						{% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+						{% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+							<span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+						{% else %}
+							{{ entry.attendance.status }}
+						{% endif %}
+					</td>
+					<td>{{ entry.attendance.marked_at.strftime('%d.%m.%Y %H:%M') if entry.attendance.marked_at else '-' }}</td>
+					<td>{{ entry.attendance.note or '-' }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for entry in attendances %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ders Tarihi</div>
+					<div class="mobile-card-value">{{ entry.lesson.lesson_date.strftime('%d.%m.%Y') if entry.lesson and entry.lesson.lesson_date else '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Saat</div>
+					<div class="mobile-card-value">
+						{% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+							{{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+						{% else %}-{% endif %}
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kurs</div>
+					<div class="mobile-card-value"><strong>{{ entry.course.name if entry.course else '-' }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value">{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Durum</div>
+					<div class="mobile-card-value">
+						{% if entry.attendance.status == 'PRESENT' %}
+							<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+						{% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+						{% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+						{% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+							<span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+						{% else %}
+							{{ entry.attendance.status }}
+						{% endif %}
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Yoklama Zamanı</div>
+					<div class="mobile-card-value">{{ entry.attendance.marked_at.strftime('%d.%m.%Y %H:%M') if entry.attendance.marked_at else '-' }}</div>
+				</div>
+				{% if entry.attendance.note %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Not</div>
+					<div class="mobile-card-value">{{ entry.attendance.note }}</div>
+				</div>
+				{% endif %}
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Henüz yoklama kaydı bulunmuyor.</p>
+	{% endif %}
+</div>
 {% endblock %}
 
 

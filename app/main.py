@@ -2175,7 +2175,34 @@ def ui_student_detail(student_id: int, request: Request, db: Session = Depends(g
     payments = crud.list_payments_by_student(db, student_id)
     # enrollments and courses
     enrollments = db.query(models.Enrollment).filter(models.Enrollment.student_id == student_id).all()
-    return templates.TemplateResponse("student_detail.html", {"request": request, "student": student, "payments": payments, "enrollments": enrollments})
+    
+    # Öğrencinin yoklama kayıtlarını getir (detaylı bilgilerle)
+    attendances_raw = crud.list_all_attendances(db, student_id=student_id, limit=1000, order_by="marked_at_desc")
+    
+    # Yoklama kayıtlarını detaylı bilgilerle formatla
+    attendances_with_details = []
+    for att in attendances_raw:
+        lesson = db.get(models.Lesson, att.lesson_id) if att.lesson_id else None
+        course = None
+        teacher = None
+        if lesson:
+            course = db.get(models.Course, lesson.course_id) if lesson.course_id else None
+            teacher = db.get(models.Teacher, lesson.teacher_id) if lesson.teacher_id else None
+        
+        attendances_with_details.append({
+            "attendance": att,
+            "lesson": lesson,
+            "course": course,
+            "teacher": teacher,
+        })
+    
+    return templates.TemplateResponse("student_detail.html", {
+        "request": request,
+        "student": student,
+        "payments": payments,
+        "enrollments": enrollments,
+        "attendances": attendances_with_details
+    })
 
 
 # UI: Teachers - list and detail

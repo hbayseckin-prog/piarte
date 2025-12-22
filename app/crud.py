@@ -155,12 +155,16 @@ def reset_teacher_student_links(db: Session):
 
 def delete_attendance(db: Session, attendance_id: int):
 	"""Tek bir yoklama kaydını sil ve öğrenciyi dersten çıkar"""
+	import logging
 	attendance = db.get(models.Attendance, attendance_id)
 	if not attendance:
+		logging.warning(f"Yoklama kaydı bulunamadı: ID={attendance_id}")
 		return None
 	
 	lesson_id = attendance.lesson_id
 	student_id = attendance.student_id
+	
+	logging.info(f"Yoklama siliniyor: ID={attendance_id}, Öğrenci={student_id}, Ders={lesson_id}")
 	
 	# Yoklama kaydını sil
 	db.delete(attendance)
@@ -172,9 +176,13 @@ def delete_attendance(db: Session, attendance_id: int):
 	).first()
 	
 	if lesson_student:
+		logging.info(f"LessonStudent ilişkisi siliniyor: Ders={lesson_id}, Öğrenci={student_id}")
 		db.delete(lesson_student)
+	else:
+		logging.warning(f"LessonStudent ilişkisi bulunamadı: Ders={lesson_id}, Öğrenci={student_id}")
 	
 	db.commit()
+	logging.info(f"Yoklama ve LessonStudent ilişkisi başarıyla silindi: ID={attendance_id}")
 	return attendance
 
 

@@ -1656,10 +1656,9 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             db.add(attendance)
             logging.warning(f"➕ [{item.student_id}] YENİ yoklama kaydı oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
             
-            # Yoklama alındığında öğrenciyi derse ata (LessonStudent ilişkisi oluştur)
-            # Eğer zaten varsa, assign_student_to_lesson fonksiyonu mevcut olanı döndürür
-            crud.assign_student_to_lesson(db, item.lesson_id, item.student_id)
-            logging.info(f"📝 [{item.student_id}] Öğrenci derse atandı: Ders={item.lesson_id}")
+            # NOT: Yoklama alındığında LessonStudent ilişkisi oluşturulmaz
+            # LessonStudent ilişkisi sadece öğrenci derse kayıt yapıldığında oluşturulur
+            # Yoklama almak için öğrencinin derse kayıtlı olması gerekir
             
             # #region agent log
             import json, os, time

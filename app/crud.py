@@ -464,6 +464,26 @@ def list_payments_by_student(db: Session, student_id: int):
 	return db.scalars(stmt).all()
 
 
+def get_payment(db: Session, payment_id: int):
+	"""Ödeme kaydını getirir"""
+	return db.get(models.Payment, payment_id)
+
+
+def update_payment(db: Session, payment_id: int, data: schemas.PaymentUpdate):
+	"""Ödeme kaydını günceller"""
+	payment = db.get(models.Payment, payment_id)
+	if not payment:
+		return None
+	payload = data.model_dump()
+	if not payload.get("payment_date"):
+		payload["payment_date"] = None
+	for key, value in payload.items():
+		setattr(payment, key, value)
+	db.commit()
+	db.refresh(payment)
+	return payment
+
+
 def delete_payment(db: Session, payment_id: int):
 	"""Ödeme kaydını siler"""
 	payment = db.get(models.Payment, payment_id)

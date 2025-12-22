@@ -67,11 +67,15 @@
 		<td>{{ p.note or '' }}</td>
 		{% if is_admin %}
 		<td>
-			<form method="post" action="/payments/{{ p.id }}/delete?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
-				  style="display:inline;margin:0;" 
-				  onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
-				<button type="submit" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">Sil</button>
-			</form>
+			<div style="display:flex;gap:8px;align-items:center;">
+				<a href="/payments/{{ p.id }}/edit?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
+				   style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;display:inline-block;">Düzenle</a>
+				<form method="post" action="/payments/{{ p.id }}/delete?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
+					  style="display:inline;margin:0;" 
+					  onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
+					<button type="submit" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">Sil</button>
+				</form>
+			</div>
 		</td>
 		{% endif %}
 	</tr>

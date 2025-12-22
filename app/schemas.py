@@ -139,6 +139,14 @@ class PaymentCreate(BaseModel):
 	note: Optional[str] = None
 
 
+class PaymentUpdate(BaseModel):
+	student_id: int
+	amount_try: float
+	payment_date: Optional[date] = None
+	method: Optional[str] = None
+	note: Optional[str] = None
+
+
 class PaymentOut(BaseModel):
 	id: int
 	student_id: int

@@ -3025,6 +3025,108 @@ def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_
         db.commit()
     return RedirectResponse(url="/ui/teachers", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.get("/payments/{payment_id}/edit", response_class=HTMLResponse)
+def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None):
+    """Ödeme düzenleme formu (sadece admin için)"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
+    
+    payment = crud.get_payment(db, payment_id)
+    if not payment:
+        # Filtre parametrelerini koruyarak geri yönlendir
+        params = []
+        if start:
+            params.append(f"start={start}")
+        if end:
+            params.append(f"end={end}")
+        if course_id:
+            params.append(f"course_id={course_id}")
+        if teacher_id:
+            params.append(f"teacher_id={teacher_id}")
+        query_string = "&".join(params)
+        redirect_url = f"/ui/reports/payments"
+        if query_string:
+            redirect_url += "?" + query_string
+        request.session["delete_payment_error"] = "Ödeme kaydı bulunamadı."
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+    
+    students = crud.list_students(db)
+    return templates.TemplateResponse("payment_edit.html", {
+        "request": request,
+        "payment": payment,
+        "students": students,
+        "start": start or "",
+        "end": end or "",
+        "course_id": course_id or "",
+        "teacher_id": teacher_id or ""
+    })
+
+
+@app.post("/payments/{payment_id}/update")
+def update_payment(
+    payment_id: int,
+    request: Request,
+    student_id: int = Form(...),
+    amount_try: float = Form(...),
+    payment_date: str | None = Form(None),
+    method: str | None = Form(None),
+    note: str | None = Form(None),
+    db: Session = Depends(get_db),
+    start: str | None = None,
+    end: str | None = None,
+    course_id: str | None = None,
+    teacher_id: str | None = None,
+):
+    """Ödeme kaydını günceller (sadece admin için)"""
+    user = request.session.get("user")
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
+    
+    from datetime import date
+    pd = None
+    if payment_date:
+        try:
+            y, m, d = map(int, payment_date.split("-"))
+            pd = date(y, m, d)
+        except Exception:
+            pd = None
+    
+    payload = schemas.PaymentUpdate(
+        student_id=student_id,
+        amount_try=amount_try,
+        payment_date=pd,
+        method=method,
+        note=note,
+    )
+    
+    updated_payment = crud.update_payment(db, payment_id, payload)
+    
+    # Filtre parametrelerini koruyarak geri yönlendir
+    params = []
+    if start:
+        params.append(f"start={start}")
+    if end:
+        params.append(f"end={end}")
+    if course_id:
+        params.append(f"course_id={course_id}")
+    if teacher_id:
+        params.append(f"teacher_id={teacher_id}")
+    
+    query_string = "&".join(params)
+    redirect_url = f"/ui/reports/payments"
+    if query_string:
+        redirect_url += "?" + query_string
+    
+    # Başarı/hata mesajı için session kullan
+    if updated_payment:
+        request.session["delete_payment_success"] = "Ödeme kaydı başarıyla güncellendi."
+    else:
+        request.session["delete_payment_error"] = "Ödeme kaydı güncellenemedi."
+    
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.post("/payments/{payment_id}/delete")
 def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None):
     """Ödeme kaydını siler (sadece admin için)"""

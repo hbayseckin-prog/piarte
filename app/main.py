@@ -2737,19 +2737,23 @@ def staff_panel(
                         past_lesson_dates.add(att.marked_at.date())
                 
                 # Tüm ders tarihlerini birleştir (geçmiş + gelecek)
-                # ÖNEMLİ: Sadece LessonStudent tablosunda olan dersleri al (yoklama silindiğinde bu ilişki de silinir)
+                # ÖNEMLİ: Toplam ders sayısı için sadece yoklama alınmış dersleri say
+                # Gelecek dersler (LessonStudent tablosundan) sadece program gösterimi için kullanılır
                 all_lesson_dates = set()
+                
+                # Geçmiş dersler: Sadece yoklama alınmış dersler
+                all_lesson_dates.update(past_lesson_dates)
+                
+                # Gelecek dersler: LessonStudent tablosundan (program gösterimi için)
                 for lesson in student_lessons:
                     all_lesson_dates.add(lesson.lesson_date)
-                
-                # Geçmiş ders tarihlerini ekle (sadece yoklama kayıtlarından)
-                all_lesson_dates.update(past_lesson_dates)
                 
                 # Tüm tarihleri sırala
                 all_lesson_dates_sorted = sorted(list(all_lesson_dates))
                 
-                # Öğrencinin toplam ders sayısını hesapla (geçmiş + gelecek)
-                total_lessons_count = len(all_lesson_dates_sorted)
+                # Öğrencinin toplam ders sayısını hesapla
+                # ÖNEMLİ: Sadece gerçekten yoklama alınmış dersleri say (kayıt yapılmış ama yoklama alınmamış dersler sayılmaz)
+                total_lessons_count = len(past_lesson_dates)
                 
                 # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(

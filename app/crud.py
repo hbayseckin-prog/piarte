@@ -794,9 +794,12 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 date_str = ''
             
             # Eski LATE değerlerini TELAFI olarak say (geriye dönük uyumluluk)
+            # Eski ABSENT değerlerini UNEXCUSED_ABSENT olarak say (geriye dönük uyumluluk)
             status = att.status
             if status == "LATE":
                 status = "TELAFI"
+            elif status == "ABSENT":
+                status = "UNEXCUSED_ABSENT"
             
             # Resim kursu kontrolü
             is_resim_course = lesson and lesson.course and lesson.course.name == "Resim"

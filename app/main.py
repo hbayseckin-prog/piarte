@@ -1521,17 +1521,25 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             if not isinstance(base_time, time_cls):
                 base_time = time_cls(hour=12, minute=0)
             marked_at_dt = datetime.combine(today, base_time)
-        elif attendance_date_raw:
-            # Telafi varsa seçilen tarihi kullan
-            try:
-                year, month, day = map(int, attendance_date_raw.split("-"))
-                chosen_date = date_cls(year, month, day)
-                base_time = lesson.start_time or time_cls(hour=12, minute=0)
-                if not isinstance(base_time, time_cls):
-                    base_time = time_cls(hour=12, minute=0)
-                marked_at_dt = datetime.combine(chosen_date, base_time)
-            except Exception:
-                # Hata durumunda bugünün tarihini kullan
+        else:
+            # Telafi varsa seçilen tarihi kullan, yoksa bugünün tarihini kullan
+            if attendance_date_raw and attendance_date_raw.strip():
+                try:
+                    year, month, day = map(int, attendance_date_raw.split("-"))
+                    chosen_date = date_cls(year, month, day)
+                    base_time = lesson.start_time or time_cls(hour=12, minute=0)
+                    if not isinstance(base_time, time_cls):
+                        base_time = time_cls(hour=12, minute=0)
+                    marked_at_dt = datetime.combine(chosen_date, base_time)
+                except Exception:
+                    # Hata durumunda bugünün tarihini kullan
+                    today = date_cls.today()
+                    base_time = lesson.start_time or time_cls(hour=12, minute=0)
+                    if not isinstance(base_time, time_cls):
+                        base_time = time_cls(hour=12, minute=0)
+                    marked_at_dt = datetime.combine(today, base_time)
+            else:
+                # Tarih gönderilmemişse (disabled input) bugünün tarihini kullan
                 today = date_cls.today()
                 base_time = lesson.start_time or time_cls(hour=12, minute=0)
                 if not isinstance(base_time, time_cls):

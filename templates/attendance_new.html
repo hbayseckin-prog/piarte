@@ -9,22 +9,24 @@
 		<strong>⚠️ Hata:</strong> {{ error_message }}
 	</div>
 	{% endif %}
-	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new">
+	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new" id="attendance-form">
 		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
 			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>
 			<input
 				type="date"
 				id="attendance_date"
+				{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
+				value=""
+				readonly
+				style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;color:#64748b;cursor:not-allowed;"
+				{% else %}
 				name="attendance_date"
 				value="{{ attendance_date }}"
-				{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
-				disabled
-				style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;color:#64748b;"
-				{% else %}
 				style="padding:10px;border:1px solid var(--border);border-radius:8px;"
 				{% endif %}
 			/>
 			{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
+			<input type="hidden" id="attendance_date_hidden" name="attendance_date" value="" />
 			<small style="color:#64748b;">Normal yoklama için bugünün tarihi kullanılır. Telafi dersi için tarih seçebilirsiniz.</small>
 			{% else %}
 			<small style="color:#64748b;">Öğrenciler farklı günde geldiğinde tarihi değiştirerek yoklama alabilirsiniz.</small>
@@ -97,13 +99,27 @@
 <script>
 	(function() {
 		const attendanceDateInput = document.getElementById('attendance_date');
-		if (!attendanceDateInput) return;
+		const attendanceDateHidden = document.getElementById('attendance_date_hidden');
+		const attendanceForm = document.getElementById('attendance-form');
 		
-		// Bugünün tarihini set et
-		const today = new Date().toISOString().split('T')[0];
-		attendanceDateInput.value = today;
+		if (!attendanceDateInput || !attendanceDateHidden) return;
 		
-		// Tüm durum select'lerini bul
+		// Bugünün tarihini hesapla ve set et
+		const today = new Date();
+		const todayStr = today.getFullYear() + '-' + 
+			String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+			String(today.getDate()).padStart(2, '0');
+		
+		// Sayfa yüklendiğinde bugünün tarihini set et
+		attendanceDateInput.value = todayStr;
+		attendanceDateHidden.value = todayStr;
+		
+		// Tarih input değiştiğinde hidden input'u güncelle
+		attendanceDateInput.addEventListener('change', function() {
+			attendanceDateHidden.value = this.value;
+		});
+		
+		// Tüm durum select'lerini bul (hem masaüstü hem mobil)
 		const statusSelects = document.querySelectorAll('select[name^="status_"]');
 		
 		// Her select için change event listener ekle
@@ -124,16 +140,26 @@
 			
 			// Telafi varsa tarih input'unu aktif et
 			if (hasTelafi) {
-				attendanceDateInput.disabled = false;
+				attendanceDateInput.removeAttribute('readonly');
 				attendanceDateInput.style.background = '#fff';
 				attendanceDateInput.style.color = '#0f172a';
+				attendanceDateInput.style.cursor = 'text';
 			} else {
-				// Telafi yoksa bugünün tarihini set et ve disabled yap
-				attendanceDateInput.value = today;
-				attendanceDateInput.disabled = true;
+				// Telafi yoksa bugünün tarihini set et ve readonly yap
+				attendanceDateInput.value = todayStr;
+				attendanceDateHidden.value = todayStr;
+				attendanceDateInput.setAttribute('readonly', 'readonly');
 				attendanceDateInput.style.background = '#f1f5f9';
 				attendanceDateInput.style.color = '#64748b';
+				attendanceDateInput.style.cursor = 'not-allowed';
 			}
+		}
+		
+		// Form submit edilmeden önce hidden input'u güncelle
+		if (attendanceForm) {
+			attendanceForm.addEventListener('submit', function(e) {
+				attendanceDateHidden.value = attendanceDateInput.value;
+			});
 		}
 		
 		// Sayfa yüklendiğinde kontrol et

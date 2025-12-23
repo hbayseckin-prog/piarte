@@ -799,10 +799,20 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             if status == "LATE":
                 status = "TELAFI"
             
-            # Resim kursu için özel hesaplama: Her yoklama kaydı için 1 ekleme yapılacak
-            # Diğer kurslar için de her yoklama kaydı = 1 ders
-            # (Resim kursu için öğrenci bazlı yoklama alınır, her yoklama kaydı öğretmen puantajına 1 ekler)
-            lesson_count = 1
+            # Resim kursu kontrolü
+            is_resim_course = lesson and lesson.course and lesson.course.name == "Resim"
+            
+            # Resim kursu için özel hesaplama:
+            # - PRESENT, TELAFI -> öğretmen puantajına +1
+            # - UNEXCUSED_ABSENT, EXCUSED_ABSENT -> öğretmen puantajına eklenmez (lesson_count = 0)
+            # Diğer kurslar için: Her yoklama kaydı = 1 ders
+            if is_resim_course:
+                if status == "PRESENT" or status == "TELAFI":
+                    lesson_count = 1  # Öğretmen puantajına eklenir
+                else:
+                    lesson_count = 0  # Öğretmen puantajına eklenmez
+            else:
+                lesson_count = 1  # Diğer kurslar için normal
             
             if status == "PRESENT":
                 student_stats[student_id]["present"] += lesson_count
@@ -817,9 +827,18 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 student_stats[student_id]["total"] += lesson_count
                 student_stats[student_id]["dates"].append(date_str)
             elif status == "UNEXCUSED_ABSENT":
-                student_stats[student_id]["unexcused_absent"] += lesson_count
-                student_stats[student_id]["total"] += lesson_count
-                student_stats[student_id]["dates"].append(date_str)
+                # Resim kursu için: Öğrenci puantajında görünür ama öğretmen puantajına eklenmez
+                # Diğer kurslar için: Normal şekilde sayılır
+                if is_resim_course:
+                    # Öğrenci bazlı puantajda görünür (unexcused_absent artar)
+                    student_stats[student_id]["unexcused_absent"] += 1
+                    # Ama öğretmen puantajına eklenmez (lesson_count = 0, total'e eklenmez)
+                    student_stats[student_id]["dates"].append(date_str)
+                else:
+                    # Diğer kurslar için normal
+                    student_stats[student_id]["unexcused_absent"] += lesson_count
+                    student_stats[student_id]["total"] += lesson_count
+                    student_stats[student_id]["dates"].append(date_str)
         
         if student_stats:
             report.append({

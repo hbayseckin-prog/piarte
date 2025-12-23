@@ -17,9 +17,18 @@
 				id="attendance_date"
 				name="attendance_date"
 				value="{{ attendance_date }}"
+				{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
+				disabled
+				style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;color:#64748b;"
+				{% else %}
 				style="padding:10px;border:1px solid var(--border);border-radius:8px;"
+				{% endif %}
 			/>
+			{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
+			<small style="color:#64748b;">Normal yoklama için bugünün tarihi kullanılır. Telafi dersi için tarih seçebilirsiniz.</small>
+			{% else %}
 			<small style="color:#64748b;">Öğrenciler farklı günde geldiğinde tarihi değiştirerek yoklama alabilirsiniz.</small>
+			{% endif %}
 		</div>
 		<div class="table-wrap">
 			<table>
@@ -83,4 +92,54 @@
 		</div>
 	</form>
 </div>
+
+{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
+<script>
+	(function() {
+		const attendanceDateInput = document.getElementById('attendance_date');
+		if (!attendanceDateInput) return;
+		
+		// Bugünün tarihini set et
+		const today = new Date().toISOString().split('T')[0];
+		attendanceDateInput.value = today;
+		
+		// Tüm durum select'lerini bul
+		const statusSelects = document.querySelectorAll('select[name^="status_"]');
+		
+		// Her select için change event listener ekle
+		statusSelects.forEach(function(select) {
+			select.addEventListener('change', function() {
+				checkTelafiStatus();
+			});
+		});
+		
+		function checkTelafiStatus() {
+			// Herhangi bir öğrenci için telafi seçilmiş mi kontrol et
+			let hasTelafi = false;
+			statusSelects.forEach(function(select) {
+				if (select.value === 'TELAFI') {
+					hasTelafi = true;
+				}
+			});
+			
+			// Telafi varsa tarih input'unu aktif et
+			if (hasTelafi) {
+				attendanceDateInput.disabled = false;
+				attendanceDateInput.style.background = '#fff';
+				attendanceDateInput.style.color = '#0f172a';
+			} else {
+				// Telafi yoksa bugünün tarihini set et ve disabled yap
+				attendanceDateInput.value = today;
+				attendanceDateInput.disabled = true;
+				attendanceDateInput.style.background = '#f1f5f9';
+				attendanceDateInput.style.color = '#64748b';
+			}
+		}
+		
+		// Sayfa yüklendiğinde kontrol et
+		checkTelafiStatus();
+	})();
+</script>
+{% endif %}
+
 {% endblock %}

@@ -1441,7 +1441,11 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "current_status": current_status
         })
     
-    default_attendance_date = lesson.lesson_date or date_cls.today()
+    # Öğretmen için bugünün tarihini, diğerleri için ders tarihini kullan
+    if user.get("role") == "teacher":
+        default_attendance_date = date_cls.today()
+    else:
+        default_attendance_date = lesson.lesson_date or date_cls.today()
     
     # Hata mesajını al
     error_message = None
@@ -1499,9 +1503,43 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     
     attendance_date_raw = form.get("attendance_date")
     marked_at_dt = None
-    if attendance_date_raw:
+    from datetime import date as date_cls, datetime, time as time_cls
+    
+    # Öğretmen için tarih kontrolü
+    if user.get("role") == "teacher":
+        # Önce telafi durumu var mı kontrol et
+        has_telafi = False
+        for key, value in form.items():
+            if key.startswith("status_") and value.strip().upper() == "TELAFI":
+                has_telafi = True
+                break
+        
+        # Telafi yoksa bugünün tarihini kullan
+        if not has_telafi:
+            today = date_cls.today()
+            base_time = lesson.start_time or time_cls(hour=12, minute=0)
+            if not isinstance(base_time, time_cls):
+                base_time = time_cls(hour=12, minute=0)
+            marked_at_dt = datetime.combine(today, base_time)
+        elif attendance_date_raw:
+            # Telafi varsa seçilen tarihi kullan
+            try:
+                year, month, day = map(int, attendance_date_raw.split("-"))
+                chosen_date = date_cls(year, month, day)
+                base_time = lesson.start_time or time_cls(hour=12, minute=0)
+                if not isinstance(base_time, time_cls):
+                    base_time = time_cls(hour=12, minute=0)
+                marked_at_dt = datetime.combine(chosen_date, base_time)
+            except Exception:
+                # Hata durumunda bugünün tarihini kullan
+                today = date_cls.today()
+                base_time = lesson.start_time or time_cls(hour=12, minute=0)
+                if not isinstance(base_time, time_cls):
+                    base_time = time_cls(hour=12, minute=0)
+                marked_at_dt = datetime.combine(today, base_time)
+    elif attendance_date_raw:
+        # Admin/staff için normal tarih seçimi
         try:
-            from datetime import date as date_cls, datetime, time as time_cls
             year, month, day = map(int, attendance_date_raw.split("-"))
             chosen_date = date_cls(year, month, day)
             base_time = lesson.start_time or time_cls(hour=12, minute=0)

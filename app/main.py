@@ -1881,6 +1881,27 @@ def list_students(db: Session = Depends(get_db)):
 	return crud.list_students(db)
 
 
+@app.get("/api/students/search")
+def search_students(q: str, db: Session = Depends(get_db)):
+	"""Öğrenci arama API endpoint'i - autocomplete için"""
+	if len(q.strip()) < 3:
+		return []
+	term = f"%{q.strip()}%"
+	students = db.query(models.Student).filter(
+		(models.Student.first_name.ilike(term)) | 
+		(models.Student.last_name.ilike(term))
+	).limit(10).all()
+	return [
+		{
+			"id": s.id,
+			"first_name": s.first_name,
+			"last_name": s.last_name,
+			"full_name": f"{s.first_name} {s.last_name}"
+		}
+		for s in students
+	]
+
+
 @app.patch("/students/{student_id}", response_model=schemas.StudentOut)
 def update_student(student_id: int, payload: schemas.StudentUpdate, db: Session = Depends(get_db)):
 	student = crud.update_student(db, student_id, payload)

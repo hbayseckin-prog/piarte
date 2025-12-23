@@ -41,11 +41,135 @@
 
 <div class="card">
     <h3 class="h2">Hızlı Arama</h3>
-	<form method="get" action="/ui/search">
-		<input type="text" name="q" placeholder="Öğrenci, öğretmen veya kurs ara" required />
+	<form method="get" action="/ui/search" id="searchForm">
+		<div style="position:relative;">
+			<input 
+				type="text" 
+				name="q" 
+				id="searchInput"
+				placeholder="Öğrenci, öğretmen veya kurs ara" 
+				autocomplete="off"
+				required 
+			/>
+			<div id="studentAutocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);z-index:1000;max-height:300px;overflow-y:auto;margin-top:4px;">
+			</div>
+		</div>
 		<button type="submit">Ara</button>
 	</form>
 </div>
+
+<style>
+	#studentAutocomplete {
+		font-size: 14px;
+	}
+	.autocomplete-item {
+		padding: 10px 16px;
+		cursor: pointer;
+		border-bottom: 1px solid #f1f5f9;
+		transition: background 0.2s;
+	}
+	.autocomplete-item:hover {
+		background: #f8fafc;
+	}
+	.autocomplete-item:last-child {
+		border-bottom: none;
+	}
+	.autocomplete-item strong {
+		color: #0f172a;
+		font-weight: 600;
+	}
+	.autocomplete-item .student-name {
+		color: #0f172a;
+	}
+	.autocomplete-item .student-id {
+		color: #64748b;
+		font-size: 12px;
+		margin-left: 8px;
+	}
+</style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		let searchTimeout;
+		const searchInput = document.getElementById('searchInput');
+		const autocompleteDiv = document.getElementById('studentAutocomplete');
+		
+		if (!searchInput || !autocompleteDiv) {
+			return;
+		}
+		
+		searchInput.addEventListener('input', function(e) {
+			const query = e.target.value.trim();
+			
+			// Önceki timeout'u temizle
+			clearTimeout(searchTimeout);
+			
+			// 3 karakterden azsa autocomplete'i gizle
+			if (query.length < 3) {
+				autocompleteDiv.style.display = 'none';
+				return;
+			}
+			
+			// Debounce: 300ms bekle
+			searchTimeout = setTimeout(() => {
+				fetchStudents(query);
+			}, 300);
+		});
+		
+		// Input'tan çıkıldığında autocomplete'i gizle (biraz gecikmeyle)
+		searchInput.addEventListener('blur', function() {
+			setTimeout(() => {
+				autocompleteDiv.style.display = 'none';
+			}, 200);
+		});
+		
+		// Input'a odaklanıldığında, eğer 3+ karakter varsa tekrar göster
+		searchInput.addEventListener('focus', function() {
+			if (searchInput.value.trim().length >= 3) {
+				fetchStudents(searchInput.value.trim());
+			}
+		});
+		
+		function fetchStudents(query) {
+				fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+					.then(response => response.json())
+					.then(data => {
+						if (data.length === 0) {
+							autocompleteDiv.style.display = 'none';
+							return;
+						}
+						
+						autocompleteDiv.innerHTML = '';
+						data.forEach(student => {
+							const item = document.createElement('div');
+							item.className = 'autocomplete-item';
+							item.innerHTML = `
+								<span class="student-name"><strong>${escapeHtml(student.full_name)}</strong><span class="student-id">(ID: ${student.id})</span></span>
+							`;
+							item.addEventListener('click', function() {
+								searchInput.value = student.full_name;
+								autocompleteDiv.style.display = 'none';
+								// Formu otomatik gönder
+								document.getElementById('searchForm').submit();
+							});
+							autocompleteDiv.appendChild(item);
+						});
+						
+						autocompleteDiv.style.display = 'block';
+					})
+					.catch(error => {
+						console.error('Arama hatası:', error);
+						autocompleteDiv.style.display = 'none';
+					});
+		}
+		
+		function escapeHtml(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+	});
+</script>
 
 <div class="card">
     <h3 class="h2">Kurslar</h3>

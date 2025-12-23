@@ -552,32 +552,22 @@ def dashboard(
                     filtered.append(att)
             attendances = filtered
         
-        # Date filters
+        # Date filters - artık yoklama zamanına (marked_at) göre
         if start_date_obj:
-            filtered = []
-            for att in attendances:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                if lesson and lesson.lesson_date and lesson.lesson_date >= start_date_obj:
-                    filtered.append(att)
-            attendances = filtered
+            from datetime import datetime
+            start_datetime = datetime.combine(start_date_obj, datetime.min.time())
+            attendances = [a for a in attendances if a.marked_at and a.marked_at >= start_datetime]
         
         if end_date_obj:
-            filtered = []
-            for att in attendances:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                if lesson and lesson.lesson_date and lesson.lesson_date <= end_date_obj:
-                    filtered.append(att)
-            attendances = filtered
+            from datetime import datetime
+            end_datetime = datetime.combine(end_date_obj, datetime.max.time())
+            attendances = [a for a in attendances if a.marked_at and a.marked_at <= end_datetime]
         
-        # Sort
-        if order_by == "marked_at_desc":
+        # Sort - artık sadece marked_at'e göre (lesson_date kaldırıldı)
+        if order_by == "marked_at_desc" or order_by == "lesson_date_desc":
             attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
-        elif order_by == "marked_at_asc":
+        elif order_by == "marked_at_asc" or order_by == "lesson_date_asc":
             attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
-        elif order_by == "lesson_date_desc":
-            attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=True)
-        elif order_by == "lesson_date_asc":
-            attendances.sort(key=lambda x: (db.get(models.Lesson, x.lesson_id).lesson_date if db.get(models.Lesson, x.lesson_id) and db.get(models.Lesson, x.lesson_id).lesson_date else date.min, x.marked_at if x.marked_at else datetime.min), reverse=False)
         
         # Limit
         attendances = attendances[:200]

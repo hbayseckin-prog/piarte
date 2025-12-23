@@ -469,8 +469,8 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 	# #endregion
 	
 	# Tüm yoklamaları getir
-	# Join gerekip gerekmediğini kontrol et
-	needs_join = teacher_id is not None or course_id is not None or start_date is not None or end_date is not None or order_by.startswith("lesson_date")
+	# Join gerekip gerekmediğini kontrol et (tarih filtreleri artık marked_at'e göre, lesson_date'e gerek yok)
+	needs_join = teacher_id is not None or course_id is not None
 	
 	# Always use LEFT JOIN to ensure all attendances are included, even if lesson is missing
 	# This prevents filtering out attendances with orphaned lesson references
@@ -490,20 +490,21 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 		stmt = stmt.where(models.Lesson.course_id == course_id)
 	if status:
 		stmt = stmt.where(models.Attendance.status == status.upper())
+	# Tarih filtreleri artık yoklama zamanına (marked_at) göre
 	if start_date:
-		stmt = stmt.where(models.Lesson.lesson_date >= start_date)
+		from datetime import datetime
+		start_datetime = datetime.combine(start_date, datetime.min.time())
+		stmt = stmt.where(models.Attendance.marked_at >= start_datetime)
 	if end_date:
-		stmt = stmt.where(models.Lesson.lesson_date <= end_date)
+		from datetime import datetime
+		end_datetime = datetime.combine(end_date, datetime.max.time())
+		stmt = stmt.where(models.Attendance.marked_at <= end_datetime)
 	
-	# Sıralama
-	if order_by == "marked_at_desc":
+	# Sıralama - artık sadece marked_at'e göre (lesson_date kaldırıldı)
+	if order_by == "marked_at_desc" or order_by == "lesson_date_desc":
 		stmt = stmt.order_by(models.Attendance.marked_at.desc())
-	elif order_by == "marked_at_asc":
+	elif order_by == "marked_at_asc" or order_by == "lesson_date_asc":
 		stmt = stmt.order_by(models.Attendance.marked_at.asc())
-	elif order_by == "lesson_date_desc":
-		stmt = stmt.order_by(models.Lesson.lesson_date.desc(), models.Attendance.marked_at.desc())
-	elif order_by == "lesson_date_asc":
-		stmt = stmt.order_by(models.Lesson.lesson_date.asc(), models.Attendance.marked_at.asc())
 	else:
 		stmt = stmt.order_by(models.Attendance.marked_at.desc())
 	
@@ -735,9 +736,8 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 if course_id and lesson.course_id != course_id:
                     continue
                 
-                # Tarih filtreleri - yoklama zamanındaki tarihi kullan
+                # Tarih filtreleri - yoklama zamanına (marked_at) göre
                 if start_date:
-                    # marked_at'in tarih kısmını al
                     if att.marked_at:
                         attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
                         if attendance_date < start_date:
@@ -745,7 +745,6 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                     else:
                         continue  # marked_at yoksa atla
                 if end_date:
-                    # marked_at'in tarih kısmını al
                     if att.marked_at:
                         attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
                         if attendance_date > end_date:

@@ -766,18 +766,8 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             logging.error(f"Debug log error: {e}")
         # #endregion
         
-        # Önce her lesson_id için "Resim" kursu kontrolü yap ve aynı saatteki öğrenci sayısını hesapla
-        # Resim kursu için: aynı lesson_id'deki yoklama sayısı = o saatteki öğrenci sayısı
-        lesson_student_counts = {}  # lesson_id -> o saatteki öğrenci sayısı
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            if lesson and lesson.course:
-                # Kurs adı "Resim" ise, o lesson_id için öğrenci sayısını hesapla
-                if lesson.course.name == "Resim":
-                    if att.lesson_id not in lesson_student_counts:
-                        # Aynı lesson_id'deki tüm yoklamaları say (öğrenci sayısı)
-                        same_lesson_attendances = [a for a in attendances if a.lesson_id == att.lesson_id]
-                        lesson_student_counts[att.lesson_id] = len(same_lesson_attendances)
+        # Resim kursu için özel hesaplama: Her yoklama kaydı için 1 ekleme yapılacak
+        # Diğer kurslar için mevcut sistem aynı kalacak (her yoklama = 1 ders)
         
         # Öğrenci bazında grupla
         student_stats = {}
@@ -809,9 +799,10 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             if status == "LATE":
                 status = "TELAFI"
             
-            # Resim kursu için özel hesaplama: o saatteki öğrenci sayısı kadar ders sayılır
-            is_resim_course = lesson and lesson.course and lesson.course.name == "Resim"
-            lesson_count = lesson_student_counts.get(att.lesson_id, 1) if is_resim_course else 1
+            # Resim kursu için özel hesaplama: Her yoklama kaydı için 1 ekleme yapılacak
+            # Diğer kurslar için de her yoklama kaydı = 1 ders
+            # (Resim kursu için öğrenci bazlı yoklama alınır, her yoklama kaydı öğretmen puantajına 1 ekler)
+            lesson_count = 1
             
             if status == "PRESENT":
                 student_stats[student_id]["present"] += lesson_count

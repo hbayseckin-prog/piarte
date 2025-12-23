@@ -3001,12 +3001,30 @@ async def staff_retrospective_attendance(
                     status_value = value.strip().upper()
                     
                     if status_value:  # Boş değilse
+                        # Saat bilgisini al (time_lessonId_studentId formatında)
+                        time_key = f"time_{lesson_id}_{student_id}"
+                        time_value = form_data.get(time_key, "").strip()
+                        
+                        # Saat bilgisini parse et
+                        marked_at_datetime = None
+                        if time_value:
+                            try:
+                                # time input formatı: "HH:MM"
+                                hour, minute = map(int, time_value.split(":"))
+                                marked_at_datetime = datetime.combine(attendance_date, datetime.min.time().replace(hour=hour, minute=minute))
+                            except (ValueError, AttributeError):
+                                # Hata durumunda varsayılan olarak günün başlangıcını kullan
+                                marked_at_datetime = datetime.combine(attendance_date, datetime.min.time())
+                        else:
+                            # Saat girilmemişse günün başlangıcını kullan
+                            marked_at_datetime = datetime.combine(attendance_date, datetime.min.time())
+                        
                         # Yoklama kaydı oluştur
                         attendance_data = schemas.AttendanceCreate(
                             lesson_id=lesson_id,
                             student_id=student_id,
                             status=status_value,
-                            marked_at=datetime.combine(attendance_date, datetime.min.time()),
+                            marked_at=marked_at_datetime,
                             note=f"Geçmişe dönük kayıt - {selected_date}"
                         )
                         crud.mark_attendance(db, attendance_data, commit=True)

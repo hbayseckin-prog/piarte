@@ -221,11 +221,6 @@
 			{{ selected_teacher.first_name }} {{ selected_teacher.last_name }} - {{ selected_date }} Yoklama Girişi
 		</h4>
 		
-		<!-- Debug: Ders sayısı -->
-		<div style="padding:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;margin-bottom:12px;font-size:12px;">
-			🔍 Debug: selected_teacher_lessons count = {{ selected_teacher_lessons|length if selected_teacher_lessons else 0 }}
-		</div>
-		
 		{% if selected_teacher_lessons %}
 		<form method="post" action="/ui/staff/attendance/retrospective">
 			<input type="hidden" name="teacher_id" value="{{ selected_teacher_id }}" />
@@ -236,18 +231,21 @@
 				<div style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;">
 					<h5 style="margin:0 0 8px 0;color:#0f172a;font-size:14px;font-weight:600;">
 						{{ entry.lesson.course.name }}
-						{% if entry.lesson.start_time or entry.lesson.end_time %}
-						- {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
-						{% endif %}
 					</h5>
 					
 					{% if entry.students %}
 					<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
 						{% for student in entry.students %}
-						<div style="display:flex;align-items:center;gap:12px;padding:8px;background:#f9fafb;border-radius:6px;">
-							<div style="flex:1;font-size:14px;color:#0f172a;font-weight:500;">
+						<div style="display:flex;align-items:center;gap:12px;padding:8px;background:#f9fafb;border-radius:6px;flex-wrap:wrap;">
+							<div style="flex:1;min-width:150px;font-size:14px;color:#0f172a;font-weight:500;">
 								{{ student.first_name }} {{ student.last_name }}
 							</div>
+							<input 
+								type="time" 
+								name="time_{{ entry.lesson.id }}_{{ student.id }}" 
+								style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-width:100px;"
+								placeholder="Saat"
+							/>
 							<select 
 								name="status_{{ entry.lesson.id }}_{{ student.id }}" 
 								style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-width:150px;">

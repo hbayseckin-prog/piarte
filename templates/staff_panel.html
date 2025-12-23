@@ -19,14 +19,21 @@
 <div class="card">
 	<h3 class="h2">Öğrenci Ders Programı Arama</h3>
 	<form method="get" action="/ui/staff" style="margin-bottom:16px;">
-		<div style="display:flex;gap:8px;flex-wrap:wrap;">
-			<input 
-				type="text" 
-				name="search" 
-				value="{{ search }}" 
-				placeholder="Öğrenci adı veya soyadı ile ara..." 
-				style="flex:1;min-width:200px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
-			/>
+		<div style="display:flex;gap:8px;flex-wrap:wrap;position:relative;">
+			<div style="flex:1;min-width:200px;position:relative;">
+				<input 
+					id="student-search-input"
+					type="text" 
+					name="search" 
+					value="{{ search }}" 
+					placeholder="Öğrenci adı veya soyadı ile ara (en az 3 harf)..." 
+					autocomplete="off"
+					style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+				/>
+				<div id="student-autocomplete-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:300px;overflow-y:auto;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+					<!-- Autocomplete sonuçları buraya eklenecek -->
+				</div>
+			</div>
 			<button type="submit" style="padding:10px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Ara</button>
 			{% if search %}
 			<a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;">Temizle</a>
@@ -582,5 +589,121 @@
 	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
 	{% endif %}
 </div>
+
+<script>
+	// Öğrenci arama autocomplete özelliği
+	(function() {
+		const searchInput = document.getElementById('student-search-input');
+		const resultsContainer = document.getElementById('student-autocomplete-results');
+		let searchTimeout = null;
+		let selectedIndex = -1;
+
+		if (!searchInput || !resultsContainer) {
+			return; // Elementler bulunamadıysa çık
+		}
+
+		// Input'a yazıldığında
+		searchInput.addEventListener('input', function(e) {
+			const query = e.target.value.trim();
+			
+			// Önceki timeout'u temizle
+			if (searchTimeout) {
+				clearTimeout(searchTimeout);
+			}
+
+			// En az 3 karakter gerekiyor
+			if (query.length < 3) {
+				resultsContainer.style.display = 'none';
+				return;
+			}
+
+			// Debounce: 300ms bekle
+			searchTimeout = setTimeout(() => {
+				fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+					.then(response => response.json())
+					.then(data => {
+						displayResults(data);
+					})
+					.catch(error => {
+						console.error('Arama hatası:', error);
+						resultsContainer.style.display = 'none';
+					});
+			}, 300);
+		});
+
+		// Sonuçları göster
+		function displayResults(students) {
+			if (!students || students.length === 0) {
+				resultsContainer.style.display = 'none';
+				return;
+			}
+
+			resultsContainer.innerHTML = '';
+			students.forEach((student, index) => {
+				const item = document.createElement('div');
+				item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.2s;';
+				item.innerHTML = `
+					<div style="font-weight:600;color:#0f172a;font-size:14px;">${student.full_name}</div>
+					${student.phone ? `<div style="color:#64748b;font-size:12px;margin-top:2px;">${student.phone}</div>` : ''}
+				`;
+				
+				// Hover efekti
+				item.addEventListener('mouseenter', function() {
+					this.style.background = '#f1f5f9';
+				});
+				item.addEventListener('mouseleave', function() {
+					this.style.background = '#fff';
+				});
+
+				// Tıklama
+				item.addEventListener('click', function() {
+					window.location.href = `/ui/staff?student_id=${student.id}`;
+				});
+
+				resultsContainer.appendChild(item);
+			});
+
+			resultsContainer.style.display = 'block';
+			selectedIndex = -1;
+		}
+
+		// Klavye navigasyonu
+		searchInput.addEventListener('keydown', function(e) {
+			const items = resultsContainer.querySelectorAll('div[style*="cursor:pointer"]');
+			
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+				updateSelection(items);
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				selectedIndex = Math.max(selectedIndex - 1, -1);
+				updateSelection(items);
+			} else if (e.key === 'Enter' && selectedIndex >= 0 && items[selectedIndex]) {
+				e.preventDefault();
+				items[selectedIndex].click();
+			} else if (e.key === 'Escape') {
+				resultsContainer.style.display = 'none';
+			}
+		});
+
+		function updateSelection(items) {
+			items.forEach((item, index) => {
+				if (index === selectedIndex) {
+					item.style.background = '#e0e7ff';
+				} else {
+					item.style.background = '#fff';
+				}
+			});
+		}
+
+		// Dışarı tıklandığında kapat
+		document.addEventListener('click', function(e) {
+			if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+				resultsContainer.style.display = 'none';
+			}
+		});
+	})();
+</script>
 
 {% endblock %}

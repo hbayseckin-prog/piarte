@@ -1882,21 +1882,22 @@ def list_students(db: Session = Depends(get_db)):
 
 
 @app.get("/api/students/search")
-def search_students(q: str, db: Session = Depends(get_db)):
+def search_students(q: str = None, db: Session = Depends(get_db)):
 	"""Öğrenci arama API endpoint'i - autocomplete için"""
-	if len(q.strip()) < 3:
+	if not q or len(q.strip()) < 3:
 		return []
-	term = f"%{q.strip()}%"
+	search_term = f"%{q.strip()}%"
 	students = db.query(models.Student).filter(
-		(models.Student.first_name.ilike(term)) | 
-		(models.Student.last_name.ilike(term))
+		(models.Student.first_name.ilike(search_term)) | 
+		(models.Student.last_name.ilike(search_term))
 	).limit(10).all()
 	return [
 		{
 			"id": s.id,
 			"first_name": s.first_name,
 			"last_name": s.last_name,
-			"full_name": f"{s.first_name} {s.last_name}"
+			"full_name": f"{s.first_name} {s.last_name}",
+			"phone": s.phone_primary or s.phone_secondary or None
 		}
 		for s in students
 	]

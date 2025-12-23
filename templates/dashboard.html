@@ -319,7 +319,7 @@
                     {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
                         <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
                     {% elif entry.attendance.status == 'ABSENT' %}
-                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
+                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                     {% else %}
                         {{ entry.attendance.status }}
                     {% endif %}
@@ -377,7 +377,7 @@
                         {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
                             <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
                         {% elif entry.attendance.status == 'ABSENT' %}
-                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Yok</span>
+                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                         {% else %}
                             {{ entry.attendance.status }}
                         {% endif %}

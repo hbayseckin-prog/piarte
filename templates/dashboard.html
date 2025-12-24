@@ -509,7 +509,7 @@
 </div>
 {% endif %}
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+{% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
 <div class="card">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}

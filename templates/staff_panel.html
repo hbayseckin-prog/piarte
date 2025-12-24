@@ -704,4 +704,149 @@
 	})();
 </script>
 
+<div class="card">
+    <h3 class="h2">Yoklamalar</h3>
+    <form method="get" action="/ui/staff" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
+        <input type="date" name="start_date" value="{{ filters.start_date if filters else '' }}" placeholder="Başlangıç Tarihi" />
+        <input type="date" name="end_date" value="{{ filters.end_date if filters else '' }}" placeholder="Bitiş Tarihi" />
+        <select name="teacher_id">
+            <option value="">Tüm Öğretmenler</option>
+            {% for t in teachers %}
+            <option value="{{ t.id }}" {% if filters and filters.teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="student_id">
+            <option value="">Tüm Öğrenciler</option>
+            {% for s in students %}
+            <option value="{{ s.id }}" {% if filters and filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="course_id">
+            <option value="">Tüm Kurslar</option>
+            {% for c in courses %}
+            <option value="{{ c.id }}" {% if filters and filters.course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="status">
+            <option value="">Tüm Durumlar</option>
+            <option value="PRESENT" {% if filters and filters.status == 'PRESENT' %}selected{% endif %}>Geldi</option>
+            <option value="EXCUSED_ABSENT" {% if filters and filters.status == 'EXCUSED_ABSENT' %}selected{% endif %}>Haberli Gelmedi</option>
+            <option value="TELAFI" {% if filters and (filters.status == 'TELAFI' or filters.status == 'LATE') %}selected{% endif %}>Telafi</option>
+            <option value="UNEXCUSED_ABSENT" {% if filters and filters.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>Habersiz Gelmedi</option>
+        </select>
+        <select name="order_by">
+            <option value="marked_at_desc" {% if filters and filters.order_by == 'marked_at_desc' %}selected{% endif %}>Yoklama Zamanı (Yeni → Eski)</option>
+            <option value="marked_at_asc" {% if filters and filters.order_by == 'marked_at_asc' %}selected{% endif %}>Yoklama Zamanı (Eski → Yeni)</option>
+            <option value="lesson_date_desc" {% if filters and filters.order_by == 'lesson_date_desc' %}selected{% endif %}>Yoklama Tarihi (Yeni → Eski)</option>
+            <option value="lesson_date_asc" {% if filters and filters.order_by == 'lesson_date_asc' %}selected{% endif %}>Yoklama Tarihi (Eski → Yeni)</option>
+        </select>
+        <div class="btn-group" style="width:100%;margin-top:8px;">
+            <button type="submit" style="flex:1;">Filtrele</button>
+            <a href="/ui/staff" style="padding:12px 20px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">Temizle</a>
+        </div>
+    </form>
+    {% if attendances %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Yoklama Tarihi</th>
+                    <th>Saat</th>
+                    <th>Kurs</th>
+                    <th>Öğretmen</th>
+                    <th>Öğrenci</th>
+                    <th>Durum</th>
+                    <th>Yoklama Zamanı</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for entry in attendances %}
+            <tr>
+                <td>{{ entry.attendance.marked_at.strftime('%d.%m.%Y') if entry.attendance and entry.attendance.marked_at else '-' }}</td>
+                <td>
+                    {% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+                        {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+                    {% else %}-{% endif %}
+                </td>
+                <td><strong>{{ entry.course.name if entry.course else '-' }}</strong></td>
+                <td>{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</td>
+                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></td>
+                <td>
+                    {% if entry.attendance.status == 'PRESENT' %}
+                        <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+                    {% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                    {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+                        <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                    {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+                        <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                    {% elif entry.attendance.status == 'ABSENT' %}
+                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                    {% else %}
+                        {{ entry.attendance.status }}
+                    {% endif %}
+                </td>
+                <td>{{ entry.attendance.marked_at.strftime('%d.%m.%Y %H:%M') if entry.attendance.marked_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div class="mobile-card-view">
+            {% for entry in attendances %}
+            <div class="mobile-card">
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Yoklama Tarihi</div>
+                    <div class="mobile-card-value">{{ entry.attendance.marked_at.strftime('%d.%m.%Y') if entry.attendance and entry.attendance.marked_at else '-' }}</div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Saat</div>
+                    <div class="mobile-card-value">
+                        {% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+                            {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Kurs</div>
+                    <div class="mobile-card-value"><strong>{{ entry.course.name if entry.course else '-' }}</strong></div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Öğretmen</div>
+                    <div class="mobile-card-value">{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Öğrenci</div>
+                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Durum</div>
+                    <div class="mobile-card-value">
+                        {% if entry.attendance.status == 'PRESENT' %}
+                            <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+                        {% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                        {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+                            <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                        {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+                            <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                        {% elif entry.attendance.status == 'ABSENT' %}
+                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                        {% else %}
+                            {{ entry.attendance.status }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Yoklama Zamanı</div>
+                    <div class="mobile-card-value">{{ entry.attendance.marked_at.strftime('%d.%m.%Y %H:%M') if entry.attendance.marked_at else '-' }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <p>Henüz yoklama kaydı bulunmuyor.</p>
+    {% endif %}
+</div>
+
 {% endblock %}

@@ -2724,6 +2724,7 @@ def staff_panel(
         else:
             return RedirectResponse(url="/login/staff", status_code=302)
     try:
+        from sqlalchemy import select
         # Tüm öğretmenleri getir
         teachers = crud.list_teachers(db)
         
@@ -3028,7 +3029,6 @@ def staff_panel(
         # Yoklama verilerini filtrele
         attendances = []
         if has_filters:
-            from sqlalchemy import select
             # Direkt sorgu ile tüm yoklamaları al
             all_attendances_direct = db.scalars(select(models.Attendance)).all()
             

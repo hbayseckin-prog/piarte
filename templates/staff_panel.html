@@ -709,19 +709,19 @@
     <form method="get" action="/ui/staff" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
         <input type="date" name="start_date" value="{{ filters.start_date if filters else '' }}" placeholder="Başlangıç Tarihi" />
         <input type="date" name="end_date" value="{{ filters.end_date if filters else '' }}" placeholder="Bitiş Tarihi" />
-        <select name="teacher_id">
+        <select name="attendance_teacher_id">
             <option value="">Tüm Öğretmenler</option>
             {% for t in teachers %}
             <option value="{{ t.id }}" {% if filters and filters.teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
             {% endfor %}
         </select>
-        <select name="student_id">
+        <select name="attendance_student_id">
             <option value="">Tüm Öğrenciler</option>
             {% for s in students %}
             <option value="{{ s.id }}" {% if filters and filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
             {% endfor %}
         </select>
-        <select name="course_id">
+        <select name="attendance_course_id">
             <option value="">Tüm Kurslar</option>
             {% for c in courses %}
             <option value="{{ c.id }}" {% if filters and filters.course_id == c.id %}selected{% endif %}>{{ c.name }}</option>

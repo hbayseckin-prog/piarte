@@ -2702,6 +2702,14 @@ def staff_panel(
     selected_date: str | None = None,
     success: str | None = None,
     error: str | None = None,
+    # Yoklama filtreleme parametreleri
+    attendance_teacher_id: str | None = None,
+    attendance_student_id: str | None = None,
+    attendance_course_id: str | None = None,
+    status: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    order_by: str = "marked_at_desc",
     db: Session = Depends(get_db)
 ):
     user = request.session.get("user")
@@ -2966,6 +2974,137 @@ def staff_panel(
                 logging.error(f"❌ Error fetching teacher lessons for date: {e}")
                 logging.error(traceback.format_exc())
         
+        # Yoklama filtreleme için gerekli verileri hazırla
+        students = crud.list_students(db)
+        courses = crud.list_courses(db)
+        
+        # Query parametrelerini integer'a çevir (boş string'leri None yap)
+        attendance_teacher_id_int = None
+        attendance_student_id_int = None
+        attendance_course_id_int = None
+        if attendance_teacher_id and attendance_teacher_id.strip():
+            try:
+                attendance_teacher_id_int = int(attendance_teacher_id)
+            except (ValueError, TypeError):
+                attendance_teacher_id_int = None
+        if attendance_student_id and attendance_student_id.strip():
+            try:
+                attendance_student_id_int = int(attendance_student_id)
+            except (ValueError, TypeError):
+                attendance_student_id_int = None
+        if attendance_course_id and attendance_course_id.strip():
+            try:
+                attendance_course_id_int = int(attendance_course_id)
+            except (ValueError, TypeError):
+                attendance_course_id_int = None
+        
+        # Tarih filtrelerini parse et
+        from datetime import date, datetime
+        start_date_obj = None
+        end_date_obj = None
+        if start_date:
+            try:
+                y, m, d = map(int, start_date.split("-"))
+                start_date_obj = date(y, m, d)
+            except Exception:
+                pass
+        if end_date:
+            try:
+                y, m, d = map(int, end_date.split("-"))
+                end_date_obj = date(y, m, d)
+            except Exception:
+                pass
+        
+        # Filtrelerin olup olmadığını kontrol et
+        has_filters = any([
+            attendance_teacher_id_int is not None,
+            attendance_student_id_int is not None,
+            attendance_course_id_int is not None,
+            status is not None and status.strip(),
+            start_date_obj is not None,
+            end_date_obj is not None
+        ])
+        
+        # Yoklama verilerini filtrele
+        attendances = []
+        if has_filters:
+            from sqlalchemy import select
+            # Direkt sorgu ile tüm yoklamaları al
+            all_attendances_direct = db.scalars(select(models.Attendance)).all()
+            
+            # Filtreleri manuel uygula
+            attendances = list(all_attendances_direct)
+            
+            # Teacher filter
+            if attendance_teacher_id_int:
+                filtered = []
+                for att in attendances:
+                    lesson = db.get(models.Lesson, att.lesson_id)
+                    if lesson and lesson.teacher_id == attendance_teacher_id_int:
+                        filtered.append(att)
+                attendances = filtered
+            
+            # Student filter
+            if attendance_student_id_int:
+                attendances = [a for a in attendances if a.student_id == attendance_student_id_int]
+            
+            # Status filter
+            if status:
+                attendances = [a for a in attendances if a.status.upper() == status.upper()]
+            
+            # Course filter
+            if attendance_course_id_int:
+                filtered = []
+                for att in attendances:
+                    lesson = db.get(models.Lesson, att.lesson_id)
+                    if lesson and lesson.course_id == attendance_course_id_int:
+                        filtered.append(att)
+                attendances = filtered
+            
+            # Date filters
+            if start_date_obj:
+                start_datetime = datetime.combine(start_date_obj, datetime.min.time())
+                attendances = [a for a in attendances if a.marked_at and a.marked_at >= start_datetime]
+            
+            if end_date_obj:
+                end_datetime = datetime.combine(end_date_obj, datetime.max.time())
+                attendances = [a for a in attendances if a.marked_at and a.marked_at <= end_datetime]
+            
+            # Sort
+            if order_by == "marked_at_desc" or order_by == "lesson_date_desc":
+                attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
+            elif order_by == "marked_at_asc" or order_by == "lesson_date_asc":
+                attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
+            
+            # Limit
+            attendances = attendances[:200]
+        
+        # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
+        attendances_with_details = []
+        for att in attendances:
+            lesson = db.get(models.Lesson, att.lesson_id)
+            student = db.get(models.Student, att.student_id)
+            teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
+            course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+            attendances_with_details.append({
+                "attendance": att,
+                "lesson": lesson,
+                "student": student,
+                "teacher": teacher,
+                "course": course,
+            })
+        
+        # Filtre dict'i oluştur
+        filters = {
+            "teacher_id": attendance_teacher_id_int,
+            "student_id": attendance_student_id_int,
+            "course_id": attendance_course_id_int,
+            "status": status,
+            "start_date": start_date,
+            "end_date": end_date,
+            "order_by": order_by
+        }
+        
         return templates.TemplateResponse("staff_panel.html", {
             "request": request,
             "teachers": teachers,
@@ -2986,7 +3125,12 @@ def staff_panel(
             "selected_date": selected_date,
             "selected_teacher_lessons": selected_teacher_lessons,
             "success": success,
-            "error": error
+            "error": error,
+            # Yoklama filtreleme için
+            "students": students,
+            "courses": courses,
+            "filters": filters,
+            "attendances": attendances_with_details
         })
     except Exception as e:
         import logging

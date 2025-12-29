@@ -115,6 +115,103 @@
 	{% endif %}
 </div>
 
+<div class="card">
+	<h3 class="h2">Puantaj Tablosu</h3>
+	<p style="color:var(--muted);margin-top:8px;margin-bottom:16px;font-size:14px;">
+		Öğrenciler için aldığınız yoklamalar. Haberli gelmedi durumları tabloya işlenmez. Tarih aralığı seçerek sonuçları filtreleyebilirsiniz.
+	</p>
+	
+	<form method="get" action="/ui/teacher" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
+		<input type="date" name="start_date" value="{{ start_date }}" placeholder="Başlangıç Tarihi" />
+		<input type="date" name="end_date" value="{{ end_date }}" placeholder="Bitiş Tarihi" />
+		{% if selected_teacher_id %}
+		<input type="hidden" name="selected_teacher_id" value="{{ selected_teacher_id }}" />
+		{% endif %}
+		<div class="btn-group" style="width:100%;margin-top:8px;">
+			<button type="submit" style="flex:1;">Filtrele</button>
+			<a href="/ui/teacher{% if selected_teacher_id %}?selected_teacher_id={{ selected_teacher_id }}{% endif %}" style="padding:12px 20px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">Temizle</a>
+		</div>
+	</form>
+	
+	{% if attendance_report %}
+		{% for teacher_report in attendance_report %}
+		<div style="margin-bottom:32px;border:1px solid var(--border);border-radius:12px;padding:16px;background:#f9fafb;">
+			<h4 style="margin:0 0 16px 0;color:#0f172a;font-size:18px;font-weight:600;padding-bottom:12px;border-bottom:2px solid var(--border);">
+				{{ teacher_report.teacher.first_name }} {{ teacher_report.teacher.last_name }}
+			</h4>
+			{% if teacher_report.students %}
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>Öğrenci</th>
+							<th>Geldi</th>
+							<th>Haberli Gelmedi</th>
+							<th>Telafi</th>
+							<th>Habersiz Gelmedi</th>
+							<th>Toplam Ders</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for student_data in teacher_report.students %}
+						<tr>
+							<td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
+							<td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>
+							<td style="text-align:center;color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</td>
+							<td style="text-align:center;color:#8b5cf6;font-weight:600;">{{ student_data.telafi }}</td>
+							<td style="text-align:center;color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</td>
+							<td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+				<div class="mobile-card-view">
+					{% for student_data in teacher_report.students %}
+					<div class="mobile-card">
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Öğrenci</div>
+							<div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Geldi</div>
+							<div class="mobile-card-value" style="color:#10b981;font-weight:600;">{{ student_data.present }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Haberli Gelmedi</div>
+							<div class="mobile-card-value" style="color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Telafi</div>
+							<div class="mobile-card-value" style="color:#8b5cf6;font-weight:600;">{{ student_data.telafi }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Habersiz Gelmedi</div>
+							<div class="mobile-card-value" style="color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Toplam Ders</div>
+							<div class="mobile-card-value" style="font-weight:600;">{{ student_data.total }}</div>
+						</div>
+					</div>
+					{% endfor %}
+				</div>
+			</div>
+			{% else %}
+			<p style="color:var(--muted);text-align:center;padding:16px;">Bu öğretmen için henüz yoklama kaydı bulunmuyor.</p>
+			{% endif %}
+		</div>
+		{% endfor %}
+	{% else %}
+	<p style="color:var(--muted);text-align:center;padding:16px;">
+		{% if start_date or end_date %}
+			Seçilen tarih aralığı için puantaj verisi bulunmuyor.
+		{% else %}
+			Puantaj verilerini görmek için lütfen tarih aralığı seçin.
+		{% endif %}
+	</p>
+	{% endif %}
+</div>
+
 {% endblock %}
 
 

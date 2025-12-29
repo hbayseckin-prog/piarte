@@ -922,7 +922,7 @@ def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
 
 # UI: Teacher panel
 @app.get("/ui/teacher", response_class=HTMLResponse)
-def teacher_panel(request: Request, selected_teacher_id: int | None = None, db: Session = Depends(get_db)):
+def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/teacher", status_code=302)
@@ -951,6 +951,23 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, db: 
     try:
         # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
         display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
+        
+        # Tarih filtrelerini parse et
+        from datetime import date
+        start_date_obj = None
+        end_date_obj = None
+        if start_date:
+            try:
+                y, m, d = map(int, start_date.split("-"))
+                start_date_obj = date(y, m, d)
+            except Exception:
+                start_date_obj = None
+        if end_date:
+            try:
+                y, m, d = map(int, end_date.split("-"))
+                end_date_obj = date(y, m, d)
+            except Exception:
+                end_date_obj = None
         
         # Tüm öğretmenleri getir
         all_teachers = crud.list_teachers(db)
@@ -1018,6 +1035,16 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, db: 
                 "lessons": teacher_formatted_lessons
             })
         
+        # Puantaj raporunu hesapla (sadece kendi öğretmeni için)
+        attendance_report = []
+        if current_teacher_id:
+            attendance_report = crud.get_attendance_report_by_teacher(
+                db,
+                teacher_id=current_teacher_id,
+                start_date=start_date_obj,
+                end_date=end_date_obj
+            )
+        
         context = {
             "request": request,
             "lessons_with_students": formatted_lessons,
@@ -1026,6 +1053,9 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, db: 
             "all_teachers": all_teachers,
             "selected_teacher_id": display_teacher_id,
             "current_teacher_id": current_teacher_id,
+            "attendance_report": attendance_report,
+            "start_date": start_date or "",
+            "end_date": end_date or "",
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:

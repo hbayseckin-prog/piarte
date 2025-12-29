@@ -771,6 +771,9 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
         # Öğrenci bazında grupla
         student_stats = {}
         for att in attendances:
+            # Her yoklama için lesson bilgisini al
+            lesson = db.get(models.Lesson, att.lesson_id)
+            
             student_id = att.student_id
             if student_id not in student_stats:
                 student = db.get(models.Student, student_id)

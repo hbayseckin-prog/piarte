@@ -2334,15 +2334,25 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
         except (ValueError, TypeError):
             teacher_id_int = None
     
+    # Get teacher's students if teacher filter is applied
+    teacher_student_ids = None
+    if teacher_id_int:
+        teacher_students = crud.list_students_by_teacher(db, teacher_id_int)
+        if teacher_students:
+            teacher_student_ids = [s.id for s in teacher_students]
+        else:
+            # If teacher has no students, use impossible ID to return no results
+            teacher_student_ids = [-1]
+    
     # query payments with optional filters and total sum
     q = db.query(models.Payment).join(models.Student)
     # optional joins for filters
     # Filter by course or teacher through enrollments and lessons/payments if needed (basic: by course via enrollments)
     if course_id_int:
         q = q.join(models.Enrollment, models.Enrollment.student_id == models.Payment.student_id).filter(models.Enrollment.course_id == course_id_int)
-    if teacher_id_int:
-        # teacher filter via lessons attendance isn't a direct relation to payment; skipping complex join; use lessons for date context only
-        pass
+    if teacher_student_ids is not None:
+        # Filter payments by students assigned to the selected teacher
+        q = q.filter(models.Payment.student_id.in_(teacher_student_ids))
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2351,6 +2361,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     sum_q = db.query(func.coalesce(func.sum(models.Payment.amount_try), 0)).join(models.Student)
     if course_id_int:
         sum_q = sum_q.join(models.Enrollment, models.Enrollment.student_id == models.Payment.student_id).filter(models.Enrollment.course_id == course_id_int)
+    if teacher_student_ids is not None:
+        # Filter sum by students assigned to the selected teacher
+        sum_q = sum_q.filter(models.Payment.student_id.in_(teacher_student_ids))
     if start_date:
         sum_q = sum_q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2401,9 +2414,22 @@ def payment_reports_csv(request: Request, start: str | None = None, end: str | N
         except (ValueError, TypeError):
             teacher_id_int = None
     
+    # Get teacher's students if teacher filter is applied
+    teacher_student_ids = None
+    if teacher_id_int:
+        teacher_students = crud.list_students_by_teacher(db, teacher_id_int)
+        if teacher_students:
+            teacher_student_ids = [s.id for s in teacher_students]
+        else:
+            # If teacher has no students, use impossible ID to return no results
+            teacher_student_ids = [-1]
+    
     q = db.query(models.Payment).join(models.Student)
     if course_id_int:
         q = q.join(models.Enrollment, models.Enrollment.student_id == models.Payment.student_id).filter(models.Enrollment.course_id == course_id_int)
+    if teacher_student_ids is not None:
+        # Filter payments by students assigned to the selected teacher
+        q = q.filter(models.Payment.student_id.in_(teacher_student_ids))
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:

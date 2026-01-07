@@ -2329,7 +2329,7 @@ def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(g
 
 # UI: Payment Reports
 @app.get("/ui/reports/payments", response_class=HTMLResponse)
-def payment_reports(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, db: Session = Depends(get_db)):
+def payment_reports(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
@@ -2383,6 +2383,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     if teacher_student_ids is not None:
         # Filter payments by students assigned to the selected teacher
         q = q.filter(models.Payment.student_id.in_(teacher_student_ids))
+    if student_id_int:
+        # Filter payments by selected student
+        q = q.filter(models.Payment.student_id == student_id_int)
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2394,6 +2397,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     if teacher_student_ids is not None:
         # Filter sum by students assigned to the selected teacher
         sum_q = sum_q.filter(models.Payment.student_id.in_(teacher_student_ids))
+    if student_id_int:
+        # Filter sum by selected student
+        sum_q = sum_q.filter(models.Payment.student_id == student_id_int)
     if start_date:
         sum_q = sum_q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2401,13 +2407,17 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     total = float(sum_q.scalar() or 0)
     courses = crud.list_courses(db)
     teachers = crud.list_teachers(db)
+    # Get selected student info if student_id is provided
+    selected_student = None
+    if student_id_int:
+        selected_student = db.get(models.Student, student_id_int)
     user = request.session.get("user")
     is_admin = user and user.get("role") == "admin"
-    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or "", "is_admin": is_admin})
+    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or "", "student_id": student_id or "", "selected_student": selected_student, "is_admin": is_admin})
 
 
 @app.get("/ui/reports/payments.csv")
-def payment_reports_csv(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, db: Session = Depends(get_db)):
+def payment_reports_csv(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
@@ -2433,6 +2443,7 @@ def payment_reports_csv(request: Request, start: str | None = None, end: str | N
     # Query parametrelerini integer'a çevir (boş string'leri None yap)
     course_id_int = None
     teacher_id_int = None
+    student_id_int = None
     if course_id and course_id.strip():
         try:
             course_id_int = int(course_id)
@@ -2443,6 +2454,11 @@ def payment_reports_csv(request: Request, start: str | None = None, end: str | N
             teacher_id_int = int(teacher_id)
         except (ValueError, TypeError):
             teacher_id_int = None
+    if student_id and student_id.strip():
+        try:
+            student_id_int = int(student_id)
+        except (ValueError, TypeError):
+            student_id_int = None
     
     # Get teacher's students if teacher filter is applied
     teacher_student_ids = None
@@ -2460,6 +2476,9 @@ def payment_reports_csv(request: Request, start: str | None = None, end: str | N
     if teacher_student_ids is not None:
         # Filter payments by students assigned to the selected teacher
         q = q.filter(models.Payment.student_id.in_(teacher_student_ids))
+    if student_id_int:
+        # Filter payments by selected student
+        q = q.filter(models.Payment.student_id == student_id_int)
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:

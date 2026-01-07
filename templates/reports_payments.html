@@ -14,7 +14,7 @@
 </div>
 {% endif %}
 
-<form method="get" action="/ui/reports/payments" style="margin-bottom:12px">
+<form method="get" action="/ui/reports/payments" style="margin-bottom:12px" id="paymentFilterForm">
 	<label>Başlangıç</label>
 	<input type="date" name="start" value="{{ start }}" />
 	<label>Bitiş</label>
@@ -33,13 +33,19 @@
 		<option value="{{ t.id }}" {% if teacher_id and t.id == teacher_id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
 		{% endfor %}
 	</select>
+	<label>Öğrenci</label>
+	<div style="position:relative;">
+		<input type="text" id="studentSearch" name="student_name" placeholder="Öğrenci adı (min 3 harf)" value="{% if selected_student %}{{ selected_student.first_name }} {{ selected_student.last_name }}{% endif %}" autocomplete="off" />
+		<input type="hidden" id="studentId" name="student_id" value="{{ student_id }}" />
+		<div id="studentSuggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:1000;display:none;margin-top:4px;box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+	</div>
 	<button type="submit">Filtrele</button>
 </form>
 
 <div class="card">
 	<strong>Toplam: {{ '%.2f'|format(total) }} TL</strong>
     <div style="margin-top:8px">
-        <a href="/ui/reports/payments.csv?start={{ start }}&end={{ end }}&course_id={{ course_id }}&teacher_id={{ teacher_id }}">CSV indir</a>
+        <a href="/ui/reports/payments.csv?start={{ start }}&end={{ end }}&course_id={{ course_id }}&teacher_id={{ teacher_id }}{% if student_id %}&student_id={{ student_id }}{% endif %}">CSV indir</a>
         <button onclick="window.print()" style="margin-left:8px">Yazdır / PDF</button>
     </div>
 </div>
@@ -84,6 +90,84 @@
 	{% endfor %}
 	</tbody>
 </table>
+
+<script>
+let searchTimeout;
+const studentSearchInput = document.getElementById('studentSearch');
+const studentIdInput = document.getElementById('studentId');
+const studentSuggestions = document.getElementById('studentSuggestions');
+
+if (studentSearchInput) {
+	studentSearchInput.addEventListener('input', function(e) {
+		const query = e.target.value.trim();
+		
+		// Clear previous timeout
+		clearTimeout(searchTimeout);
+		
+		// Clear suggestions if less than 3 characters
+		if (query.length < 3) {
+			studentSuggestions.style.display = 'none';
+			studentIdInput.value = '';
+			return;
+		}
+		
+		// Debounce search
+		searchTimeout = setTimeout(() => {
+			fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+				.then(response => response.json())
+				.then(data => {
+					if (data && data.length > 0) {
+						studentSuggestions.innerHTML = '';
+						data.forEach(student => {
+							const div = document.createElement('div');
+							div.style.padding = '8px 12px';
+							div.style.cursor = 'pointer';
+							div.style.borderBottom = '1px solid #f1f5f9';
+							div.textContent = student.full_name;
+							div.addEventListener('mouseenter', function() {
+								this.style.background = '#f1f5f9';
+							});
+							div.addEventListener('mouseleave', function() {
+								this.style.background = '#fff';
+							});
+							div.addEventListener('click', function() {
+								studentSearchInput.value = student.full_name;
+								studentIdInput.value = student.id;
+								studentSuggestions.style.display = 'none';
+							});
+							studentSuggestions.appendChild(div);
+						});
+						studentSuggestions.style.display = 'block';
+					} else {
+						studentSuggestions.innerHTML = '<div style="padding:8px 12px;color:#64748b;">Sonuç bulunamadı</div>';
+						studentSuggestions.style.display = 'block';
+					}
+				})
+				.catch(error => {
+					console.error('Arama hatası:', error);
+					studentSuggestions.style.display = 'none';
+				});
+		}, 300);
+	});
+	
+	// Close suggestions when clicking outside
+	document.addEventListener('click', function(e) {
+		if (!studentSearchInput.contains(e.target) && !studentSuggestions.contains(e.target)) {
+			studentSuggestions.style.display = 'none';
+		}
+	});
+	
+	// Clear student filter when input is cleared
+	studentSearchInput.addEventListener('blur', function() {
+		setTimeout(() => {
+			if (studentSearchInput.value.trim() === '') {
+				studentIdInput.value = '';
+			}
+		}, 200);
+	});
+}
+</script>
+
 {% endblock %}
 
 

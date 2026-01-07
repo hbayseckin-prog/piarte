@@ -2353,6 +2353,7 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     # Query parametrelerini integer'a çevir (boş string'leri None yap)
     course_id_int = None
     teacher_id_int = None
+    student_id_int = None
     if course_id and course_id.strip():
         try:
             course_id_int = int(course_id)
@@ -2363,6 +2364,11 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
             teacher_id_int = int(teacher_id)
         except (ValueError, TypeError):
             teacher_id_int = None
+    if student_id and student_id.strip():
+        try:
+            student_id_int = int(student_id)
+        except (ValueError, TypeError):
+            student_id_int = None
     
     # Get teacher's students if teacher filter is applied
     teacher_student_ids = None

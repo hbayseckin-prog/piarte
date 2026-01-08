@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, delete
-from datetime import date
+from datetime import date, datetime
 from . import models, schemas
 
 

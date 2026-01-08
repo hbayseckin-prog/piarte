@@ -1963,10 +1963,101 @@ def search_students(q: str = None, db: Session = Depends(get_db)):
 			"first_name": s.first_name,
 			"last_name": s.last_name,
 			"full_name": f"{s.first_name} {s.last_name}",
-			"phone": s.phone_primary or s.phone_secondary or None
+			"phone": s.phone_primary or s.phone_secondary or None,
+			"type": "student"
 		}
 		for s in students
 	]
+
+
+@app.get("/api/teachers/search")
+def search_teachers(q: str = None, db: Session = Depends(get_db)):
+	"""Öğretmen arama API endpoint'i - autocomplete için"""
+	if not q or len(q.strip()) < 3:
+		return []
+	search_term = f"%{q.strip()}%"
+	teachers = db.query(models.Teacher).filter(
+		(models.Teacher.first_name.ilike(search_term)) | 
+		(models.Teacher.last_name.ilike(search_term))
+	).limit(10).all()
+	return [
+		{
+			"id": t.id,
+			"first_name": t.first_name,
+			"last_name": t.last_name,
+			"full_name": f"{t.first_name} {t.last_name}",
+			"type": "teacher"
+		}
+		for t in teachers
+	]
+
+
+@app.get("/api/courses/search")
+def search_courses(q: str = None, db: Session = Depends(get_db)):
+	"""Kurs arama API endpoint'i - autocomplete için"""
+	if not q or len(q.strip()) < 3:
+		return []
+	search_term = f"%{q.strip()}%"
+	courses = db.query(models.Course).filter(
+		models.Course.name.ilike(search_term)
+	).limit(10).all()
+	return [
+		{
+			"id": c.id,
+			"name": c.name,
+			"type": "course"
+		}
+		for c in courses
+	]
+
+
+@app.get("/api/search/all")
+def search_all(q: str = None, db: Session = Depends(get_db)):
+	"""Tüm türlerde arama API endpoint'i - autocomplete için (öğrenci, öğretmen, kurs)"""
+	if not q or len(q.strip()) < 3:
+		return []
+	search_term = f"%{q.strip()}%"
+	results = []
+	
+	# Öğrenciler
+	students = db.query(models.Student).filter(
+		(models.Student.first_name.ilike(search_term)) | 
+		(models.Student.last_name.ilike(search_term))
+	).limit(5).all()
+	for s in students:
+		results.append({
+			"id": s.id,
+			"name": f"{s.first_name} {s.last_name}",
+			"type": "student",
+			"url": f"/ui/students/{s.id}"
+		})
+	
+	# Öğretmenler
+	teachers = db.query(models.Teacher).filter(
+		(models.Teacher.first_name.ilike(search_term)) | 
+		(models.Teacher.last_name.ilike(search_term))
+	).limit(5).all()
+	for t in teachers:
+		results.append({
+			"id": t.id,
+			"name": f"{t.first_name} {t.last_name}",
+			"type": "teacher",
+			"url": f"/ui/teachers/{t.id}"
+		})
+	
+	# Kurslar
+	courses = db.query(models.Course).filter(
+		models.Course.name.ilike(search_term)
+	).limit(5).all()
+	for c in courses:
+		results.append({
+			"id": c.id,
+			"name": c.name,
+			"type": "course",
+			"url": f"/ui/courses"
+		})
+	
+	return results
 
 
 @app.patch("/students/{student_id}", response_model=schemas.StudentOut)

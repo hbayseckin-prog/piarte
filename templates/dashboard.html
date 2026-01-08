@@ -41,11 +41,157 @@
 
 <div class="card">
     <h3 class="h2">Hızlı Arama</h3>
-	<form method="get" action="/ui/search">
-		<input type="text" name="q" placeholder="Öğrenci, öğretmen veya kurs ara" required />
-		<button type="submit">Ara</button>
+	<form method="get" action="/ui/search" id="quickSearchForm" style="position:relative;">
+		<div style="position:relative;">
+			<input type="text" id="quickSearchInput" name="q" placeholder="Öğrenci, öğretmen veya kurs ara (min 3 harf)" autocomplete="off" />
+			<div id="quickSearchSuggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:300px;overflow-y:auto;z-index:1000;display:none;margin-top:4px;box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+		</div>
+		<button type="submit" style="margin-top:8px;">Ara</button>
 	</form>
 </div>
+
+<script>
+let quickSearchTimeout;
+const quickSearchInput = document.getElementById('quickSearchInput');
+const quickSearchSuggestions = document.getElementById('quickSearchSuggestions');
+
+if (quickSearchInput) {
+	quickSearchInput.addEventListener('input', function(e) {
+		const query = e.target.value.trim();
+		
+		// Clear previous timeout
+		clearTimeout(quickSearchTimeout);
+		
+		// Clear suggestions if less than 3 characters
+		if (query.length < 3) {
+			quickSearchSuggestions.style.display = 'none';
+			return;
+		}
+		
+		// Debounce search
+		quickSearchTimeout = setTimeout(() => {
+			fetch(`/api/search/all?q=${encodeURIComponent(query)}`)
+				.then(response => response.json())
+				.then(data => {
+					if (data && data.length > 0) {
+						quickSearchSuggestions.innerHTML = '';
+						
+						// Group by type
+						const students = data.filter(item => item.type === 'student');
+						const teachers = data.filter(item => item.type === 'teacher');
+						const courses = data.filter(item => item.type === 'course');
+						
+						if (students.length > 0) {
+							const section = document.createElement('div');
+							section.style.padding = '8px 12px';
+							section.style.background = '#f9fafb';
+							section.style.borderBottom = '1px solid var(--border)';
+							section.style.fontSize = '12px';
+							section.style.fontWeight = '600';
+							section.style.color = '#64748b';
+							section.textContent = 'Öğrenciler';
+							quickSearchSuggestions.appendChild(section);
+							
+							students.forEach(item => {
+								const div = document.createElement('div');
+								div.style.padding = '8px 12px';
+								div.style.cursor = 'pointer';
+								div.style.borderBottom = '1px solid #f1f5f9';
+								div.innerHTML = `<span style="color:#0f172a;">${item.name}</span> <span style="color:#64748b;font-size:11px;margin-left:8px;">Öğrenci</span>`;
+								div.addEventListener('mouseenter', function() {
+									this.style.background = '#f1f5f9';
+								});
+								div.addEventListener('mouseleave', function() {
+									this.style.background = '#fff';
+								});
+								div.addEventListener('click', function() {
+									window.location.href = item.url;
+								});
+								quickSearchSuggestions.appendChild(div);
+							});
+						}
+						
+						if (teachers.length > 0) {
+							const section = document.createElement('div');
+							section.style.padding = '8px 12px';
+							section.style.background = '#f9fafb';
+							section.style.borderBottom = '1px solid var(--border)';
+							section.style.fontSize = '12px';
+							section.style.fontWeight = '600';
+							section.style.color = '#64748b';
+							section.textContent = 'Öğretmenler';
+							quickSearchSuggestions.appendChild(section);
+							
+							teachers.forEach(item => {
+								const div = document.createElement('div');
+								div.style.padding = '8px 12px';
+								div.style.cursor = 'pointer';
+								div.style.borderBottom = '1px solid #f1f5f9';
+								div.innerHTML = `<span style="color:#0f172a;">${item.name}</span> <span style="color:#64748b;font-size:11px;margin-left:8px;">Öğretmen</span>`;
+								div.addEventListener('mouseenter', function() {
+									this.style.background = '#f1f5f9';
+								});
+								div.addEventListener('mouseleave', function() {
+									this.style.background = '#fff';
+								});
+								div.addEventListener('click', function() {
+									window.location.href = item.url;
+								});
+								quickSearchSuggestions.appendChild(div);
+							});
+						}
+						
+						if (courses.length > 0) {
+							const section = document.createElement('div');
+							section.style.padding = '8px 12px';
+							section.style.background = '#f9fafb';
+							section.style.borderBottom = '1px solid var(--border)';
+							section.style.fontSize = '12px';
+							section.style.fontWeight = '600';
+							section.style.color = '#64748b';
+							section.textContent = 'Kurslar';
+							quickSearchSuggestions.appendChild(section);
+							
+							courses.forEach(item => {
+								const div = document.createElement('div');
+								div.style.padding = '8px 12px';
+								div.style.cursor = 'pointer';
+								div.style.borderBottom = '1px solid #f1f5f9';
+								div.innerHTML = `<span style="color:#0f172a;">${item.name}</span> <span style="color:#64748b;font-size:11px;margin-left:8px;">Kurs</span>`;
+								div.addEventListener('mouseenter', function() {
+									this.style.background = '#f1f5f9';
+								});
+								div.addEventListener('mouseleave', function() {
+									this.style.background = '#fff';
+								});
+								div.addEventListener('click', function() {
+									window.location.href = item.url;
+								});
+								quickSearchSuggestions.appendChild(div);
+							});
+						}
+						
+						quickSearchSuggestions.style.display = 'block';
+					} else {
+						quickSearchSuggestions.innerHTML = '<div style="padding:8px 12px;color:#64748b;">Sonuç bulunamadı</div>';
+						quickSearchSuggestions.style.display = 'block';
+					}
+				})
+				.catch(error => {
+					console.error('Arama hatası:', error);
+					quickSearchSuggestions.style.display = 'none';
+				});
+		}, 300);
+	});
+	
+	// Close suggestions when clicking outside
+	document.addEventListener('click', function(e) {
+		if (!quickSearchInput.contains(e.target) && !quickSearchSuggestions.contains(e.target)) {
+			quickSearchSuggestions.style.display = 'none';
+		}
+	});
+}
+</script>
 
 <div class="card">
     <h3 class="h2">Kurslar</h3>

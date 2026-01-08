@@ -164,6 +164,18 @@
 						</tr>
 						{% endfor %}
 					</tbody>
+					{% if attendance_totals %}
+					<tfoot>
+						<tr style="background:#f9fafb;border-top:2px solid var(--border);">
+							<td style="padding:12px;font-weight:700;color:#0f172a;">TOPLAM</td>
+							<td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</td>
+							<td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</td>
+							<td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</td>
+							<td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</td>
+							<td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</td>
+						</tr>
+					</tfoot>
+					{% endif %}
 				</table>
 				<div class="mobile-card-view">
 					{% for student_data in teacher_report.students %}

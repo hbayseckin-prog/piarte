@@ -1037,6 +1037,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         
         # Puantaj raporunu hesapla (sadece kendi öğretmeni için)
         attendance_report = []
+        attendance_totals = None
         if current_teacher_id:
             attendance_report = crud.get_attendance_report_by_teacher(
                 db,
@@ -1044,6 +1045,18 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 start_date=start_date_obj,
                 end_date=end_date_obj
             )
+            # Toplamları hesapla
+            if attendance_report and len(attendance_report) > 0:
+                teacher_report = attendance_report[0]
+                if teacher_report.get("students"):
+                    totals = {
+                        "total_present": sum(s.get("present", 0) for s in teacher_report["students"]),
+                        "total_excused_absent": sum(s.get("excused_absent", 0) for s in teacher_report["students"]),
+                        "total_telafi": sum(s.get("telafi", 0) for s in teacher_report["students"]),
+                        "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in teacher_report["students"]),
+                        "total_lessons": sum(s.get("total", 0) for s in teacher_report["students"])
+                    }
+                    attendance_totals = totals
         
         context = {
             "request": request,
@@ -1054,6 +1067,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             "selected_teacher_id": display_teacher_id,
             "current_teacher_id": current_teacher_id,
             "attendance_report": attendance_report,
+            "attendance_totals": attendance_totals,
             "start_date": start_date or "",
             "end_date": end_date or "",
         }

@@ -344,7 +344,7 @@
 	<h3 class="h2">Ödeme Durumu Tablosu</h3>
 	<p style="color:#64748b;margin-bottom:16px;font-size:14px;">
 		📅 Tarih: {{ today.strftime('%d.%m.%Y') if today else '-' }} | 
-		Her 4 derste 1 ödeme alınır. 4'ün katlarına geldiğinde ödeme yapılmamış öğrenciler kırmızı renkte gösterilir.
+		1-2 ders: Ödendi | 3 ders: Ödeme Bekleniyor | 4 ve katları: Ödeme Gerekli
 	</p>
 	<div class="table-wrap">
 		<table>
@@ -383,12 +383,12 @@
 						{% endif %}
 					</td>
 					<td>
-						{% if item.needs_payment %}
-						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">⚠️ Ödeme Gerekli</span>
-						{% elif item.total_lessons >= 4 %}
-						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">✅ Ödendi</span>
+						{% if item.payment_status_class == 'needs_payment' %}
+						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status }}</span>
+						{% elif item.payment_status_class == 'paid' %}
+						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status }}</span>
 						{% else %}
-						<span style="padding:4px 8px;background:#64748b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">⏳ Beklemede</span>
+						<span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status }}</span>
 						{% endif %}
 					</td>
 				</tr>

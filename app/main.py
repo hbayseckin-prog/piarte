@@ -3192,9 +3192,35 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Ödeme durumu kontrolü
-            # Ödeme yetersizse kırmızı
-            needs_payment = total_paid_sets < expected_paid_sets
+            # Ödeme durumu kontrolü - Yeni mantık:
+            # 1-2 ders: Ödendi
+            # 3 ders: Ödeme bekleniyor
+            # 4 ve katları: Ödeme gerekli
+            payment_status = ""
+            payment_status_class = ""
+            needs_payment = False
+            
+            if total_lessons == 0:
+                payment_status = "⏳ Beklemede"
+                payment_status_class = "waiting"
+            elif total_lessons <= 2:
+                payment_status = "✅ Ödendi"
+                payment_status_class = "paid"
+                needs_payment = False
+            elif total_lessons == 3:
+                payment_status = "⏳ Ödeme Bekleniyor"
+                payment_status_class = "waiting"
+                needs_payment = False
+            elif total_lessons % 4 == 0:
+                # 4, 8, 12, 16... derslerde ödeme gerekli
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
+            else:
+                # 5, 6, 7, 9, 10, 11, 13, 14, 15... derslerde ödeme bekleniyor
+                payment_status = "⏳ Ödeme Bekleniyor"
+                payment_status_class = "waiting"
+                needs_payment = False
             
             payment_status_list.append({
                 "student": student,
@@ -3203,7 +3229,8 @@ def staff_panel(
                 "total_paid_sets": total_paid_sets,
                 "last_payment_date": last_payment_date,
                 "needs_payment": needs_payment,
-                "payment_status": "✅ Ödendi" if not needs_payment else "⚠️ Ödeme Gerekli"
+                "payment_status": payment_status,
+                "payment_status_class": payment_status_class
             })
         
         # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)

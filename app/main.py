@@ -2986,24 +2986,9 @@ def staff_panel(
 	status: str | None = None,
 	order_by: str = "marked_at_desc",
 	edit_search: str | None = None,
+	success: str | None = None,
+	error: str | None = None,
 	db: Session = Depends(get_db),
-):
-    request: Request, 
-    search: str | None = None, 
-    student_id: int | None = None, 
-    teacher_id: int | None = None,
-    selected_date: str | None = None,
-    success: str | None = None,
-    error: str | None = None,
-    # Yoklama filtreleme parametreleri
-    attendance_teacher_id: str | None = None,
-    attendance_student_id: str | None = None,
-    attendance_course_id: str | None = None,
-    status: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    order_by: str = "marked_at_desc",
-    db: Session = Depends(get_db)
 ):
     user = request.session.get("user")
     if not user:
@@ -3018,6 +3003,21 @@ def staff_panel(
             return RedirectResponse(url="/login/staff", status_code=302)
     try:
         from sqlalchemy import select
+        
+        # Query parametrelerini integer'a çevir (boş string'leri None yap)
+        student_id_int = None
+        teacher_id_int = None
+        if student_id and student_id.strip():
+            try:
+                student_id_int = int(student_id)
+            except (ValueError, TypeError):
+                student_id_int = None
+        if teacher_id and teacher_id.strip():
+            try:
+                teacher_id_int = int(teacher_id)
+            except (ValueError, TypeError):
+                teacher_id_int = None
+        
         # Tüm öğretmenleri getir
         teachers = crud.list_teachers(db)
         
@@ -3069,18 +3069,18 @@ def staff_panel(
                     "needs_payment": needs_payment
                 })
         
-        if student_id:
+        if student_id_int:
             # Seçilen öğrencinin bilgilerini ve derslerini getir
-            selected_student = crud.get_student(db, student_id)
+            selected_student = crud.get_student(db, student_id_int)
             if selected_student:
-                student_lessons = crud.list_lessons_by_student(db, student_id)
+                student_lessons = crud.list_lessons_by_student(db, student_id_int)
                 # Öğrencinin ödemelerini de getir
-                selected_student_payments = crud.list_payments_by_student(db, student_id)
+                selected_student_payments = crud.list_payments_by_student(db, student_id_int)
                 
                 # Öğrencinin tüm yoklamalarını tarihe göre sıralı getir (ders tarihleri için)
                 student_attendances = db.scalars(
                     select(models.Attendance)
-                    .where(models.Attendance.student_id == student_id)
+                    .where(models.Attendance.student_id == student_id_int)
                     .order_by(models.Attendance.marked_at.asc())
                 ).all()
                 
@@ -3212,12 +3212,12 @@ def staff_panel(
         # Geçmişe dönük yoklama için öğretmen ve tarih seçildiğinde öğrencileri getir
         selected_teacher = None
         selected_teacher_lessons = []
-        if teacher_id and selected_date:
+        if teacher_id_int and selected_date:
             try:
                 import logging
-                logging.info(f"🔍 Retrospective attendance: teacher_id={teacher_id}, selected_date={selected_date}")
+                logging.info(f"🔍 Retrospective attendance: teacher_id={teacher_id_int}, selected_date={selected_date}")
                 
-                selected_teacher = crud.get_teacher(db, teacher_id)
+                selected_teacher = crud.get_teacher(db, teacher_id_int)
                 logging.info(f"✅ Teacher found: {selected_teacher.first_name if selected_teacher else 'None'}")
                 
                 # Seçilen tarihe ait dersleri getir
@@ -3230,7 +3230,7 @@ def staff_panel(
                 teacher_students = db.scalars(
                     select(models.Student)
                     .join(models.TeacherStudent, models.TeacherStudent.student_id == models.Student.id)
-                    .where(models.TeacherStudent.teacher_id == teacher_id)
+                    .where(models.TeacherStudent.teacher_id == teacher_id_int)
                     .order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
                 ).all()
                 logging.info(f"👥 Total students for teacher: {len(teacher_students)}")
@@ -3240,7 +3240,7 @@ def staff_panel(
                 all_lessons = db.query(models.Lesson).options(
                     joinedload(models.Lesson.course),
                     joinedload(models.Lesson.teacher)
-                ).filter(models.Lesson.teacher_id == teacher_id).order_by(
+                ).filter(models.Lesson.teacher_id == teacher_id_int).order_by(
                     models.Lesson.lesson_date.asc(),
                     models.Lesson.start_time.asc()
                 ).all()
@@ -3454,7 +3454,7 @@ def staff_panel(
             "payment_status_list": payment_status_list,
             "today": today,
             "selected_teacher": selected_teacher,
-            "selected_teacher_id": teacher_id,
+            "selected_teacher_id": teacher_id_int,
             "selected_date": selected_date,
             "selected_teacher_lessons": selected_teacher_lessons,
             "success": success,

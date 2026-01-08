@@ -1898,6 +1898,98 @@ def delete_attendance_endpoint(
 	return RedirectResponse(url=redirect_url, status_code=302)
 
 
+@app.get("/attendances/{attendance_id}/edit", response_class=HTMLResponse)
+def edit_attendance_form(
+	attendance_id: int,
+	request: Request,
+	db: Session = Depends(get_db),
+):
+	"""Yoklama düzenleme formu (staff için)"""
+	user = request.session.get("user")
+	if not user or user.get("role") not in ["admin", "staff"]:
+		return RedirectResponse(url="/", status_code=302)
+	
+	attendance = db.get(models.Attendance, attendance_id)
+	if not attendance:
+		request.session["error"] = "Yoklama kaydı bulunamadı"
+		return RedirectResponse(url="/ui/staff", status_code=302)
+	
+	lesson = db.get(models.Lesson, attendance.lesson_id)
+	student = db.get(models.Student, attendance.student_id)
+	teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
+	course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+	
+	return templates.TemplateResponse("attendance_edit.html", {
+		"request": request,
+		"attendance": attendance,
+		"lesson": lesson,
+		"student": student,
+		"teacher": teacher,
+		"course": course,
+	})
+
+
+@app.post("/attendances/{attendance_id}/edit")
+def update_attendance_endpoint(
+	attendance_id: int,
+	request: Request,
+	status: str = Form(...),
+	marked_at_date: str = Form(...),
+	marked_at_time: str | None = Form(None),
+	note: str | None = Form(None),
+	db: Session = Depends(get_db),
+):
+	"""Yoklama kaydını güncelle (staff için)"""
+	user = request.session.get("user")
+	if not user or user.get("role") not in ["admin", "staff"]:
+		return RedirectResponse(url="/", status_code=302)
+	
+	try:
+		from datetime import datetime
+		
+		# Tarih ve saat bilgisini birleştir
+		marked_at_datetime = None
+		if marked_at_time:
+			try:
+				hour, minute = map(int, marked_at_time.split(":"))
+				marked_at_datetime = datetime.combine(
+					datetime.strptime(marked_at_date, "%Y-%m-%d").date(),
+					datetime.min.time().replace(hour=hour, minute=minute)
+				)
+			except (ValueError, AttributeError):
+				marked_at_datetime = datetime.combine(
+					datetime.strptime(marked_at_date, "%Y-%m-%d").date(),
+					datetime.min.time()
+				)
+		else:
+			marked_at_datetime = datetime.combine(
+				datetime.strptime(marked_at_date, "%Y-%m-%d").date(),
+				datetime.min.time()
+			)
+		
+		# Yoklama kaydını güncelle
+		updated_attendance = crud.update_attendance(
+			db,
+			attendance_id=attendance_id,
+			status=status,
+			marked_at=marked_at_datetime,
+			note=note
+		)
+		
+		if updated_attendance:
+			request.session["success"] = "Yoklama kaydı başarıyla güncellendi"
+		else:
+			request.session["error"] = "Yoklama kaydı bulunamadı"
+	except Exception as e:
+		import logging
+		import traceback
+		logging.error(f"Yoklama güncellenirken hata: {e}")
+		logging.error(traceback.format_exc())
+		request.session["error"] = f"Yoklama güncellenirken hata oluştu: {str(e)}"
+	
+	return RedirectResponse(url="/ui/staff", status_code=302)
+
+
 @app.get("/admin/clear-all-attendances")
 @app.post("/admin/clear-all-attendances")
 def clear_all_attendances(request: Request, db: Session = Depends(get_db)):
@@ -2881,6 +2973,21 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
 
 @app.get("/ui/staff", response_class=HTMLResponse)
 def staff_panel(
+	request: Request,
+	search: str | None = None,
+	student_id: str | None = None,
+	teacher_id: str | None = None,
+	selected_date: str | None = None,
+	attendance_teacher_id: str | None = None,
+	attendance_student_id: str | None = None,
+	attendance_course_id: str | None = None,
+	start_date: str | None = None,
+	end_date: str | None = None,
+	status: str | None = None,
+	order_by: str = "marked_at_desc",
+	edit_search: str | None = None,
+	db: Session = Depends(get_db),
+):
     request: Request, 
     search: str | None = None, 
     student_id: int | None = None, 
@@ -3291,6 +3398,46 @@ def staff_panel(
             "order_by": order_by
         }
         
+        # Yoklama düzeltme için arama
+        edit_attendances = []
+        if edit_search and edit_search.strip():
+            search_term = f"%{edit_search.strip()}%"
+            # Öğrenci veya öğretmen ismi ile eşleşen yoklamaları bul
+            all_attendances_for_edit = db.scalars(select(models.Attendance)).all()
+            
+            for att in all_attendances_for_edit:
+                lesson = db.get(models.Lesson, att.lesson_id)
+                student = db.get(models.Student, att.student_id)
+                teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
+                
+                # Öğrenci veya öğretmen ismi ile eşleşiyor mu kontrol et
+                match = False
+                if student:
+                    if (search_term.replace('%', '').lower() in student.first_name.lower() or 
+                        search_term.replace('%', '').lower() in student.last_name.lower() or
+                        search_term.replace('%', '').lower() in f"{student.first_name} {student.last_name}".lower()):
+                        match = True
+                if teacher:
+                    if (search_term.replace('%', '').lower() in teacher.first_name.lower() or 
+                        search_term.replace('%', '').lower() in teacher.last_name.lower() or
+                        search_term.replace('%', '').lower() in f"{teacher.first_name} {teacher.last_name}".lower()):
+                        match = True
+                
+                if match:
+                    course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+                    edit_attendances.append({
+                        "attendance": att,
+                        "lesson": lesson,
+                        "student": student,
+                        "teacher": teacher,
+                        "course": course,
+                    })
+            
+            # Tarihe göre sırala (en yeni önce)
+            edit_attendances.sort(key=lambda x: x["attendance"].marked_at if x["attendance"].marked_at else datetime.min, reverse=True)
+            # Limit
+            edit_attendances = edit_attendances[:100]
+        
         return templates.TemplateResponse("staff_panel.html", {
             "request": request,
             "teachers": teachers,
@@ -3316,7 +3463,10 @@ def staff_panel(
             "students": students,
             "courses": courses,
             "filters": filters,
-            "attendances": attendances_with_details
+            "attendances": attendances_with_details,
+            # Yoklama düzeltme için
+            "edit_search": edit_search,
+            "edit_attendances": edit_attendances
         })
     except Exception as e:
         import logging

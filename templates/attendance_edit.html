@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Yoklama Düzenle - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Yoklama Düzenle</h2>
+
+{% if request.session.get('error') %}
+<div style="padding:12px 16px;background:#fee2e2;color:#991b1b;border:1px solid #ef4444;border-radius:8px;margin-bottom:16px;">
+    {{ request.session.pop('error') }}
+</div>
+{% endif %}
+
+{% if attendance and student and lesson %}
+<div class="card">
+    <h3 class="h2">Yoklama Bilgileri</h3>
+    <div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">
+        <div style="margin-bottom:8px;"><strong>Öğrenci:</strong> {{ student.first_name }} {{ student.last_name }}</div>
+        <div style="margin-bottom:8px;"><strong>Kurs:</strong> {{ course.name if course else '-' }}</div>
+        <div style="margin-bottom:8px;"><strong>Öğretmen:</strong> {% if teacher %}{{ teacher.first_name }} {{ teacher.last_name }}{% else %}-{% endif %}</div>
+        <div><strong>Ders Tarihi:</strong> {{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</div>
+    </div>
+    
+    <form method="post" action="/attendances/{{ attendance.id }}/edit">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+            <div>
+                <label for="status" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Durum</label>
+                <select 
+                    name="status" 
+                    id="status" 
+                    required
+                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                    <option value="PRESENT" {% if attendance.status == 'PRESENT' %}selected{% endif %}>✅ Geldi</option>
+                    <option value="EXCUSED_ABSENT" {% if attendance.status == 'EXCUSED_ABSENT' %}selected{% endif %}>📝 Haberli Gelmedi</option>
+                    <option value="TELAFI" {% if attendance.status == 'TELAFI' or attendance.status == 'LATE' %}selected{% endif %}>🔄 Telafi</option>
+                    <option value="UNEXCUSED_ABSENT" {% if attendance.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>❌ Habersiz Gelmedi</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="marked_at_date" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Yoklama Tarihi</label>
+                <input 
+                    type="date" 
+                    name="marked_at_date" 
+                    id="marked_at_date" 
+                    value="{{ attendance.marked_at.strftime('%Y-%m-%d') if attendance.marked_at else '' }}"
+                    required
+                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+                />
+            </div>
+            
+            <div>
+                <label for="marked_at_time" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Yoklama Saati (Opsiyonel)</label>
+                <input 
+                    type="time" 
+                    name="marked_at_time" 
+                    id="marked_at_time" 
+                    value="{{ attendance.marked_at.strftime('%H:%M') if attendance.marked_at else '' }}"
+                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+                />
+            </div>
+            
+            <div>
+                <label for="note" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Not (Opsiyonel)</label>
+                <textarea 
+                    name="note" 
+                    id="note" 
+                    rows="3"
+                    placeholder="İsteğe bağlı not..."
+                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;">{{ attendance.note or '' }}</textarea>
+            </div>
+            
+            <div style="display:flex;gap:8px;">
+                <button type="submit" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;flex:1;">💾 Kaydet</button>
+                <a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">İptal</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="card">
+    <p style="color:#64748b;text-align:center;padding:20px;">Yoklama kaydı bulunamadı.</p>
+    <a href="/ui/staff" style="display:inline-block;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">Geri Dön</a>
+</div>
+{% endif %}
+
+{% endblock %}

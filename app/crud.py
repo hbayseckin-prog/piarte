@@ -455,6 +455,24 @@ def list_attendance_for_lesson(db: Session, lesson_id: int):
 	return db.scalars(stmt).all()
 
 
+def update_attendance(db: Session, attendance_id: int, status: str | None = None, marked_at: datetime | None = None, note: str | None = None):
+	"""Yoklama kaydını güncelle"""
+	attendance = db.get(models.Attendance, attendance_id)
+	if not attendance:
+		return None
+	
+	if status is not None:
+		attendance.status = str(status).strip().upper()
+	if marked_at is not None:
+		attendance.marked_at = marked_at
+	if note is not None:
+		attendance.note = note
+	
+	db.commit()
+	db.refresh(attendance)
+	return attendance
+
+
 def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, status: str | None = None, start_date: date | None = None, end_date: date | None = None, order_by: str = "marked_at_desc"):
 	# #region agent log
 	import json, os, time

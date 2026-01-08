@@ -704,6 +704,256 @@
 	})();
 </script>
 
+<script>
+	// Yoklama düzeltme için öğretmen/öğrenci arama autocomplete
+	(function() {
+		const editSearchInput = document.getElementById('edit_search_input');
+		const editResultsContainer = document.getElementById('edit-autocomplete-results');
+		let editSearchTimeout = null;
+
+		if (!editSearchInput || !editResultsContainer) {
+			return;
+		}
+
+		editSearchInput.addEventListener('input', function(e) {
+			const query = e.target.value.trim();
+			
+			if (editSearchTimeout) {
+				clearTimeout(editSearchTimeout);
+			}
+
+			if (query.length < 3) {
+				editResultsContainer.style.display = 'none';
+				return;
+			}
+
+			editSearchTimeout = setTimeout(() => {
+				// Hem öğrenci hem öğretmen araması yap
+				Promise.all([
+					fetch(`/api/students/search?q=${encodeURIComponent(query)}`).then(r => r.json()),
+					fetch(`/api/teachers/search?q=${encodeURIComponent(query)}`).then(r => r.json())
+				]).then(([students, teachers]) => {
+					displayEditResults(students, teachers);
+				}).catch(error => {
+					console.error('Arama hatası:', error);
+					editResultsContainer.style.display = 'none';
+				});
+			}, 300);
+		});
+
+		function displayEditResults(students, teachers) {
+			if ((!students || students.length === 0) && (!teachers || teachers.length === 0)) {
+				editResultsContainer.style.display = 'none';
+				return;
+			}
+
+			editResultsContainer.innerHTML = '';
+			
+			// Öğrenciler
+			if (students && students.length > 0) {
+				const section = document.createElement('div');
+				section.style.cssText = 'padding:8px 12px;background:#f9fafb;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:#64748b;';
+				section.textContent = 'Öğrenciler';
+				editResultsContainer.appendChild(section);
+				
+				students.forEach(student => {
+					const item = document.createElement('div');
+					item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.2s;';
+					item.innerHTML = `
+						<div style="font-weight:600;color:#0f172a;font-size:14px;">${student.full_name}</div>
+						${student.phone ? `<div style="color:#64748b;font-size:12px;margin-top:2px;">${student.phone}</div>` : ''}
+					`;
+					
+					item.addEventListener('mouseenter', function() {
+						this.style.background = '#f1f5f9';
+					});
+					item.addEventListener('mouseleave', function() {
+						this.style.background = '#fff';
+					});
+
+					item.addEventListener('click', function() {
+						window.location.href = `/ui/staff?edit_search=${encodeURIComponent(student.full_name)}`;
+					});
+
+					editResultsContainer.appendChild(item);
+				});
+			}
+			
+			// Öğretmenler
+			if (teachers && teachers.length > 0) {
+				const section = document.createElement('div');
+				section.style.cssText = 'padding:8px 12px;background:#f9fafb;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:#64748b;';
+				section.textContent = 'Öğretmenler';
+				editResultsContainer.appendChild(section);
+				
+				teachers.forEach(teacher => {
+					const item = document.createElement('div');
+					item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.2s;';
+					item.innerHTML = `
+						<div style="font-weight:600;color:#0f172a;font-size:14px;">${teacher.full_name}</div>
+					`;
+					
+					item.addEventListener('mouseenter', function() {
+						this.style.background = '#f1f5f9';
+					});
+					item.addEventListener('mouseleave', function() {
+						this.style.background = '#fff';
+					});
+
+					item.addEventListener('click', function() {
+						window.location.href = `/ui/staff?edit_search=${encodeURIComponent(teacher.full_name)}`;
+					});
+
+					editResultsContainer.appendChild(item);
+				});
+			}
+
+			editResultsContainer.style.display = 'block';
+		}
+
+		// Dışarı tıklandığında kapat
+		document.addEventListener('click', function(e) {
+			if (!editSearchInput.contains(e.target) && !editResultsContainer.contains(e.target)) {
+				editResultsContainer.style.display = 'none';
+			}
+		});
+	})();
+</script>
+
+<div class="card">
+    <h3 class="h2">Yoklama Düzeltme</h3>
+    <p style="color:var(--muted);margin-top:8px;margin-bottom:16px;font-size:14px;">
+        Öğretmen veya öğrenci ismi ile yoklama kayıtlarını arayıp düzenleyebilirsiniz.
+    </p>
+    
+    <form method="get" action="/ui/staff" style="margin-bottom:16px;padding:12px;background:#f0f9ff;border:1px solid #0ea5e9;border-radius:12px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;position:relative;margin-bottom:12px;">
+            <div style="flex:1;min-width:200px;position:relative;">
+                <label for="edit_search_input" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğretmen veya Öğrenci Ara</label>
+                <input 
+                    id="edit_search_input"
+                    type="text" 
+                    name="edit_search" 
+                    value="{{ edit_search if edit_search else '' }}" 
+                    placeholder="Öğretmen veya öğrenci adı ile ara (en az 3 harf)..." 
+                    autocomplete="off"
+                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
+                />
+                <div id="edit-autocomplete-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:300px;overflow-y:auto;box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px;">
+                <button type="submit" style="padding:10px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;white-space:nowrap;">Ara</button>
+                {% if edit_search %}
+                <a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap;">Temizle</a>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+    
+    {% if edit_attendances %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Yoklama Tarihi</th>
+                    <th>Saat</th>
+                    <th>Kurs</th>
+                    <th>Öğretmen</th>
+                    <th>Öğrenci</th>
+                    <th>Durum</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for entry in edit_attendances %}
+            <tr>
+                <td>{{ entry.attendance.marked_at.strftime('%d.%m.%Y') if entry.attendance and entry.attendance.marked_at else '-' }}</td>
+                <td>
+                    {% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+                        {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+                    {% else %}-{% endif %}
+                </td>
+                <td><strong>{{ entry.course.name if entry.course else '-' }}</strong></td>
+                <td>{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</td>
+                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }}</strong></td>
+                <td>
+                    {% if entry.attendance.status == 'PRESENT' %}
+                        <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+                    {% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+                        <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                    {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+                        <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                    {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+                        <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                    {% else %}
+                        {{ entry.attendance.status }}
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/attendances/{{ entry.attendance.id }}/edit" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;">✏️ Düzenle</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div class="mobile-card-view">
+            {% for entry in edit_attendances %}
+            <div class="mobile-card">
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Yoklama Tarihi</div>
+                    <div class="mobile-card-value">{{ entry.attendance.marked_at.strftime('%d.%m.%Y') if entry.attendance and entry.attendance.marked_at else '-' }}</div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Saat</div>
+                    <div class="mobile-card-value">
+                        {% if entry.lesson and (entry.lesson.start_time or entry.lesson.end_time) %}
+                            {{ entry.lesson.start_time.strftime('%H:%M') if entry.lesson.start_time else '' }} - {{ entry.lesson.end_time.strftime('%H:%M') if entry.lesson.end_time else '' }}
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Kurs</div>
+                    <div class="mobile-card-value"><strong>{{ entry.course.name if entry.course else '-' }}</strong></div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Öğretmen</div>
+                    <div class="mobile-card-value">{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Öğrenci</div>
+                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }}</strong></div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Durum</div>
+                    <div class="mobile-card-value">
+                        {% if entry.attendance.status == 'PRESENT' %}
+                            <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+                        {% elif entry.attendance.status == 'UNEXCUSED_ABSENT' %}
+                            <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+                        {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
+                            <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                        {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
+                            <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+                        {% else %}
+                            {{ entry.attendance.status }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">İşlem</div>
+                    <div class="mobile-card-value">
+                        <a href="/attendances/{{ entry.attendance.id }}/edit" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;display:block;text-align:center;">✏️ Düzenle</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% elif edit_search %}
+    <p style="color:#64748b;text-align:center;padding:20px;">Arama sonucu bulunamadı.</p>
+    {% endif %}
+</div>
+
 <div class="card">
     <h3 class="h2">Yoklamalar</h3>
     <form method="get" action="/ui/staff" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">

@@ -3193,31 +3193,37 @@ def staff_panel(
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
             # Ödeme durumu kontrolü - Yeni mantık:
+            # 0 ders (ödeme yapılmamış): Ödeme Gerekli
             # 1-2 ders: Ödendi
-            # 3 ders: Ödeme bekleniyor
-            # 4 ve katları: Ödeme gerekli
+            # 3 ve 3'ün katları (3, 6, 9, 15, 18... ama 4'ün katı değilse): Ödeme Bekleniyor
+            # 4 ve 4'ün katları (4, 8, 12, 16, 20...): Ödeme Gerekli
+            # Diğer durumlar: Ödeme Bekleniyor
             payment_status = ""
             payment_status_class = ""
             needs_payment = False
             
             if total_lessons == 0:
-                payment_status = "⏳ Beklemede"
-                payment_status_class = "waiting"
-            elif total_lessons <= 2:
-                payment_status = "✅ Ödendi"
-                payment_status_class = "paid"
-                needs_payment = False
-            elif total_lessons == 3:
-                payment_status = "⏳ Ödeme Bekleniyor"
-                payment_status_class = "waiting"
-                needs_payment = False
-            elif total_lessons % 4 == 0:
-                # 4, 8, 12, 16... derslerde ödeme gerekli
+                # 0 ders - ödeme yapılmamış
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
                 needs_payment = True
+            elif total_lessons <= 2:
+                # 1-2 ders: Ödendi
+                payment_status = "✅ Ödendi"
+                payment_status_class = "paid"
+                needs_payment = False
+            elif total_lessons % 4 == 0:
+                # 4 ve 4'ün katları (4, 8, 12, 16, 20...): Ödeme Gerekli (öncelikli)
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
+            elif total_lessons % 3 == 0:
+                # 3 ve 3'ün katları (3, 6, 9, 15, 18, 21...) ama 4'ün katı değilse: Ödeme Bekleniyor
+                payment_status = "⏳ Ödeme Bekleniyor"
+                payment_status_class = "waiting"
+                needs_payment = False
             else:
-                # 5, 6, 7, 9, 10, 11, 13, 14, 15... derslerde ödeme bekleniyor
+                # Diğer durumlar (5, 7, 10, 11, 13, 14, 17, 19...): Ödeme Bekleniyor
                 payment_status = "⏳ Ödeme Bekleniyor"
                 payment_status_class = "waiting"
                 needs_payment = False

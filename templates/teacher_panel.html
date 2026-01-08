@@ -206,6 +206,34 @@
 						</div>
 					</div>
 					{% endfor %}
+					{% if attendance_totals %}
+					<div class="mobile-card" style="background:#f9fafb;border:2px solid var(--border);border-top:3px solid #0f172a;">
+						<div class="mobile-card-row">
+							<div class="mobile-card-label" style="font-weight:700;color:#0f172a;font-size:16px;">TOPLAM</div>
+							<div class="mobile-card-value" style="font-weight:700;color:#0f172a;font-size:16px;"></div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Geldi</div>
+							<div class="mobile-card-value" style="color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Haberli Gelmedi</div>
+							<div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Telafi</div>
+							<div class="mobile-card-value" style="color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Habersiz Gelmedi</div>
+							<div class="mobile-card-value" style="color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</div>
+						</div>
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Toplam Ders</div>
+							<div class="mobile-card-value" style="font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</div>
+						</div>
+					</div>
+					{% endif %}
 				</div>
 			</div>
 			{% else %}

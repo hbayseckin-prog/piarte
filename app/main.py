@@ -3209,10 +3209,17 @@ def staff_panel(
                 payment_status_class = "needs_payment"
                 needs_payment = True
             elif total_lessons == 0:
-                # 0 ders: Ödeme Gerekli
-                payment_status = "⚠️ Ödeme Gerekli"
-                payment_status_class = "needs_payment"
-                needs_payment = True
+                # 0 ders: Eğer ödeme yapıldıysa "Ödendi", yoksa "Ödeme Gerekli"
+                if total_paid_sets > 0:
+                    # 0 ders ama ödeme yapılmış
+                    payment_status = "✅ Ödendi"
+                    payment_status_class = "paid"
+                    needs_payment = False
+                else:
+                    # 0 ders ve ödeme yok
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
             else:
                 # Set numarası hesapla (0-based: 0. set = 0-3, 1. set = 4-7, 2. set = 8-11...)
                 current_set = total_lessons // 4

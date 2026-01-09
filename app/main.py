@@ -3234,23 +3234,35 @@ def staff_panel(
                     needs_payment = False
                 elif current_set == total_paid_sets:
                     # Yeni set başladı, ödeme yapılmamış
-                    # 3. dersten itibaren eğer yeni set ödemesi yapılmadıysa "Ödeme Bekleniyor"
-                    if total_lessons <= 2:
+                    # Sadece 3. ders pozisyonunda (position_in_set == 3, yani 3, 7, 11, 15...) ödeme bekleniyor
+                    if position_in_set == 3:
+                        # Set içinde 4. ders pozisyonu (3, 7, 11, 15...): Ödeme Bekleniyor
+                        payment_status = "⏳ Ödeme Bekleniyor"
+                        payment_status_class = "waiting"
+                        needs_payment = False
+                    elif total_lessons <= 2:
                         # 0-2. dersler: Ödeme yapıldı
                         payment_status = "✅ Ödeme Yapıldı"
                         payment_status_class = "paid"
                         needs_payment = False
                     else:
-                        # 3. ders ve sonrası: Ödeme Bekleniyor (yeni set ödemesi yapılmadı)
-                        payment_status = "⏳ Ödeme Bekleniyor"
-                        payment_status_class = "waiting"
+                        # Diğer durumlar (4, 5, 6, 8, 9, 10...): Normal mantık
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
                         needs_payment = False
                 else:
                     # Daha ileri bir set, ödeme yapılmamış
-                    # 3. dersten itibaren eğer yeni set ödemesi yapılmadıysa "Ödeme Bekleniyor"
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
-                    needs_payment = False
+                    # Sadece 3. ders pozisyonunda (position_in_set == 3) ödeme bekleniyor
+                    if position_in_set == 3:
+                        # Set içinde 4. ders pozisyonu: Ödeme Bekleniyor
+                        payment_status = "⏳ Ödeme Bekleniyor"
+                        payment_status_class = "waiting"
+                        needs_payment = False
+                    else:
+                        # Diğer durumlar: Normal mantık
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
+                        needs_payment = False
             
             payment_status_list.append({
                 "student": student,

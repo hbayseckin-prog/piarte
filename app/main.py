@@ -3192,100 +3192,60 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Ödeme durumu kontrolü - Set bazlı mantık:
-            # Her set 4 derslik: 1. Set (0-4 ders), 2. Set (5-8 ders), 3. Set (9-12 ders)...
-            # Eğer set için ödeme yapıldıysa, o set içindeki tüm dersler Ödendi
-            # Eğer set için ödeme yapılmadıysa, o set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
+            # Ödeme durumu kontrolü - Yeni mantık:
+            # Her set 4 derslik: 0. Set (0-3 ders), 1. Set (4-7 ders), 2. Set (8-11 ders)...
+            # İlk ödeme yapıldığında (0-2 ders arası): "Ödeme yapıldı"
+            # 3. ders: Ödeme yapılmamışsa "Ödeme bekleniyor"
+            # 4. ders: Ödeme yapılmamışsa "Ödeme gerekli"
+            # Her set için aynı mantık uygulanır
             payment_status = ""
             payment_status_class = ""
             needs_payment = False
             
-            if total_paid_sets > 0:
-                # Ödeme yapıldı ise
-                # Set yapısı: 1. Set (0-4 ders), 2. Set (5-8 ders), 3. Set (9-12 ders)...
-                # Set numarası: total_lessons // 5 (ilk set 5 ders, diğerleri 4 ders)
-                if total_lessons == 0:
-                    # 0 ders: Ödeme Gerekli
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
-                elif total_lessons <= 4:
-                    # 1. Set içindeyiz (0-4 ders)
-                    if total_paid_sets >= 1:
-                        # 1. set ödemesi yapılmış, tüm dersler Ödendi
-                        payment_status = "✅ Ödendi"
-                        payment_status_class = "paid"
-                        needs_payment = False
-                    else:
-                        # 1. set ödemesi yapılmamış
-                        if total_lessons == 1 or total_lessons == 2:
-                            payment_status = "✅ Ödendi"
-                            payment_status_class = "paid"
-                            needs_payment = False
-                        elif total_lessons == 3:
-                            payment_status = "⏳ Ödeme Bekleniyor"
-                            payment_status_class = "waiting"
-                            needs_payment = False
-                        elif total_lessons == 4:
-                            payment_status = "⚠️ Ödeme Gerekli"
-                            payment_status_class = "needs_payment"
-                            needs_payment = True
-                else:
-                    # 2. set ve sonrası (5+ ders)
-                    # Set numarası: (total_lessons - 5) // 4 + 1 (1. set 0-4, 2. set 5-8, 3. set 9-12...)
-                    current_set = ((total_lessons - 5) // 4) + 1
-                    
-                    if current_set < total_paid_sets:
-                        # Bu set için ödeme yapılmış, tüm dersler Ödendi
-                        payment_status = "✅ Ödendi"
-                        payment_status_class = "paid"
-                        needs_payment = False
-                    elif current_set == total_paid_sets:
-                        # Yeni set başladı, ödeme yapılmamış
-                        # Bu set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
-                        # Set içindeki pozisyon: (total_lessons - 5) % 4 (5. ders = 0, 6. ders = 1, 7. ders = 2, 8. ders = 3)
-                        position_in_set = (total_lessons - 5) % 4
-                        if position_in_set == 0 or position_in_set == 1:
-                            # Set içinde 1-2. dersler: Ödendi
-                            payment_status = "✅ Ödendi"
-                            payment_status_class = "paid"
-                            needs_payment = False
-                        elif position_in_set == 2:
-                            # Set içinde 3. ders: Ödeme Bekleniyor
-                            payment_status = "⏳ Ödeme Bekleniyor"
-                            payment_status_class = "waiting"
-                            needs_payment = False
-                        elif position_in_set == 3:
-                            # Set içinde 4. ders: Ödeme Gerekli
-                            payment_status = "⚠️ Ödeme Gerekli"
-                            payment_status_class = "needs_payment"
-                            needs_payment = True
-                    else:
-                        # Daha ileri bir set, ödeme gerekli
-                        payment_status = "⚠️ Ödeme Gerekli"
-                        payment_status_class = "needs_payment"
-                        needs_payment = True
+            if total_lessons == 0:
+                # 0 ders: Ödeme Gerekli
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
             else:
-                # Ödeme yapılmadı ise
-                if total_lessons == 0:
-                    # 0 ders: Ödeme Gerekli
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
-                else:
-                    # Ödeme yapılmamış set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
-                    remainder = total_lessons % 4
-                    if remainder == 1 or remainder == 2:
-                        # Set içinde 1-2. dersler: Ödendi
-                        payment_status = "✅ Ödendi"
+                # Set numarası hesapla (0-based: 0. set = 0-3, 1. set = 4-7, 2. set = 8-11...)
+                current_set = total_lessons // 4
+                # Set içindeki pozisyon (0-3): 0=1. ders, 1=2. ders, 2=3. ders, 3=4. ders
+                position_in_set = total_lessons % 4
+                
+                # Ödeme yapılan set sayısı (total_paid_sets) - ödeme tablosundan anlık olarak alınıyor
+                if current_set < total_paid_sets:
+                    # Bu set için ödeme yapılmış, tüm dersler "Ödendi"
+                    payment_status = "✅ Ödendi"
+                    payment_status_class = "paid"
+                    needs_payment = False
+                elif current_set == total_paid_sets:
+                    # Yeni set başladı, ödeme yapılmamış
+                    # Set içinde duruma göre:
+                    if position_in_set == 0 or position_in_set == 1 or position_in_set == 2:
+                        # 0-2. pozisyon (1-3. dersler): Ödeme yapıldı
+                        if total_paid_sets == 0 and total_lessons <= 2:
+                            # İlk ödeme yapıldı (0-2 ders arası)
+                            payment_status = "✅ Ödeme Yapıldı"
+                        else:
+                            # Sonraki setlerde ilk dersler
+                            payment_status = "✅ Ödendi"
                         payment_status_class = "paid"
                         needs_payment = False
-                    elif remainder == 3:
-                        # Set içinde 3. ders: Ödeme Bekleniyor
+                    elif position_in_set == 3:
+                        # 3. pozisyon (4. ders, yani 3, 7, 11, 15...): Ödeme Bekleniyor
                         payment_status = "⏳ Ödeme Bekleniyor"
                         payment_status_class = "waiting"
                         needs_payment = False
-                    elif remainder == 0:
+                else:
+                    # Daha ileri bir set, ödeme yapılmamış
+                    # Set içindeki pozisyona göre:
+                    if position_in_set == 0 or position_in_set == 1 or position_in_set == 2:
+                        # Set içinde ilk 3 ders: Ödendi
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
+                        needs_payment = False
+                    elif position_in_set == 3:
                         # Set içinde 4. ders: Ödeme Gerekli
                         payment_status = "⚠️ Ödeme Gerekli"
                         payment_status_class = "needs_payment"

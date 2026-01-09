@@ -344,8 +344,8 @@
 	<h3 class="h2">Ödeme Durumu Tablosu</h3>
 	<p style="color:#64748b;margin-bottom:16px;font-size:14px;">
 		📅 Tarih: {{ today.strftime('%d.%m.%Y') if today else '-' }} | 
-		Her ödeme 4 derslik döngüyü kapsar: 1-2. dersler Ödendi, 3. ders Ödeme Bekleniyor, 4. ders Ödeme Gerekli | 
-		Örnek: 1. ödeme sonrası 1-2 Ödendi, 3 Bekleniyor, 4 Gerekli | 2. ödeme sonrası 5-6 Ödendi, 7 Bekleniyor, 8 Gerekli
+		İlk ödeme (0-2 ders): Ödeme Yapıldı | 3. ders: Ödeme Bekleniyor | 4. ders: Ödeme Gerekli | 
+		Her 4 derslik set için aynı mantık uygulanır (5-8, 9-12, 13-16...)
 	</p>
 	<div class="table-wrap">
 		<table>

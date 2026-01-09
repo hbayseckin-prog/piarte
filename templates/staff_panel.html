@@ -344,7 +344,8 @@
 	<h3 class="h2">Ödeme Durumu Tablosu</h3>
 	<p style="color:#64748b;margin-bottom:16px;font-size:14px;">
 		📅 Tarih: {{ today.strftime('%d.%m.%Y') if today else '-' }} | 
-		0 ders: Ödeme Gerekli | 1-2 ders: Ödendi | 3 ve 3'ün katları: Ödeme Bekleniyor | 4 ve 4'ün katları: Ödeme Gerekli
+		Ödeme yapıldı ise: 1-2 ders Ödendi, 3 ve 3'ün katları Ödeme Bekleniyor | 
+		Ödeme yapılmadı ise: 0 ders Ödeme Gerekli, 4 ve 4'ün katları Ödeme Gerekli
 	</p>
 	<div class="table-wrap">
 		<table>

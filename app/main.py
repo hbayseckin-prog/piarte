@@ -3192,37 +3192,44 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Ödeme durumu kontrolü - Yeni mantık (her 4 derslik döngü):
-            # Öğrenci 0. derste ödeme yaptı ise (total_paid_sets > 0):
-            #   - Her 4 derslik döngüde: 1-2. dersler Ödendi, 3. ders Ödeme Bekleniyor, 4. ders Ödeme Gerekli
-            #   - Örnek: 1-2 ders: Ödendi, 3 ders: Ödeme Bekleniyor, 4 ders: Ödeme Gerekli
-            #   - Örnek: 5-6 ders: Ödendi, 7 ders: Ödeme Bekleniyor, 8 ders: Ödeme Gerekli
-            # Öğrenci ödeme yapmadı ise (total_paid_sets == 0):
-            #   - 0 ders: Ödeme Gerekli
-            #   - 4 ve 4'ün katları (4, 8, 12, 16, 20...): Ödeme Gerekli
-            #   - Diğer: Ödeme Bekleniyor
+            # Ödeme durumu kontrolü - Her ödeme 4 derslik döngüyü kapsar:
+            # 1. ödeme (0. derste): 1-2. dersler Ödendi, 3. ders Ödeme Bekleniyor, 4. ders Ödeme Gerekli
+            # 2. ödeme (4. derste): 5-6. dersler Ödendi, 7. ders Ödeme Bekleniyor, 8. ders Ödeme Gerekli
+            # 3. ödeme (8. derste): 9-10. dersler Ödendi, 11. ders Ödeme Bekleniyor, 12. ders Ödeme Gerekli
+            # Her 4 derslik döngüde: remainder 1-2 = Ödendi, remainder 3 = Ödeme Bekleniyor, remainder 0 = Ödeme Gerekli
             payment_status = ""
             payment_status_class = ""
             needs_payment = False
             
             if total_paid_sets > 0:
                 # Ödeme yapıldı ise - Her 4 derslik döngüde tekrar eden mantık
+                # total_lessons % 4 sonucuna göre durum belirlenir
                 remainder = total_lessons % 4
+                
                 if remainder == 1 or remainder == 2:
-                    # 1-2, 5-6, 9-10, 13-14... dersler: Ödendi
+                    # Her döngüde 1-2. dersler: Ödendi (1-2, 5-6, 9-10, 13-14...)
                     payment_status = "✅ Ödendi"
                     payment_status_class = "paid"
                     needs_payment = False
                 elif remainder == 3:
-                    # 3, 7, 11, 15, 19... dersler: Ödeme Bekleniyor
+                    # Her döngüde 3. ders: Ödeme Bekleniyor (3, 7, 11, 15, 19...)
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
                     needs_payment = False
                 elif remainder == 0:
-                    # 4, 8, 12, 16, 20... dersler: Ödeme Gerekli
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
+                    # Her döngüde 4. ders: Ödeme Gerekli (4, 8, 12, 16, 20...)
+                    # Ancak eğer bu döngü için ödeme yapılmışsa (total_lessons <= total_paid_sets * 4)
+                    # o zaman bu döngü içindeyiz, değilse yeni ödeme gerekli
+                    if total_lessons <= total_paid_sets * 4:
+                        # Bu döngü için ödeme yapılmış, ama 4. ders olduğu için yeni ödeme gerekli
+                        payment_status = "⚠️ Ödeme Gerekli"
+                        payment_status_class = "needs_payment"
+                        needs_payment = True
+                    else:
+                        # Bu döngü için ödeme yapılmamış, ödeme gerekli
+                        payment_status = "⚠️ Ödeme Gerekli"
+                        payment_status_class = "needs_payment"
+                        needs_payment = True
             else:
                 # Ödeme yapılmadı ise
                 if total_lessons == 0:

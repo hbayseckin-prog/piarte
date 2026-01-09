@@ -3192,41 +3192,76 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Ödeme durumu kontrolü - Her ödeme 4 derslik döngüyü kapsar:
-            # 1. ödeme (0. derste): 1-2. dersler Ödendi, 3. ders Ödeme Bekleniyor, 4. ders Ödeme Gerekli
-            # 2. ödeme (4. derste): 5-6. dersler Ödendi, 7. ders Ödeme Bekleniyor, 8. ders Ödeme Gerekli
-            # 3. ödeme (8. derste): 9-10. dersler Ödendi, 11. ders Ödeme Bekleniyor, 12. ders Ödeme Gerekli
-            # Her 4 derslik döngüde: remainder 1-2 = Ödendi, remainder 3 = Ödeme Bekleniyor, remainder 0 = Ödeme Gerekli
+            # Ödeme durumu kontrolü - Set bazlı mantık:
+            # Her set 4 derslik: 1. Set (0-4 ders), 2. Set (5-8 ders), 3. Set (9-12 ders)...
+            # Eğer set için ödeme yapıldıysa, o set içindeki tüm dersler Ödendi
+            # Eğer set için ödeme yapılmadıysa, o set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
             payment_status = ""
             payment_status_class = ""
             needs_payment = False
             
             if total_paid_sets > 0:
-                # Ödeme yapıldı ise - Her 4 derslik döngüde tekrar eden mantık
-                # total_lessons % 4 sonucuna göre durum belirlenir
-                remainder = total_lessons % 4
-                
-                if remainder == 1 or remainder == 2:
-                    # Her döngüde 1-2. dersler: Ödendi (1-2, 5-6, 9-10, 13-14...)
-                    payment_status = "✅ Ödendi"
-                    payment_status_class = "paid"
-                    needs_payment = False
-                elif remainder == 3:
-                    # Her döngüde 3. ders: Ödeme Bekleniyor (3, 7, 11, 15, 19...)
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
-                    needs_payment = False
-                elif remainder == 0:
-                    # Her döngüde 4. ders: Ödeme Gerekli (4, 8, 12, 16, 20...)
-                    # Ancak eğer bu döngü için ödeme yapılmışsa (total_lessons <= total_paid_sets * 4)
-                    # o zaman bu döngü içindeyiz, değilse yeni ödeme gerekli
-                    if total_lessons <= total_paid_sets * 4:
-                        # Bu döngü için ödeme yapılmış, ama 4. ders olduğu için yeni ödeme gerekli
-                        payment_status = "⚠️ Ödeme Gerekli"
-                        payment_status_class = "needs_payment"
-                        needs_payment = True
+                # Ödeme yapıldı ise
+                # Set yapısı: 1. Set (0-4 ders), 2. Set (5-8 ders), 3. Set (9-12 ders)...
+                # Set numarası: total_lessons // 5 (ilk set 5 ders, diğerleri 4 ders)
+                if total_lessons == 0:
+                    # 0 ders: Ödeme Gerekli
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
+                elif total_lessons <= 4:
+                    # 1. Set içindeyiz (0-4 ders)
+                    if total_paid_sets >= 1:
+                        # 1. set ödemesi yapılmış, tüm dersler Ödendi
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
+                        needs_payment = False
                     else:
-                        # Bu döngü için ödeme yapılmamış, ödeme gerekli
+                        # 1. set ödemesi yapılmamış
+                        if total_lessons == 1 or total_lessons == 2:
+                            payment_status = "✅ Ödendi"
+                            payment_status_class = "paid"
+                            needs_payment = False
+                        elif total_lessons == 3:
+                            payment_status = "⏳ Ödeme Bekleniyor"
+                            payment_status_class = "waiting"
+                            needs_payment = False
+                        elif total_lessons == 4:
+                            payment_status = "⚠️ Ödeme Gerekli"
+                            payment_status_class = "needs_payment"
+                            needs_payment = True
+                else:
+                    # 2. set ve sonrası (5+ ders)
+                    # Set numarası: (total_lessons - 5) // 4 + 1 (1. set 0-4, 2. set 5-8, 3. set 9-12...)
+                    current_set = ((total_lessons - 5) // 4) + 1
+                    
+                    if current_set < total_paid_sets:
+                        # Bu set için ödeme yapılmış, tüm dersler Ödendi
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
+                        needs_payment = False
+                    elif current_set == total_paid_sets:
+                        # Yeni set başladı, ödeme yapılmamış
+                        # Bu set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
+                        # Set içindeki pozisyon: (total_lessons - 5) % 4 (5. ders = 0, 6. ders = 1, 7. ders = 2, 8. ders = 3)
+                        position_in_set = (total_lessons - 5) % 4
+                        if position_in_set == 0 or position_in_set == 1:
+                            # Set içinde 1-2. dersler: Ödendi
+                            payment_status = "✅ Ödendi"
+                            payment_status_class = "paid"
+                            needs_payment = False
+                        elif position_in_set == 2:
+                            # Set içinde 3. ders: Ödeme Bekleniyor
+                            payment_status = "⏳ Ödeme Bekleniyor"
+                            payment_status_class = "waiting"
+                            needs_payment = False
+                        elif position_in_set == 3:
+                            # Set içinde 4. ders: Ödeme Gerekli
+                            payment_status = "⚠️ Ödeme Gerekli"
+                            payment_status_class = "needs_payment"
+                            needs_payment = True
+                    else:
+                        # Daha ileri bir set, ödeme gerekli
                         payment_status = "⚠️ Ödeme Gerekli"
                         payment_status_class = "needs_payment"
                         needs_payment = True
@@ -3237,16 +3272,24 @@ def staff_panel(
                     payment_status = "⚠️ Ödeme Gerekli"
                     payment_status_class = "needs_payment"
                     needs_payment = True
-                elif total_lessons % 4 == 0:
-                    # 4 ve 4'ün katları (4, 8, 12, 16, 20...): Ödeme Gerekli
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
                 else:
-                    # Diğer durumlar: Ödeme Bekleniyor
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
-                    needs_payment = False
+                    # Ödeme yapılmamış set içinde: 1-2. dersler Ödendi, 3. ders Bekleniyor, 4. ders Gerekli
+                    remainder = total_lessons % 4
+                    if remainder == 1 or remainder == 2:
+                        # Set içinde 1-2. dersler: Ödendi
+                        payment_status = "✅ Ödendi"
+                        payment_status_class = "paid"
+                        needs_payment = False
+                    elif remainder == 3:
+                        # Set içinde 3. ders: Ödeme Bekleniyor
+                        payment_status = "⏳ Ödeme Bekleniyor"
+                        payment_status_class = "waiting"
+                        needs_payment = False
+                    elif remainder == 0:
+                        # Set içinde 4. ders: Ödeme Gerekli
+                        payment_status = "⚠️ Ödeme Gerekli"
+                        payment_status_class = "needs_payment"
+                        needs_payment = True
             
             payment_status_list.append({
                 "student": student,

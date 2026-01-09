@@ -3202,7 +3202,13 @@ def staff_panel(
             payment_status_class = ""
             needs_payment = False
             
-            if total_lessons == 0:
+            # Hiç ödeme yapılmadıysa, kaçıncı derste olursa olsun "Ödeme Gerekli"
+            if total_paid_sets == 0:
+                # Hiç ödeme yok, her durumda ödeme gerekli
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
+            elif total_lessons == 0:
                 # 0 ders: Ödeme Gerekli
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
@@ -3224,7 +3230,7 @@ def staff_panel(
                     # Set içinde duruma göre:
                     if position_in_set == 0 or position_in_set == 1 or position_in_set == 2:
                         # 0-2. pozisyon (1-3. dersler): Ödeme yapıldı
-                        if total_paid_sets == 0 and total_lessons <= 2:
+                        if total_lessons <= 2:
                             # İlk ödeme yapıldı (0-2 ders arası)
                             payment_status = "✅ Ödeme Yapıldı"
                         else:

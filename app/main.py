@@ -3245,9 +3245,10 @@ def staff_panel(
                         payment_status_class = "needs_payment"
                         needs_payment = True
                     elif position_in_set == 1 or position_in_set == 2:
-                        # Set içinde 1-2. pozisyon (5-6, 9-10... dersler): Ödeme Yapıldı
-                        payment_status = "✅ Ödeme Yapıldı"
-                        payment_status_class = "paid"
+                        # Set içinde 1-2. pozisyon (5-6, 9-10... dersler): Ödeme Bekleniyor
+                        # Çünkü bu set için ödeme yapılmadı
+                        payment_status = "⏳ Ödeme Bekleniyor"
+                        payment_status_class = "waiting"
                         needs_payment = False
                     elif position_in_set == 3:
                         # Set içinde 3. pozisyon (7, 11, 15... dersler): Ödeme Bekleniyor

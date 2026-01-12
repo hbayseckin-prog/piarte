@@ -3177,25 +3177,12 @@ def staff_panel(
             payments = crud.list_payments_by_student(db, student.id)
             total_paid_sets = len(payments)
             
-            # Beklenen ödeme seti hesapla: Yapılan ödeme sayısı + beklenen ödeme sayısı
+            # Beklenen ödeme seti hesapla: Yapılan ödeme sayısı = Beklenen ödeme set sayısı
             # Yapılan her ödeme 1 set olarak sayılır
-            # Beklenen ödeme: Öğrencinin bulunduğu set seviyesine göre bir sonraki set için ödeme bekleniyor
-            # Örnek: 1 ödeme yapıldıysa beklenen = 1 (yapılan) + 1 (beklenen) = 2 set
-            # Örnek: 2 ödeme yapıldıysa beklenen = 2 (yapılan) + 1 (beklenen) = 3 set
-            
-            # Öğrencinin bulunduğu set seviyesi
-            if total_lessons == 0:
-                current_set_level = 0
-            else:
-                current_set_level = (total_lessons - 1) // 4 + 1
-            
-            # Beklenen ödeme = Yapılan ödeme sayısı + 1 (bir sonraki set için)
-            # Ama eğer öğrenci henüz hiç ders almamışsa ve ödeme yapılmamışsa, sadece 1 set bekleniyor
-            if total_paid_sets == 0:
-                expected_paid_sets = 1  # İlk ödeme bekleniyor
-            else:
-                # Yapılan ödeme sayısı + bir sonraki set için beklenen ödeme
-                expected_paid_sets = total_paid_sets + 1
+            # Örnek: 1 ödeme yapıldıysa beklenen = 1 set
+            # Örnek: 2 ödeme yapıldıysa beklenen = 2 set
+            # Örnek: 3 ödeme yapıldıysa beklenen = 3 set
+            expected_paid_sets = total_paid_sets
             
             # En son ödeme tarihi
             last_payment_date = None

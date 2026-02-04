@@ -9,6 +9,17 @@
 		<strong>⚠️ Hata:</strong> {{ error_message }}
 	</div>
 	{% endif %}
+	{% if request.session.get('attendance_duplicate_warning') %}
+	<div id="duplicate-warning-dialog" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+		<div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:100%;box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+			<h3 style="margin:0 0 16px 0;color:#0f172a;font-size:20px;font-weight:600;">⚠️ Uyarı</h3>
+			<p style="margin:0 0 24px 0;color:#475569;font-size:16px;line-height:1.5;">
+				{{ request.session.pop('attendance_duplicate_warning') }}
+			</p>
+			<button onclick="document.getElementById('duplicate-warning-dialog').style.display='none';" style="width:100%;padding:12px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:500;cursor:pointer;">Tamam</button>
+		</div>
+	</div>
+	{% endif %}
 	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new" id="attendance-form">
 		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
 			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>

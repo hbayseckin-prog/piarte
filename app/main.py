@@ -1457,7 +1457,7 @@ def lesson_create(
 
 
 @app.get("/lessons/{lesson_id}/attendance/new", response_class=HTMLResponse)
-def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None):
+def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None, duplicate_warning: str | None = None):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     from datetime import date as date_cls
@@ -1706,6 +1706,35 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     
     logging.info(f"=== YOKLAMA KAYIT İŞLEMİ BAŞLADI ===")
     logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
+    
+    # Aynı gün içinde aynı öğrenciye tekrar yoklama girilip girilmediğini kontrol et
+    if marked_at_dt and user.get("role") == "teacher":
+        from datetime import date as date_cls
+        from sqlalchemy import func
+        attendance_date = marked_at_dt.date()
+        duplicate_students = []
+        
+        for item in to_create:
+            # Aynı gün içinde bu öğrenci için yoklama kaydı var mı kontrol et
+            existing_attendance = db.scalars(
+                select(models.Attendance)
+                .where(
+                    models.Attendance.student_id == item.student_id,
+                    models.Attendance.lesson_id == item.lesson_id,
+                    func.date(models.Attendance.marked_at) == attendance_date
+                )
+            ).first()
+            
+            if existing_attendance:
+                student = db.get(models.Student, item.student_id)
+                if student:
+                    duplicate_students.append(f"{student.first_name} {student.last_name}")
+        
+        if duplicate_students:
+            # Uyarı mesajı göster
+            duplicate_message = f"Daha önce bu öğrenci{'ler' if len(duplicate_students) > 1 else ''} için yoklama almışsınız: {', '.join(duplicate_students)}"
+            request.session["attendance_duplicate_warning"] = duplicate_message
+            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?duplicate_warning=true", status_code=302)
     
     # Eğer to_create boşsa, hata ver
     if len(to_create) == 0:

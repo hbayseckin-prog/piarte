@@ -167,7 +167,13 @@
 
 <div class="card">
   <div style="margin-bottom:16px;">Hoş geldiniz. Buradan temel işlemleri kolayca erişebilirsiniz:</div>
+  {% if request.session.get('student_toggle_success') %}
+  <div style="padding:12px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+    ✅ {{ request.session.pop('student_toggle_success') }}
+  </div>
+  {% endif %}
   <div class="btn-group">
+    <a href="/ui/students" style="text-decoration:none;"><button style="width:100%;">Öğrenci Listesi</button></a>
     <a href="/students/new" style="text-decoration:none;"><button style="width:100%;">Yeni Öğrenci Kaydı</button></a>
     <a href="/lessons/new" style="text-decoration:none;"><button style="width:100%;">Ders Seçimi / Kayıt</button></a>
     <a href="/payments/new" style="text-decoration:none;"><button style="width:100%;">Ödeme Al</button></a>

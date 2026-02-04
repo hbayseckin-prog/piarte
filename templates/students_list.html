@@ -3,6 +3,11 @@
 {% block content %}
 <div class="card">
 	<h2 class="h1">Öğrenci Listesi</h2>
+	{% if request.session.get('student_toggle_success') %}
+	<div style="padding:12px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+		✅ {{ request.session.pop('student_toggle_success') }}
+	</div>
+	{% endif %}
 	<div style="margin-bottom:16px;">
 		<a href="/students/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;display:inline-block;">Yeni Öğrenci Ekle</a>
 	</div>
@@ -11,15 +16,24 @@
 			<thead><tr><th>Ad Soyad</th><th>Telefon</th><th>İşlemler</th></tr></thead>
 			<tbody>
 			{% for s in students %}
-			<tr>
-				<td><strong>{{ s.first_name }} {{ s.last_name }}</strong></td>
+			<tr style="{% if not s.is_active %}opacity:0.6;background-color:#f9fafb;{% endif %}">
+				<td>
+					<strong>{{ s.first_name }} {{ s.last_name }}</strong>
+					{% if not s.is_active %}
+					<span style="padding:2px 6px;background:#64748b;color:#fff;border-radius:4px;font-size:11px;margin-left:8px;">Pasif</span>
+					{% endif %}
+				</td>
 				<td>{{ s.phone_primary or '-' }}</td>
 				<td>
 					<div class="btn-group" style="flex-wrap:nowrap;">
 						<a href="/ui/students/{{ s.id }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;white-space:nowrap;">Detay</a>
-						<form method="post" action="/students/{{ s.id }}/delete" style="display:inline;margin:0;">
-							<button type="submit" onclick="return confirm('Silmek istediğinize emin misiniz?');" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;">Sil</button>
+						{% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
+						<form method="post" action="/students/{{ s.id }}/toggle-active" style="display:inline;margin:0;">
+							<button type="submit" style="padding:6px 12px;background:{% if s.is_active %}#f59e0b{% else %}#10b981{% endif %};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;">
+								{% if s.is_active %}Pasif Yap{% else %}Aktif Yap{% endif %}
+							</button>
 						</form>
+						{% endif %}
 					</div>
 				</td>
 			</tr>
@@ -28,10 +42,15 @@
 		</table>
 		<div class="mobile-card-view">
 			{% for s in students %}
-			<div class="mobile-card">
+			<div class="mobile-card" style="{% if not s.is_active %}opacity:0.6;background-color:#f9fafb;{% endif %}">
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Ad Soyad</div>
-					<div class="mobile-card-value"><strong>{{ s.first_name }} {{ s.last_name }}</strong></div>
+					<div class="mobile-card-value">
+						<strong>{{ s.first_name }} {{ s.last_name }}</strong>
+						{% if not s.is_active %}
+						<span style="padding:2px 6px;background:#64748b;color:#fff;border-radius:4px;font-size:11px;margin-left:8px;">Pasif</span>
+						{% endif %}
+					</div>
 				</div>
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Telefon</div>
@@ -42,9 +61,13 @@
 					<div class="mobile-card-value">
 						<div class="btn-group">
 							<a href="/ui/students/{{ s.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;display:inline-block;text-align:center;flex:1;">Detay</a>
-							<form method="post" action="/students/{{ s.id }}/delete" style="display:inline;margin:0;flex:1;">
-								<button type="submit" onclick="return confirm('Silmek istediğinize emin misiniz?');" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">Sil</button>
+							{% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
+							<form method="post" action="/students/{{ s.id }}/toggle-active" style="display:inline;margin:0;flex:1;">
+								<button type="submit" style="padding:8px 12px;background:{% if s.is_active %}#f59e0b{% else %}#10b981{% endif %};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">
+									{% if s.is_active %}Pasif Yap{% else %}Aktif Yap{% endif %}
+								</button>
 							</form>
+							{% endif %}
 						</div>
 					</div>
 				</div>

@@ -1,5 +1,5 @@
 from datetime import datetime, date, time
-from sqlalchemy import Column, Integer, String, Date, DateTime, Time, ForeignKey, Numeric, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, DateTime, Time, ForeignKey, Numeric, Text, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from .db import Base
@@ -29,6 +29,7 @@ class Student(Base):
 	address: Mapped[str | None] = mapped_column(Text, nullable=True)
 	phone_primary: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	phone_secondary: Mapped[str | None] = mapped_column(String(50), nullable=True)
+	is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 	enrollments = relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")

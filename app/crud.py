@@ -43,8 +43,11 @@ def create_student(db: Session, data: schemas.StudentCreate) -> models.Student:
 	return student
 
 
-def list_students(db: Session):
-	return db.scalars(select(models.Student).order_by(models.Student.created_at.desc())).all()
+def list_students(db: Session, active_only: bool = False):
+	stmt = select(models.Student)
+	if active_only:
+		stmt = stmt.where(models.Student.is_active == True)
+	return db.scalars(stmt.order_by(models.Student.created_at.desc())).all()
 
 
 def find_student_by_name(db: Session, first_name: str, last_name: str):
@@ -132,15 +135,17 @@ def assign_student_to_teacher(db: Session, teacher_id: int, student_id: int, com
 	return link
 
 
-def list_students_by_teacher(db: Session, teacher_id: int):
+def list_students_by_teacher(db: Session, teacher_id: int, active_only: bool = True):
 	# Öğretmene atanmış öğrencileri getir
 	try:
 		stmt = (
 			select(models.Student)
 			.join(models.TeacherStudent, models.TeacherStudent.student_id == models.Student.id)
 			.where(models.TeacherStudent.teacher_id == teacher_id)
-			.order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
 		)
+		if active_only:
+			stmt = stmt.where(models.Student.is_active == True)
+		stmt = stmt.order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
 		students = db.scalars(stmt).all()
 		return list(students) if students else []
 	except Exception:
@@ -346,13 +351,15 @@ def assign_student_to_lesson(db: Session, lesson_id: int, student_id: int):
 	return link
 
 
-def list_students_by_lesson(db: Session, lesson_id: int):
+def list_students_by_lesson(db: Session, lesson_id: int, active_only: bool = True):
 	stmt = (
 		select(models.Student)
 		.join(models.LessonStudent, models.LessonStudent.student_id == models.Student.id)
 		.where(models.LessonStudent.lesson_id == lesson_id)
-		.order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
 	)
+	if active_only:
+		stmt = stmt.where(models.Student.is_active == True)
+	stmt = stmt.order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
 	return db.scalars(stmt).all()
 
 
@@ -628,8 +635,8 @@ def check_student_payment_status(db: Session, student_id: int):
 
 
 def list_students_needing_payment(db: Session):
-	"""Ödeme gerekli olan tüm öğrencileri listeler"""
-	all_students = list_students(db)
+	"""Ödeme gerekli olan tüm öğrencileri listeler (sadece aktif öğrenciler)"""
+	all_students = list_students(db, active_only=True)
 	students_needing_payment = []
 	
 	for student in all_students:

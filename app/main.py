@@ -1248,7 +1248,7 @@ def payment_form(request: Request, db: Session = Depends(get_db), student_id: st
     redirect = redirect_teacher(request.session.get("user"))
     if redirect:
         return redirect
-    students = crud.list_students(db)
+    students = crud.list_students(db, active_only=True)  # Sadece aktif öğrencileri göster
     selected_student_id = None
     if student_id:
         try:
@@ -1302,7 +1302,7 @@ def lesson_form(request: Request, db: Session = Depends(get_db)):
         return redirect
     courses = crud.list_courses(db)
     teachers = crud.list_teachers(db)
-    students = crud.list_students(db)
+    students = crud.list_students(db, active_only=True)  # Sadece aktif öğrencileri göster
     return templates.TemplateResponse("lesson_new.html", {"request": request, "courses": courses, "teachers": teachers, "students": students})
 
 
@@ -2066,7 +2066,7 @@ def enrollment_form(request: Request, db: Session = Depends(get_db)):
     redirect = redirect_teacher(request.session.get("user"))
     if redirect:
         return redirect
-    students = crud.list_students(db)
+    students = crud.list_students(db, active_only=True)  # Sadece aktif öğrencileri göster
     courses = crud.list_courses(db)
     return templates.TemplateResponse("enrollment_new.html", {"request": request, "students": students, "courses": courses})
 
@@ -2408,16 +2408,19 @@ def lesson_add_student_form(lesson_id: int, request: Request, db: Session = Depe
     lesson = crud.get_lesson(db, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
-    # Derse atanmamış öğrencileri getir (course'a kayıtlı ama derse atanmamış)
+    # Derse atanmamış öğrencileri getir (course'a kayıtlı ama derse atanmamış) - sadece aktif öğrenciler
     enrolled_students = db.scalars(
         select(models.Student)
         .join(models.Enrollment, models.Enrollment.student_id == models.Student.id)
-        .where(models.Enrollment.course_id == lesson.course_id)
+        .where(
+            models.Enrollment.course_id == lesson.course_id,
+            models.Student.is_active == True
+        )
     ).all()
     assigned_student_ids = {s.id for s in crud.list_students_by_lesson(db, lesson_id)}
     available_students = [s for s in enrolled_students if s.id not in assigned_student_ids]
-    # Tüm öğrencileri de seçenek olarak ekle
-    all_students = crud.list_students(db)
+    # Tüm aktif öğrencileri de seçenek olarak ekle
+    all_students = crud.list_students(db, active_only=True)
     return templates.TemplateResponse("lesson_add_student.html", {
         "request": request,
         "lesson": lesson,
@@ -3200,8 +3203,8 @@ def staff_panel(
             student_attendances = []
             selected_student_payments = []
         
-        # Ödeme durumu tablosu için tüm öğrencileri getir
-        all_students = crud.list_students(db)
+        # Ödeme durumu tablosu için sadece aktif öğrencileri getir
+        all_students = crud.list_students(db, active_only=True)
         payment_status_list = []
         from datetime import date
         today = date.today()
@@ -3726,23 +3729,20 @@ async def staff_retrospective_payment(
             status_code=303
         )
 
-@app.post("/students/{student_id}/delete")
-def delete_student(student_id: int, request: Request, db: Session = Depends(get_db)):
+@app.post("/students/{student_id}/toggle-active")
+def toggle_student_active(student_id: int, request: Request, db: Session = Depends(get_db)):
+    """Öğrenciyi pasif/aktif yap"""
     user = request.session.get("user")
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "staff"]:
         return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
     student = db.get(models.Student, student_id)
     if student:
-        # Tüm bağlı teacher_student satırlarını sil (CASCADE çalışsa bile manuel silme daha güvenli)
-        links = db.scalars(select(models.TeacherStudent).where(models.TeacherStudent.student_id == student.id)).all()
-        for link in links:
-            db.delete(link)
-        # Öğrenciyi sil (CASCADE ile otomatik olarak enrollments, payments, attendances da silinir)
-        db.delete(student)
-        # Tüm değişiklikleri tek seferde commit et
+        # Aktif/pasif durumunu tersine çevir
+        student.is_active = not student.is_active
         db.commit()
-        # Değişikliklerin veritabanına yansıdığından emin olmak için refresh yap
-        db.expire_all()
+        db.refresh(student)
+        status_text = "aktif" if student.is_active else "pasif"
+        request.session["student_toggle_success"] = f"Öğrenci {status_text} yapıldı"
     return RedirectResponse(url="/ui/students", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/teachers/{teacher_id}/delete")

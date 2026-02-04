@@ -618,6 +618,7 @@ def dashboard(
     # #endregion
     # Puantaj raporunu getir (sadece admin için ve sadece filtreler varsa)
     attendance_report = []
+    attendance_totals_by_teacher = {}
     if user.get("role") == "admin" and has_filters:
         attendance_report = crud.get_attendance_report_by_teacher(
             db,
@@ -627,6 +628,18 @@ def dashboard(
             start_date=start_date_obj,
             end_date=end_date_obj
         )
+        
+        # Her öğretmen için toplamları hesapla
+        for teacher_report in attendance_report:
+            if teacher_report.get("students"):
+                totals = {
+                    "total_present": sum(s.get("present", 0) for s in teacher_report["students"]),
+                    "total_excused_absent": sum(s.get("excused_absent", 0) for s in teacher_report["students"]),
+                    "total_telafi": sum(s.get("telafi", 0) for s in teacher_report["students"]),
+                    "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in teacher_report["students"]),
+                    "total_lessons": sum(s.get("total", 0) for s in teacher_report["students"])
+                }
+                attendance_totals_by_teacher[teacher_report["teacher"].id] = totals
         
         # #region agent log
         import json, os, time
@@ -676,6 +689,7 @@ def dashboard(
         "staff_users": staff_users,
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
+        "attendance_totals_by_teacher": attendance_totals_by_teacher,
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,
         "user": user,

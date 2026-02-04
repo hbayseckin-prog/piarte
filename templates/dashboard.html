@@ -606,6 +606,19 @@ if (quickSearchInput) {
                         </tr>
                         {% endfor %}
                     </tbody>
+                    {% if attendance_totals_by_teacher and attendance_totals_by_teacher.get(teacher_report.teacher.id) %}
+                    {% set attendance_totals = attendance_totals_by_teacher[teacher_report.teacher.id] %}
+                    <tfoot>
+                        <tr style="background:#f9fafb;border-top:2px solid var(--border);">
+                            <td style="padding:12px;font-weight:700;color:#0f172a;">TOPLAM</td>
+                            <td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</td>
+                            <td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</td>
+                            <td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</td>
+                            <td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</td>
+                            <td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
                 </table>
                 <div class="mobile-card-view">
                     {% for student_data in teacher_report.students %}
@@ -636,6 +649,35 @@ if (quickSearchInput) {
                         </div>
                     </div>
                     {% endfor %}
+                    {% if attendance_totals_by_teacher and attendance_totals_by_teacher.get(teacher_report.teacher.id) %}
+                    {% set attendance_totals = attendance_totals_by_teacher[teacher_report.teacher.id] %}
+                    <div class="mobile-card" style="background:#f9fafb;border:2px solid var(--border);border-top:3px solid #0f172a;">
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label" style="font-weight:700;color:#0f172a;font-size:16px;">TOPLAM</div>
+                            <div class="mobile-card-value" style="font-weight:700;color:#0f172a;font-size:16px;"></div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Geldi</div>
+                            <div class="mobile-card-value" style="color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Haberli Gelmedi</div>
+                            <div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Telafi</div>
+                            <div class="mobile-card-value" style="color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Habersiz Gelmedi</div>
+                            <div class="mobile-card-value" style="color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</div>
+                        </div>
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Toplam Ders</div>
+                            <div class="mobile-card-value" style="font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% else %}

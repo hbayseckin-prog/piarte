@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 def add_is_active_column():
     """Öğrenci tablosuna is_active kolonu ekle"""
-    print("📦 Öğrenci tablosuna is_active kolonu ekleniyor...")
+    print("Ogrenci tablosuna is_active kolonu ekleniyor...")
     
     db = next(get_db())
     try:
@@ -30,20 +30,20 @@ def add_is_active_column():
             if result.fetchone() is None:
                 # Kolon yoksa ekle
                 db.execute(text("ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL"))
-                print("✅ is_active kolonu eklendi")
+                print("is_active kolonu eklendi")
             else:
-                print("ℹ️ is_active kolonu zaten mevcut")
+                print("is_active kolonu zaten mevcut")
         
         db.commit()
-        print("✅ Migration tamamlandı!")
-        print("✅ Tüm mevcut öğrenciler aktif olarak işaretlendi")
+        print("Migration tamamlandi!")
+        print("Tum mevcut ogrenciler aktif olarak isaretlendi")
         return True
     except Exception as e:
         db.rollback()
-        print(f"❌ Hata: {e}")
+        print(f"Hata: {e}")
         # Eğer kolon zaten varsa hata verme
-        if "duplicate column" in str(e).lower() or "already exists" in str(e).lower():
-            print("ℹ️ is_active kolonu zaten mevcut, devam ediliyor...")
+        if "duplicate column" in str(e).lower() or "already exists" in str(e).lower() or "column" in str(e).lower() and "already exists" in str(e).lower():
+            print("is_active kolonu zaten mevcut, devam ediliyor...")
             return True
         return False
     finally:

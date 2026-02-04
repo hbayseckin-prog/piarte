@@ -33,5 +33,37 @@ def get_db():
 	finally:
 		db.close()
 
+def ensure_is_active_column():
+	"""is_active kolonunun var olduğundan emin ol"""
+	try:
+		from sqlalchemy import text, inspect
+		inspector = inspect(engine)
+		columns = [col['name'] for col in inspector.get_columns('students')]
+		
+		if 'is_active' not in columns:
+			print("is_active kolonu bulunamadi, ekleniyor...")
+			db = SessionLocal()
+			try:
+				if "sqlite" in str(engine.url):
+					db.execute(text("ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+				else:
+					db.execute(text("ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL"))
+				db.commit()
+				print("is_active kolonu eklendi")
+			except Exception as e:
+				if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+					print(f"is_active kolonu eklenirken hata: {e}")
+				db.rollback()
+			finally:
+				db.close()
+	except Exception as e:
+		print(f"is_active kolonu kontrol edilirken hata: {e}")
+
+# Uygulama başlangıcında kolonu kontrol et
+try:
+	ensure_is_active_column()
+except Exception as e:
+	print(f"Baslangic migration kontrolu hatasi: {e}")
+
 
 

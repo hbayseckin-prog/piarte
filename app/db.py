@@ -38,32 +38,51 @@ def ensure_is_active_column():
 	try:
 		from sqlalchemy import text, inspect
 		inspector = inspect(engine)
-		columns = [col['name'] for col in inspector.get_columns('students')]
 		
-		if 'is_active' not in columns:
+		# Kolonları kontrol et
+		try:
+			columns = inspector.get_columns('students')
+			column_names = [col['name'] for col in columns]
+		except Exception:
+			# Eğer tablo yoksa veya hata varsa, direkt eklemeyi dene
+			column_names = []
+		
+		if 'is_active' not in column_names:
 			print("is_active kolonu bulunamadi, ekleniyor...")
 			db = SessionLocal()
 			try:
-				if "sqlite" in str(engine.url):
+				if "sqlite" in str(engine.url).lower():
 					db.execute(text("ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
 				else:
+					# PostgreSQL için
 					db.execute(text("ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL"))
 				db.commit()
-				print("is_active kolonu eklendi")
+				print("is_active kolonu basariyla eklendi")
 			except Exception as e:
-				if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+				error_str = str(e).lower()
+				if "duplicate column" in error_str or "already exists" in error_str or "column" in error_str:
+					print("is_active kolonu zaten mevcut")
+				else:
 					print(f"is_active kolonu eklenirken hata: {e}")
+					import traceback
+					traceback.print_exc()
 				db.rollback()
 			finally:
 				db.close()
+		else:
+			print("is_active kolonu zaten mevcut")
 	except Exception as e:
 		print(f"is_active kolonu kontrol edilirken hata: {e}")
+		import traceback
+		traceback.print_exc()
 
 # Uygulama başlangıcında kolonu kontrol et
 try:
 	ensure_is_active_column()
 except Exception as e:
 	print(f"Baslangic migration kontrolu hatasi: {e}")
+	import traceback
+	traceback.print_exc()
 
 
 

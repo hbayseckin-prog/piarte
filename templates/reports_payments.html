@@ -39,13 +39,20 @@
 		<input type="hidden" id="studentId" name="student_id" value="{{ student_id }}" />
 		<div id="studentSuggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:1000;display:none;margin-top:4px;box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
 	</div>
+	<label>Ödeme Yöntemi</label>
+	<select name="method">
+		<option value="">Hepsi</option>
+		<option value="Nakit" {% if method == 'Nakit' %}selected{% endif %}>Nakit</option>
+		<option value="Kart" {% if method == 'Kart' %}selected{% endif %}>Kart</option>
+		<option value="EFT" {% if method == 'EFT' %}selected{% endif %}>EFT</option>
+	</select>
 	<button type="submit">Filtrele</button>
 </form>
 
 <div class="card">
 	<strong>Toplam: {{ '%.2f'|format(total) }} TL</strong>
     <div style="margin-top:8px">
-        <a href="/ui/reports/payments.csv?start={{ start }}&end={{ end }}&course_id={{ course_id }}&teacher_id={{ teacher_id }}{% if student_id %}&student_id={{ student_id }}{% endif %}">CSV indir</a>
+        <a href="/ui/reports/payments.csv?start={{ start }}&end={{ end }}&course_id={{ course_id }}&teacher_id={{ teacher_id }}{% if student_id %}&student_id={{ student_id }}{% endif %}{% if method %}&method={{ method }}{% endif %}">CSV indir</a>
         <button onclick="window.print()" style="margin-left:8px">Yazdır / PDF</button>
     </div>
 </div>
@@ -74,9 +81,9 @@
 		{% if is_admin %}
 		<td>
 			<div style="display:flex;gap:8px;align-items:center;">
-				<a href="/payments/{{ p.id }}/edit?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
+				<a href="/payments/{{ p.id }}/edit?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}&{% endif %}{% if method %}method={{ method }}{% endif %}" 
 				   style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;display:inline-block;">Düzenle</a>
-				<form method="post" action="/payments/{{ p.id }}/delete?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" 
+				<form method="post" action="/payments/{{ p.id }}/delete?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}&{% endif %}{% if method %}method={{ method }}{% endif %}" 
 					  style="display:inline;margin:0;" 
 					  onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
 					<button type="submit" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">Sil</button>

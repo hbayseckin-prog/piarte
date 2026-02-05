@@ -9,7 +9,7 @@
 </div>
 {% endif %}
 
-<form method="post" action="/payments/{{ payment.id }}/update?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}">
+<form method="post" action="/payments/{{ payment.id }}/update?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}&{% endif %}{% if method %}method_filter={{ method }}{% endif %}">
 	<label>Öğrenci</label>
 	<select name="student_id" required>
 		{% for s in students %}
@@ -31,7 +31,7 @@
 	<textarea name="note">{{ payment.note or '' }}</textarea>
 	<div style="margin-top:16px;display:flex;gap:12px;">
 		<button type="submit">Güncelle</button>
-		<a href="/ui/reports/payments?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}{% endif %}" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;display:inline-block;">İptal</a>
+		<a href="/ui/reports/payments?{% if start %}start={{ start }}&{% endif %}{% if end %}end={{ end }}&{% endif %}{% if course_id %}course_id={{ course_id }}&{% endif %}{% if teacher_id %}teacher_id={{ teacher_id }}&{% endif %}{% if method %}method={{ method }}{% endif %}" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;display:inline-block;">İptal</a>
 	</div>
 </form>
 {% endblock %}

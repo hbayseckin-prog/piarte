@@ -62,6 +62,17 @@ ROOT_PATH = os.getenv("ROOT_PATH", "")  # Varsayılan: boş (root'ta çalışır
 
 app = FastAPI(title="Piarte Kurs Yönetimi", root_path=ROOT_PATH)
 
+# Uygulama başlangıcında migration kontrolü
+@app.on_event("startup")
+async def startup_event():
+	"""Uygulama başlangıcında migration kontrolü yap"""
+	try:
+		from app.db import ensure_is_active_column
+		ensure_is_active_column()
+	except Exception as e:
+		import logging
+		logging.error(f"Startup migration hatasi: {e}")
+
 # CORS ayarları - iframe ve farklı domain'den erişim için
 app.add_middleware(
     CORSMiddleware,
@@ -2572,7 +2583,7 @@ def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(g
 
 # UI: Payment Reports
 @app.get("/ui/reports/payments", response_class=HTMLResponse)
-def payment_reports(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, db: Session = Depends(get_db)):
+def payment_reports(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, method: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
@@ -2635,6 +2646,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     if student_id_int:
         # Filter payments by selected student
         q = q.filter(models.Payment.student_id == student_id_int)
+    if method and method.strip():
+        # Filter payments by payment method
+        q = q.filter(models.Payment.method == method.strip())
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2649,6 +2663,9 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
     if student_id_int:
         # Filter sum by selected student
         sum_q = sum_q.filter(models.Payment.student_id == student_id_int)
+    if method and method.strip():
+        # Filter sum by payment method
+        sum_q = sum_q.filter(models.Payment.method == method.strip())
     if start_date:
         sum_q = sum_q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -2662,11 +2679,11 @@ def payment_reports(request: Request, start: str | None = None, end: str | None 
         selected_student = db.get(models.Student, student_id_int)
     user = request.session.get("user")
     is_admin = user and user.get("role") == "admin"
-    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or "", "student_id": student_id or "", "selected_student": selected_student, "is_admin": is_admin})
+    return templates.TemplateResponse("reports_payments.html", {"request": request, "items": items, "total": total, "start": start or "", "end": end or "", "courses": courses, "teachers": teachers, "course_id": course_id or "", "teacher_id": teacher_id or "", "student_id": student_id or "", "method": method or "", "selected_student": selected_student, "is_admin": is_admin})
 
 
 @app.get("/ui/reports/payments.csv")
-def payment_reports_csv(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, db: Session = Depends(get_db)):
+def payment_reports_csv(request: Request, start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, student_id: str | None = None, method: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
@@ -2728,6 +2745,9 @@ def payment_reports_csv(request: Request, start: str | None = None, end: str | N
     if student_id_int:
         # Filter payments by selected student
         q = q.filter(models.Payment.student_id == student_id_int)
+    if method and method.strip():
+        # Filter payments by payment method
+        q = q.filter(models.Payment.method == method.strip())
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
     if end_date:
@@ -3757,7 +3777,7 @@ def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_
     return RedirectResponse(url="/ui/teachers", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/payments/{payment_id}/edit", response_class=HTMLResponse)
-def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None):
+def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, method: str | None = None):
     """Ödeme düzenleme formu (sadece admin için)"""
     user = request.session.get("user")
     if not user or user.get("role") != "admin":
@@ -3790,7 +3810,8 @@ def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(g
         "start": start or "",
         "end": end or "",
         "course_id": course_id or "",
-        "teacher_id": teacher_id or ""
+        "teacher_id": teacher_id or "",
+        "method": method or ""
     })
 
 
@@ -3808,6 +3829,7 @@ def update_payment(
     end: str | None = None,
     course_id: str | None = None,
     teacher_id: str | None = None,
+    method_filter: str | None = None,
 ):
     """Ödeme kaydını günceller (sadece admin için)"""
     user = request.session.get("user")
@@ -3859,7 +3881,7 @@ def update_payment(
 
 
 @app.post("/payments/{payment_id}/delete")
-def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None):
+def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, method: str | None = None):
     """Ödeme kaydını siler (sadece admin için)"""
     user = request.session.get("user")
     if not user or user.get("role") != "admin":
@@ -3878,6 +3900,8 @@ def delete_payment(payment_id: int, request: Request, db: Session = Depends(get_
         params.append(f"course_id={course_id}")
     if teacher_id:
         params.append(f"teacher_id={teacher_id}")
+    if method:
+        params.append(f"method={method}")
     
     query_string = "&".join(params)
     redirect_url = f"/ui/reports/payments"

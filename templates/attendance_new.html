@@ -106,6 +106,77 @@
 	</form>
 </div>
 
+{% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' and today_attendances_summary %}
+<div class="card" style="margin-top:24px;">
+	<h3 style="margin:0 0 16px 0;color:#0f172a;font-size:18px;font-weight:600;">📅 Bugün Alınan Yoklamalar Özeti</h3>
+	{% for summary in today_attendances_summary %}
+	<div style="margin-bottom:20px;padding:16px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;">
+		<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+			<div>
+				<h4 style="margin:0;color:#0f172a;font-size:16px;font-weight:600;">{{ summary.course_name }}</h4>
+				{% if summary.lesson_time %}
+				<p style="margin:4px 0 0 0;color:#64748b;font-size:14px;">Saat: {{ summary.lesson_time }}</p>
+				{% endif %}
+			</div>
+			<a href="/lessons/{{ summary.lesson_id }}/attendance/new" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Yoklama Al</a>
+		</div>
+		
+		<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px;margin-bottom:12px;">
+			<div style="padding:8px;background:#dcfce7;border-radius:6px;text-align:center;">
+				<div style="font-size:20px;font-weight:700;color:#16a34a;">{{ summary.counts.PRESENT }}</div>
+				<div style="font-size:12px;color:#15803d;margin-top:4px;">Geldi</div>
+			</div>
+			<div style="padding:8px;background:#fef3c7;border-radius:6px;text-align:center;">
+				<div style="font-size:20px;font-weight:700;color:#d97706;">{{ summary.counts.EXCUSED_ABSENT }}</div>
+				<div style="font-size:12px;color:#b45309;margin-top:4px;">Haberli Gelmedi</div>
+			</div>
+			<div style="padding:8px;background:#dbeafe;border-radius:6px;text-align:center;">
+				<div style="font-size:20px;font-weight:700;color:#2563eb;">{{ summary.counts.TELAFI }}</div>
+				<div style="font-size:12px;color:#1e40af;margin-top:4px;">Telafi</div>
+			</div>
+			<div style="padding:8px;background:#fee2e2;border-radius:6px;text-align:center;">
+				<div style="font-size:20px;font-weight:700;color:#dc2626;">{{ summary.counts.UNEXCUSED_ABSENT }}</div>
+				<div style="font-size:12px;color:#b91c1c;margin-top:4px;">Habersiz Gelmedi</div>
+			</div>
+		</div>
+		
+		<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+			<details style="cursor:pointer;">
+				<summary style="font-size:14px;font-weight:600;color:#0f172a;user-select:none;">Detayları Göster ({{ summary.attendances|length }} öğrenci)</summary>
+				<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+					{% for att in summary.attendances %}
+					<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#fff;border-radius:6px;border:1px solid var(--border);">
+						<span style="font-size:14px;color:#0f172a;font-weight:500;">{{ att.student_name }}</span>
+						<div style="display:flex;gap:8px;align-items:center;">
+							{% if att.status == 'PRESENT' %}
+							<span style="padding:4px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-size:12px;font-weight:500;">Geldi</span>
+							{% elif att.status == 'EXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#fef3c7;color:#d97706;border-radius:4px;font-size:12px;font-weight:500;">Haberli Gelmedi</span>
+							{% elif att.status == 'TELAFI' %}
+							<span style="padding:4px 8px;background:#dbeafe;color:#2563eb;border-radius:4px;font-size:12px;font-weight:500;">Telafi</span>
+							{% elif att.status == 'UNEXCUSED_ABSENT' %}
+							<span style="padding:4px 8px;background:#fee2e2;color:#dc2626;border-radius:4px;font-size:12px;font-weight:500;">Habersiz Gelmedi</span>
+							{% endif %}
+							{% if att.marked_at %}
+							<span style="font-size:12px;color:#64748b;">{{ att.marked_at }}</span>
+							{% endif %}
+						</div>
+					</div>
+					{% endfor %}
+				</div>
+			</details>
+		</div>
+	</div>
+	{% endfor %}
+</div>
+{% endif %}
+
+{% if success_message %}
+<div style="margin-top:16px;padding:12px 16px;background:#10b981;color:#fff;border-radius:8px;">
+	✅ {{ success_message }} yoklama kaydı başarıyla oluşturuldu.
+</div>
+{% endif %}
+
 {% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
 <script>
 	(function() {

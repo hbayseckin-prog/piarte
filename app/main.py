@@ -1468,7 +1468,7 @@ def lesson_create(
 
 
 @app.get("/lessons/{lesson_id}/attendance/new", response_class=HTMLResponse)
-def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None, duplicate_warning: str | None = None):
+def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None, duplicate_warning: str | None = None, success: str | None = None):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     from datetime import date as date_cls
@@ -1512,6 +1512,71 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
         error_message = request.session.get("attendance_errors", "Lütfen en az bir öğrenci için durum seçin.")
         request.session.pop("attendance_errors", None)
     
+    # Öğretmen için o gün alınan yoklamaları getir
+    today_attendances_summary = None
+    if user.get("role") == "teacher" and lesson.teacher_id == user.get("teacher_id"):
+        from sqlalchemy import func
+        from datetime import datetime
+        today = date_cls.today()
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
+        
+        # Öğretmenin bugün aldığı tüm yoklamaları getir
+        today_attendances = db.scalars(
+            select(models.Attendance)
+            .join(models.Lesson)
+            .where(
+                models.Lesson.teacher_id == user.get("teacher_id"),
+                models.Attendance.marked_at >= today_start,
+                models.Attendance.marked_at <= today_end
+            )
+            .order_by(models.Attendance.marked_at.desc())
+        ).all()
+        
+        # Özet bilgileri hazırla
+        if today_attendances:
+            summary_by_lesson = {}
+            for att in today_attendances:
+                lesson_obj = db.get(models.Lesson, att.lesson_id)
+                if not lesson_obj:
+                    continue
+                
+                lesson_key = f"{lesson_obj.id}_{lesson_obj.course.name if lesson_obj.course else 'Bilinmeyen'}"
+                if lesson_key not in summary_by_lesson:
+                    summary_by_lesson[lesson_key] = {
+                        "lesson_id": lesson_obj.id,
+                        "course_name": lesson_obj.course.name if lesson_obj.course else "Bilinmeyen",
+                        "lesson_time": lesson_obj.start_time.strftime("%H:%M") if lesson_obj.start_time else "",
+                        "attendances": [],
+                        "counts": {
+                            "PRESENT": 0,
+                            "EXCUSED_ABSENT": 0,
+                            "TELAFI": 0,
+                            "UNEXCUSED_ABSENT": 0,
+                            "LATE": 0  # Eski kayıtlar için
+                        }
+                    }
+                
+                student = db.get(models.Student, att.student_id)
+                if student:
+                    status = att.status
+                    # Eski LATE ve ABSENT değerlerini normalize et
+                    if status == "LATE":
+                        status = "TELAFI"
+                    elif status == "ABSENT":
+                        status = "UNEXCUSED_ABSENT"
+                    
+                    summary_by_lesson[lesson_key]["attendances"].append({
+                        "student_name": f"{student.first_name} {student.last_name}",
+                        "status": status,
+                        "marked_at": att.marked_at.strftime("%H:%M") if att.marked_at else ""
+                    })
+                    
+                    if status in summary_by_lesson[lesson_key]["counts"]:
+                        summary_by_lesson[lesson_key]["counts"][status] += 1
+            
+            today_attendances_summary = list(summary_by_lesson.values())
+    
     return templates.TemplateResponse(
         "attendance_new.html",
         {
@@ -1520,6 +1585,8 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "students_with_status": students_with_payment_status,
             "attendance_date": default_attendance_date.isoformat(),
             "error_message": error_message,
+            "success_message": success,
+            "today_attendances_summary": today_attendances_summary,
         },
     )
 
@@ -1895,7 +1962,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     # Role'e göre yönlendir
     user = request.session.get("user")
     if user and user.get("role") == "teacher":
-        return RedirectResponse(url="/ui/teacher", status_code=302)
+        # Öğretmen için aynı form sayfasına redirect et (o günün yoklamalarını göstermek için)
+        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?success={success_count}", status_code=302)
     return RedirectResponse(url="/dashboard", status_code=302)
 
 

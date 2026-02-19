@@ -446,6 +446,7 @@ def dashboard(
     start_date: str | None = None,
     end_date: str | None = None,
     order_by: str = "marked_at_desc",
+    student_name: str | None = None,
 ):
     user = request.session.get("user")
     if not user:
@@ -524,7 +525,8 @@ def dashboard(
         course_id_int is not None,
         status is not None and status.strip(),
         start_date_obj is not None,
-        end_date_obj is not None
+        end_date_obj is not None,
+        student_name is not None and student_name.strip(),
     ])
     
     # Eğer hiçbir filtre yoksa, boş liste döndür
@@ -549,9 +551,22 @@ def dashboard(
                     filtered.append(att)
             attendances = filtered
         
-        # Student filter
+        # Student filter (ID)
         if student_id_int:
             attendances = [a for a in attendances if a.student_id == student_id_int]
+        
+        # Student name filter (full name contains)
+        if student_name and student_name.strip():
+            term = student_name.strip().lower()
+            filtered = []
+            for a in attendances:
+                stu = db.get(models.Student, a.student_id)
+                if not stu:
+                    continue
+                full_name = f"{stu.first_name} {stu.last_name}".lower()
+                if term in full_name:
+                    filtered.append(a)
+            attendances = filtered
         
         # Status filter
         if status:
@@ -717,6 +732,7 @@ def dashboard(
             "start_date": start_date or "",
             "end_date": end_date or "",
             "order_by": order_by,
+            "student_name": student_name or "",
         },
     }
     return templates.TemplateResponse("dashboard.html", context)
@@ -1328,8 +1344,8 @@ def ui_lessons(
     request: Request,
     start: str | None = None,
     end: str | None = None,
-    teacher_id: int | None = None,
-    course_id: int | None = None,
+    teacher_id: str | None = None,
+    course_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     if not request.session.get("user"):
@@ -1352,15 +1368,30 @@ def ui_lessons(
             end_date = date(y, m, d)
         except Exception:
             end_date = None
+
+    # Query parametrelerini integer'a çevir (boş string'leri None yap)
+    teacher_id_int: int | None = None
+    course_id_int: int | None = None
+    if teacher_id and str(teacher_id).strip():
+        try:
+            teacher_id_int = int(str(teacher_id).strip())
+        except (ValueError, TypeError):
+            teacher_id_int = None
+    if course_id and str(course_id).strip():
+        try:
+            course_id_int = int(str(course_id).strip())
+        except (ValueError, TypeError):
+            course_id_int = None
+
     q = db.query(models.Lesson)
     if start_date:
         q = q.filter(models.Lesson.lesson_date >= start_date)
     if end_date:
         q = q.filter(models.Lesson.lesson_date <= end_date)
-    if teacher_id:
-        q = q.filter(models.Lesson.teacher_id == teacher_id)
-    if course_id:
-        q = q.filter(models.Lesson.course_id == course_id)
+    if teacher_id_int:
+        q = q.filter(models.Lesson.teacher_id == teacher_id_int)
+    if course_id_int:
+        q = q.filter(models.Lesson.course_id == course_id_int)
     lessons = q.order_by(models.Lesson.lesson_date.asc()).all()
     teachers = crud.list_teachers(db)
     courses = crud.list_courses(db)
@@ -1373,8 +1404,8 @@ def ui_lessons(
             "courses": courses,
             "start": start or "",
             "end": end or "",
-            "teacher_id": teacher_id or "",
-            "course_id": course_id or "",
+            "teacher_id": teacher_id_int or "",
+            "course_id": course_id_int or "",
         },
     )
 
@@ -3120,9 +3151,9 @@ def staff_panel(
 	student_id: str | None = None,
 	teacher_id: str | None = None,
 	selected_date: str | None = None,
-	attendance_teacher_id: str | None = None,
-	attendance_student_id: str | None = None,
-	attendance_course_id: str | None = None,
+    attendance_teacher_id: str | None = None,
+    attendance_student_id: str | None = None,
+    attendance_course_id: str | None = None,
 	start_date: str | None = None,
 	end_date: str | None = None,
 	status: str | None = None,
@@ -3531,6 +3562,9 @@ def staff_panel(
             except Exception:
                 pass
         
+        # Öğrenci adı filtresi (opsiyonel)
+        attendance_student_name = request.query_params.get("attendance_student_name")
+        
         # Filtrelerin olup olmadığını kontrol et
         has_filters = any([
             attendance_teacher_id_int is not None,
@@ -3538,7 +3572,8 @@ def staff_panel(
             attendance_course_id_int is not None,
             status is not None and status.strip(),
             start_date_obj is not None,
-            end_date_obj is not None
+            end_date_obj is not None,
+            attendance_student_name is not None and attendance_student_name.strip(),
         ])
         
         # Yoklama verilerini filtrele
@@ -3559,9 +3594,22 @@ def staff_panel(
                         filtered.append(att)
                 attendances = filtered
             
-            # Student filter
+            # Student filter (ID)
             if attendance_student_id_int:
                 attendances = [a for a in attendances if a.student_id == attendance_student_id_int]
+            
+            # Student name filter (full name contains)
+            if attendance_student_name and attendance_student_name.strip():
+                term = attendance_student_name.strip().lower()
+                filtered = []
+                for a in attendances:
+                    stu = db.get(models.Student, a.student_id)
+                    if not stu:
+                        continue
+                    full_name = f"{stu.first_name} {stu.last_name}".lower()
+                    if term in full_name:
+                        filtered.append(a)
+                attendances = filtered
             
             # Status filter
             if status:
@@ -3617,7 +3665,8 @@ def staff_panel(
             "status": status,
             "start_date": start_date,
             "end_date": end_date,
-            "order_by": order_by
+            "order_by": order_by,
+            "student_name": attendance_student_name or "",
         }
         
         # Yoklama düzeltme için arama

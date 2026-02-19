@@ -405,6 +405,7 @@ if (quickSearchInput) {
             <option value="{{ s.id }}" {% if filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
             {% endfor %}
         </select>
+        <input type="text" name="student_name" placeholder="Öğrenci adı" value="{{ filters.student_name }}" />
         <select name="course_id">
             <option value="">Tüm Kurslar</option>
             {% for c in courses %}

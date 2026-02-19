@@ -1021,6 +1021,7 @@
             <option value="{{ s.id }}" {% if filters and filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
             {% endfor %}
         </select>
+        <input type="text" name="attendance_student_name" placeholder="Öğrenci adı" value="{{ filters.student_name if filters else '' }}" />
         <select name="attendance_course_id">
             <option value="">Tüm Kurslar</option>
             {% for c in courses %}

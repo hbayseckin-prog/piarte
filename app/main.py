@@ -705,10 +705,30 @@ def dashboard(
             "lessons": formatted_lessons
         })
     
-    # Ödeme gerekli öğrencileri getir (sadece admin için)
+    # Ödeme gerekli öğrencileri ve ders bilgilerini getir (sadece admin için)
     students_needing_payment = []
+    students_needing_payment_lessons = {}
     if user.get("role") == "admin":
         students_needing_payment = crud.list_students_needing_payment(db)
+        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+        for s in students_needing_payment:
+            lesson_days = set()
+            lesson_courses = set()
+            lessons_for_student = crud.list_lessons_by_student(db, s.id)
+            for lesson in lessons_for_student:
+                if getattr(lesson, "lesson_date", None):
+                    try:
+                        wd_idx = lesson.lesson_date.weekday()
+                        if 0 <= wd_idx < len(weekday_map):
+                            lesson_days.add(weekday_map[wd_idx])
+                    except Exception:
+                        pass
+                if lesson.course and lesson.course.name:
+                    lesson_courses.add(lesson.course.name)
+            students_needing_payment_lessons[s.id] = {
+                "lesson_days": ", ".join(sorted(lesson_days)) if lesson_days else "-",
+                "lesson_courses": ", ".join(sorted(lesson_courses)) if lesson_courses else "-",
+            }
     
     context = {
         "request": request,
@@ -723,6 +743,7 @@ def dashboard(
         "attendance_totals_by_teacher": attendance_totals_by_teacher,
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,
+        "students_needing_payment_lessons": students_needing_payment_lessons,
         "user": user,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
@@ -3356,6 +3377,9 @@ def staff_panel(
         from datetime import date
         today = date.today()
         
+        from datetime import date
+        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+        
         for student in all_students:
             # Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
             total_lessons = db.scalars(
@@ -3468,6 +3492,25 @@ def staff_panel(
                         payment_status_class = "waiting"
                         needs_payment = False
             
+            # Öğrencinin ders programı: takvim günleri ve kurs isimleri
+            lesson_days = set()
+            lesson_courses = set()
+            student_lessons_for_payment = crud.list_lessons_by_student(db, student.id)
+            for lesson in student_lessons_for_payment:
+                # Gün adı
+                if getattr(lesson, "lesson_date", None):
+                    try:
+                        wd_idx = lesson.lesson_date.weekday()
+                        if 0 <= wd_idx < len(weekday_map):
+                            lesson_days.add(weekday_map[wd_idx])
+                    except Exception:
+                        pass
+                # Kurs adı
+                if lesson.course and lesson.course.name:
+                    lesson_courses.add(lesson.course.name)
+            lesson_days_str = ", ".join(sorted(lesson_days)) if lesson_days else "-"
+            lesson_courses_str = ", ".join(sorted(lesson_courses)) if lesson_courses else "-"
+            
             payment_status_list.append({
                 "student": student,
                 "total_lessons": total_lessons,
@@ -3476,7 +3519,9 @@ def staff_panel(
                 "last_payment_date": last_payment_date,
                 "needs_payment": needs_payment,
                 "payment_status": payment_status,
-                "payment_status_class": payment_status_class
+                "payment_status_class": payment_status_class,
+                "lesson_days": lesson_days_str,
+                "lesson_courses": lesson_courses_str,
             })
         
         # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)

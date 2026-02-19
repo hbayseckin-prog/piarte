@@ -359,6 +359,8 @@
 			<thead>
 				<tr>
 					<th>Öğrenci Adı</th>
+					<th>Ders Günleri</th>
+					<th>Kurslar</th>
 					<th>Toplam Ders</th>
 					<th>Beklenen Ödeme</th>
 					<th>Yapılan Ödeme</th>
@@ -373,6 +375,8 @@
 							{{ item.student.first_name }} {{ item.student.last_name }}
 						</strong>
 					</td>
+					<td>{{ item.lesson_days }}</td>
+					<td>{{ item.lesson_courses }}</td>
 					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
 						{{ item.total_lessons }}
 					</td>
@@ -406,14 +410,22 @@
 		<div class="mobile-card-view">
 			{% for item in payment_status_list %}
 			<div class="mobile-card" style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Öğrenci Adı</div>
-					<div class="mobile-card-value">
-						<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
-							{{ item.student.first_name }} {{ item.student.last_name }}
-						</strong>
+					<div class="mobile-card-row">
+						<div class="mobile-card-label">Öğrenci Adı</div>
+						<div class="mobile-card-value">
+							<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
+								{{ item.student.first_name }} {{ item.student.last_name }}
+							</strong>
+						</div>
 					</div>
-				</div>
+					<div class="mobile-card-row">
+						<div class="mobile-card-label">Ders Günleri</div>
+						<div class="mobile-card-value">{{ item.lesson_days }}</div>
+					</div>
+					<div class="mobile-card-row">
+						<div class="mobile-card-label">Kurslar</div>
+						<div class="mobile-card-value">{{ item.lesson_courses }}</div>
+					</div>
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Toplam Ders</div>
 					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">

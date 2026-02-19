@@ -850,6 +850,15 @@ if (quickSearchInput) {
 						{{ student.first_name }} {{ student.last_name }}
 						<span style="font-size:12px;color:#dc2626;margin-left:8px;">⚠️ Ödeme Gerekli</span>
 					</strong>
+					{% set lesson_info = students_needing_payment_lessons.get(student.id) if students_needing_payment_lessons else None %}
+					{% if lesson_info %}
+					<div style="color:#4b5563;font-size:13px;margin-top:6px;">
+						<strong>Ders Günleri:</strong> {{ lesson_info.lesson_days }}
+					</div>
+					<div style="color:#4b5563;font-size:13px;margin-top:2px;">
+						<strong>Kurslar:</strong> {{ lesson_info.lesson_courses }}
+					</div>
+					{% endif %}
 					{% if student.phone %}
 					<div style="color:#64748b;font-size:13px;margin-top:4px;">📞 {{ student.phone }}</div>
 					{% endif %}

@@ -25,6 +25,7 @@
       <option value="{{ c.id }}" {% if course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
       {% endfor %}
     </select>
+    <input type="text" name="student_name" placeholder="Öğrenci adı" value="{{ student_name or '' }}" />
     <button type="submit">Filtrele</button>
     <a href="/ui/lessons" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none">Temizle</a>
   </form>

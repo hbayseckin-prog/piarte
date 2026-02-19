@@ -1346,6 +1346,7 @@ def ui_lessons(
     end: str | None = None,
     teacher_id: str | None = None,
     course_id: str | None = None,
+    student_name: str | None = None,
     db: Session = Depends(get_db),
 ):
     if not request.session.get("user"):
@@ -1392,6 +1393,23 @@ def ui_lessons(
         q = q.filter(models.Lesson.teacher_id == teacher_id_int)
     if course_id_int:
         q = q.filter(models.Lesson.course_id == course_id_int)
+
+    # Öğrenci adına göre filtre: derse kayıtlı öğrenciler üzerinden
+    if student_name and student_name.strip():
+        term = f"%{student_name.strip()}%"
+        from sqlalchemy import or_
+        q = (
+            q.join(models.LessonStudent, models.LessonStudent.lesson_id == models.Lesson.id)
+             .join(models.Student, models.Student.id == models.LessonStudent.student_id)
+             .filter(
+                 or_(
+                     models.Student.first_name.ilike(term),
+                     models.Student.last_name.ilike(term),
+                     (models.Student.first_name + " " + models.Student.last_name).ilike(term),
+                 )
+             )
+             .distinct()
+        )
     lessons = q.order_by(models.Lesson.lesson_date.asc()).all()
     teachers = crud.list_teachers(db)
     courses = crud.list_courses(db)
@@ -1406,6 +1424,7 @@ def ui_lessons(
             "end": end or "",
             "teacher_id": teacher_id_int or "",
             "course_id": course_id_int or "",
+            "student_name": student_name or "",
         },
     )
 

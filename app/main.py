@@ -2419,7 +2419,8 @@ def lesson_edit_form(lesson_id: int, request: Request, db: Session = Depends(get
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     user = request.session.get("user")
-    if user.get("role") != "admin":
+    # Ders programı düzenleme: admin ve staff yetkili
+    if user.get("role") not in ["admin", "staff"]:
         return RedirectResponse(url="/login/admin", status_code=302)
     lesson = crud.get_lesson(db, lesson_id)
     if not lesson:
@@ -2443,7 +2444,8 @@ def lesson_update(
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
-    if not user or user.get("role") != "admin":
+    # Ders programı düzenleme: admin ve staff yetkili
+    if not user or user.get("role") not in ["admin", "staff"]:
         return RedirectResponse(url="/login/admin", status_code=302)
     from datetime import date, time as t
     y, m, d = map(int, lesson_date.split("-"))
@@ -2534,14 +2536,15 @@ def lesson_add_student(lesson_id: int, request: Request, student_id: int = Form(
 @app.post("/lessons/{lesson_id}/delete")
 def lesson_delete(lesson_id: int, request: Request, db: Session = Depends(get_db)):
     user = request.session.get("user")
-    if not user or user.get("role") != "admin":
+    # Ders programı düzenleme: admin ve staff yetkili
+    if not user or user.get("role") not in ["admin", "staff"]:
         return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
     lesson = crud.get_lesson(db, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
-    teacher_id = lesson.teacher_id
     crud.delete_lesson(db, lesson_id)
-    return RedirectResponse(url=f"/ui/teachers/{teacher_id}", status_code=status.HTTP_303_SEE_OTHER)
+    # Program düzenleme ekranına geri dön
+    return RedirectResponse(url="/ui/lessons", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # Attendance

@@ -30,7 +30,19 @@
   </form>
   <div class="table-wrap" style="margin-top:10px">
     <table>
-      <thead><tr><th>Tarih</th><th>Kurs</th><th>Öğretmen</th><th>Saat</th><th>Açıklama</th><th>Yoklama</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Tarih</th>
+          <th>Kurs</th>
+          <th>Öğretmen</th>
+          <th>Saat</th>
+          <th>Açıklama</th>
+          <th>Yoklama</th>
+          {% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}
+          <th>İşlemler</th>
+          {% endif %}
+        </tr>
+      </thead>
       <tbody>
         {% for l in lessons %}
         <tr>
@@ -40,9 +52,30 @@
           <td>{{ (l.start_time or '') }} - {{ (l.end_time or '') }}</td>
           <td>{{ l.description or '' }}</td>
           <td><a href="/lessons/{{ l.id }}/attendance/new">Yoklama</a></td>
+          {% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}
+          <td>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a href="/lessons/{{ l.id }}/edit"
+                 style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Düzenle</a>
+              <form method="post"
+                    action="/lessons/{{ l.id }}/delete"
+                    style="display:inline;margin:0;"
+                    onsubmit="return confirm('Bu dersi programdan silmek istediğinizden emin misiniz?');">
+                <button type="submit"
+                        style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
+                  Sil
+                </button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
         </tr>
         {% else %}
-        <tr><td colspan="6">Kayıtlı ders bulunmuyor.</td></tr>
+        <tr>
+          <td colspan="{% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}7{% else %}6{% endif %}">
+            Kayıtlı ders bulunmuyor.
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>

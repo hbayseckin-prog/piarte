@@ -1841,7 +1841,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
     
     # Aynı gün içinde aynı öğrenciye tekrar yoklama girilip girilmediğini kontrol et
-    if marked_at_dt and user.get("role") == "teacher":
+    # Hem öğretmen hem staff panelinden yoklama alırken uyarı ver
+    if marked_at_dt and user.get("role") in ["teacher", "staff"]:
         from datetime import date as date_cls
         from sqlalchemy import func
         attendance_date = marked_at_dt.date()

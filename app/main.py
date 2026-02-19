@@ -457,6 +457,9 @@ def dashboard(
     courses = crud.list_courses(db)
     students = crud.list_students(db)
     teachers = crud.list_teachers(db)
+    # Aktif / pasif öğrenci sayıları
+    active_students_count = sum(1 for s in students if getattr(s, "is_active", True))
+    passive_students_count = sum(1 for s in students if hasattr(s, "is_active") and s.is_active is False)
     # Staff (personel) kullanıcılarını getir
     from sqlalchemy import select
     staff_users = db.scalars(select(models.User).where(models.User.role == "staff").order_by(models.User.created_at.desc())).all()
@@ -698,6 +701,8 @@ def dashboard(
         "students": students,
         "teachers": teachers,
         "staff_users": staff_users,
+        "active_students_count": active_students_count,
+        "passive_students_count": passive_students_count,
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
         "attendance_totals_by_teacher": attendance_totals_by_teacher,

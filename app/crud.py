@@ -626,12 +626,13 @@ def check_student_payment_status(db: Session, student_id: int):
 	# Öğrencinin ödemelerini getir
 	payments = list_payments_by_student(db, student_id)
 	total_paid_sets = len(payments)
+	total_lessons = int(total_lessons or 0)
 	
-	# Beklenen ödeme seti hesapla: (toplam_ders // 4) + 1
-	expected_paid_sets = (total_lessons // 4) + 1
-	
-	# Ödeme yetersizse True döndür
-	return total_paid_sets < expected_paid_sets
+	# Ödeme gerekli sadece: hiç ödeme yok VEYA aldığı ders sayısı ödenen setlerin karşıladığı dersi geçti (12 derse gelmeden gerekli gösterme)
+	# 3 set = 12 derse kadar; 8–9 ders alıp 3 set ödeyen öğrenci "gerekli" listesinde olmaz
+	if total_paid_sets == 0:
+		return True
+	return total_lessons >= (total_paid_sets * 4)
 
 
 def list_students_needing_payment(db: Session):

@@ -3389,6 +3389,7 @@ def staff_panel(
                     models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"])  # Habersiz gelmedi de toplam derse dahil
                 )
             ).first() or 0
+            total_lessons = int(total_lessons or 0)
             
             # Öğrencinin ödemelerini getir
             payments = crud.list_payments_by_student(db, student.id)
@@ -3405,7 +3406,7 @@ def staff_panel(
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
             # Ödeme yeterliliği: aldıkları ders sayısı, yaptıkları ödemeyle karşılanan ders sayısından az mı?
-            # 3 set ödeme = 12 derse kadar karşılanır; 8 veya 9 ders almışsa henüz "Ödeme Gerekli" gösterilmez
+            # 3 set ödeme = 12 derse kadar karşılanır; 12 derse gelmeden "Ödeme Gerekli" gösterilmez (staff + crud aynı kural)
             paid_enough = total_lessons < (total_paid_sets * 4)
             
             # Ödeme durumu: 0-2. ders set ödemesi yapıldıysa Yapıldı, 3. ders sonraki set yoksa Bekleniyor, 4. ders yeni set yoksa Gerekli

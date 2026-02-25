@@ -3458,6 +3458,12 @@ def staff_panel(
             lesson_days_str = ", ".join(sorted(lesson_days)) if lesson_days else "-"
             lesson_courses_str = ", ".join(sorted(lesson_courses)) if lesson_courses else "-"
             
+            # Zorunlu kural: alınan ders ödenen setlerin karşıladığından azsa asla Gerekli gösterme (8 ders 3 set = Yapıldı)
+            if total_paid_sets > 0 and total_lessons < (total_paid_sets * 4):
+                payment_status = "✅ Ödeme Yapıldı"
+                payment_status_class = "paid"
+                needs_payment = False
+            
             payment_status_list.append({
                 "student": student,
                 "total_lessons": total_lessons,

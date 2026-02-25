@@ -138,6 +138,13 @@
         {% elif user and user.get('role') == 'teacher' %}
             <a href="/ui/teacher"><span class="icon">🎹</span><span>Öğretmen Paneli</span></a>
             <a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
+		{% elif user and user.get('role') == 'admin' %}
+			<a href="/dashboard"><span class="icon">♫</span><span>Panel</span></a>
+			<a href="/ui/staff"><span class="icon">🧑‍💼</span><span>Personel / Yoklama</span></a>
+			<a href="/ui/students"><span class="icon">🎻</span><span>Öğrenciler</span></a>
+			<a href="/ui/teachers"><span class="icon">🎹</span><span>Öğretmenler</span></a>
+			<a href="/ui/reports/payments"><span class="icon">💳</span><span>Ödemeler</span></a>
+			<a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
 		{% else %}
 			<a href="/dashboard"><span class="icon">♫</span><span>Panel</span></a>
 			<a href="/ui/students"><span class="icon">🎻</span><span>Öğrenciler</span></a>

@@ -3217,14 +3217,11 @@ def staff_panel(
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
-    if user.get("role") != "staff":
-        # Staff harici biri geldi: kendi paneline yönlendir
-        if user.get("role") == "admin":
-            return RedirectResponse(url="/dashboard", status_code=302)
-        elif user.get("role") == "teacher":
+    # Admin ve staff bu paneli kullanabilir (Yoklama Düzeltme vb.)
+    if user.get("role") not in ("admin", "staff"):
+        if user.get("role") == "teacher":
             return RedirectResponse(url="/ui/teacher", status_code=302)
-        else:
-            return RedirectResponse(url="/login/staff", status_code=302)
+        return RedirectResponse(url="/login/staff", status_code=302)
     try:
         from sqlalchemy import select
         

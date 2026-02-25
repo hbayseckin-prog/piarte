@@ -707,18 +707,18 @@
 </script>
 
 <script>
-	// Yoklama düzeltme için öğretmen/öğrenci arama autocomplete
-	(function() {
-		const editSearchInput = document.getElementById('edit_search_input');
-		const editResultsContainer = document.getElementById('edit-autocomplete-results');
-		let editSearchTimeout = null;
+	// Yoklama düzeltme: öğretmen/öğrenci arama — 3 harf yazınca eşleşenler listelenir
+	document.addEventListener('DOMContentLoaded', function() {
+		var editSearchInput = document.getElementById('edit_search_input');
+		var editResultsContainer = document.getElementById('edit-autocomplete-results');
+		var editSearchTimeout = null;
 
 		if (!editSearchInput || !editResultsContainer) {
 			return;
 		}
 
 		editSearchInput.addEventListener('input', function(e) {
-			const query = e.target.value.trim();
+			var query = (e.target.value || '').trim();
 			
 			if (editSearchTimeout) {
 				clearTimeout(editSearchTimeout);
@@ -726,18 +726,18 @@
 
 			if (query.length < 3) {
 				editResultsContainer.style.display = 'none';
+				editResultsContainer.innerHTML = '';
 				return;
 			}
 
-			editSearchTimeout = setTimeout(() => {
-				// Hem öğrenci hem öğretmen araması yap
+			editSearchTimeout = setTimeout(function() {
 				Promise.all([
-					fetch(`/api/students/search?q=${encodeURIComponent(query)}`).then(r => r.json()),
-					fetch(`/api/teachers/search?q=${encodeURIComponent(query)}`).then(r => r.json())
-				]).then(([students, teachers]) => {
-					displayEditResults(students, teachers);
-				}).catch(error => {
-					console.error('Arama hatası:', error);
+					fetch('/api/students/search?q=' + encodeURIComponent(query)).then(function(r) { return r.json(); }),
+					fetch('/api/teachers/search?q=' + encodeURIComponent(query)).then(function(r) { return r.json(); })
+				]).then(function(results) {
+					displayEditResults(results[0], results[1]);
+				}).catch(function(err) {
+					console.error('Arama hatası:', err);
 					editResultsContainer.style.display = 'none';
 				});
 			}, 300);
@@ -819,7 +819,7 @@
 				editResultsContainer.style.display = 'none';
 			}
 		});
-	})();
+	});
 </script>
 
 <script>
@@ -860,7 +860,7 @@
                             type="text" 
                             name="edit_search" 
                             value="{{ edit_search if edit_search else '' }}" 
-                            placeholder="Öğretmen veya öğrenci adı yazın..." 
+                            placeholder="En az 3 harf yazın, öğretmen veya öğrenci eşleşenler listelenir..." 
                             autocomplete="off"
                             required
                             style="width:100%;height:100%;min-height:50px;padding:14px 20px;border:none;border-radius:10px 0 0 10px;font-size:16px;background:#ffffff;outline:none;color:#0f172a;font-weight:400;box-sizing:border-box;" 

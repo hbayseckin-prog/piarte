@@ -784,12 +784,14 @@
                 section.textContent = 'Öğrenciler';
                 editResultsContainer.appendChild(section);
                 students.forEach(function(student) {
-                    var item = document.createElement('div');
-                    item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;transition:background 0.15s;';
-                    item.innerHTML = '<div style="font-weight:600;color:#0f172a;">' + (student.full_name || '') + '</div>' + (student.phone ? '<div style="color:#64748b;font-size:12px;margin-top:2px;">' + student.phone + '</div>' : '');
+                    var name = (student.full_name || '').trim();
+                    var url = '/ui/staff?edit_search=' + encodeURIComponent(name) + '#yoklama-duzeltme-bolumu';
+                    var item = document.createElement('a');
+                    item.href = url;
+                    item.style.cssText = 'display:block;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;transition:background 0.15s;text-decoration:none;color:inherit;';
+                    item.innerHTML = '<div style="font-weight:600;color:#0f172a;">' + (name || '') + '</div>' + (student.phone ? '<div style="color:#64748b;font-size:12px;margin-top:2px;">' + student.phone + '</div>' : '');
                     item.onmouseenter = function() { this.style.background = '#f1f5f9'; };
                     item.onmouseleave = function() { this.style.background = '#fff'; };
-                    item.onclick = function() { window.location.href = '/ui/staff?edit_search=' + encodeURIComponent(student.full_name || ''); };
                     editResultsContainer.appendChild(item);
                 });
             }
@@ -799,12 +801,14 @@
                 section.textContent = 'Öğretmenler';
                 editResultsContainer.appendChild(section);
                 teachers.forEach(function(teacher) {
-                    var item = document.createElement('div');
-                    item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;transition:background 0.15s;';
-                    item.innerHTML = '<div style="font-weight:600;color:#0f172a;">' + (teacher.full_name || '') + '</div>';
+                    var name = (teacher.full_name || '').trim();
+                    var url = '/ui/staff?edit_search=' + encodeURIComponent(name) + '#yoklama-duzeltme-bolumu';
+                    var item = document.createElement('a');
+                    item.href = url;
+                    item.style.cssText = 'display:block;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;transition:background 0.15s;text-decoration:none;color:inherit;';
+                    item.innerHTML = '<div style="font-weight:600;color:#0f172a;">' + (name || '') + '</div>';
                     item.onmouseenter = function() { this.style.background = '#f1f5f9'; };
                     item.onmouseleave = function() { this.style.background = '#fff'; };
-                    item.onclick = function() { window.location.href = '/ui/staff?edit_search=' + encodeURIComponent(teacher.full_name || ''); };
                     editResultsContainer.appendChild(item);
                 });
             }

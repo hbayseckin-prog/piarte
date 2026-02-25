@@ -3702,7 +3702,7 @@ def staff_panel(
         # Yoklama düzeltme için arama
         edit_attendances = []
         if edit_search and edit_search.strip():
-            search_term = f"%{edit_search.strip()}%"
+            q = " ".join(edit_search.strip().split()).lower()  # normalize boşluklar
             # Öğrenci veya öğretmen ismi ile eşleşen yoklamaları bul
             all_attendances_for_edit = db.scalars(select(models.Attendance)).all()
             
@@ -3711,17 +3711,17 @@ def staff_panel(
                 student = db.get(models.Student, att.student_id)
                 teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
                 
-                # Öğrenci veya öğretmen ismi ile eşleşiyor mu kontrol et
+                # Öğrenci veya öğretmen ismi ile eşleşiyor mu (tam isim veya parça)
                 match = False
-                if student:
-                    if (search_term.replace('%', '').lower() in student.first_name.lower() or 
-                        search_term.replace('%', '').lower() in student.last_name.lower() or
-                        search_term.replace('%', '').lower() in f"{student.first_name} {student.last_name}".lower()):
+                if student and (student.first_name or student.last_name):
+                    full = " ".join(filter(None, [student.first_name, student.last_name])).strip().lower()
+                    full = " ".join(full.split())
+                    if q in full or full in q or (len(q) >= 2 and q in (student.first_name or "").lower()) or (len(q) >= 2 and q in (student.last_name or "").lower()):
                         match = True
-                if teacher:
-                    if (search_term.replace('%', '').lower() in teacher.first_name.lower() or 
-                        search_term.replace('%', '').lower() in teacher.last_name.lower() or
-                        search_term.replace('%', '').lower() in f"{teacher.first_name} {teacher.last_name}".lower()):
+                if teacher and (teacher.first_name or teacher.last_name):
+                    full = " ".join(filter(None, [teacher.first_name, teacher.last_name])).strip().lower()
+                    full = " ".join(full.split())
+                    if q in full or full in q or (len(q) >= 2 and q in (teacher.first_name or "").lower()) or (len(q) >= 2 and q in (teacher.last_name or "").lower()):
                         match = True
                 
                 if match:
@@ -3876,12 +3876,12 @@ async def staff_retrospective_payment(
 ):
     """Geçmişe dönük ödeme kaydı oluştur"""
     user = request.session.get("user")
-    if not user or user.get("role") not in ("admin", "staff"):
+    if not user or user.get("role") != "staff":
         return RedirectResponse(url="/login/staff", status_code=302)
-
+    
     try:
         from datetime import datetime
-
+        
         # Ödeme kaydı oluştur
         payment_date_obj = datetime.strptime(payment_date, "%Y-%m-%d").date()
         payment_data = schemas.PaymentCreate(

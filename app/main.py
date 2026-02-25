@@ -3242,6 +3242,7 @@ def staff_panel(
 	status: str | None = None,
 	order_by: str = "marked_at_desc",
 	edit_search: str | None = None,
+	payment_day_filter: str | None = None,
 	success: str | None = None,
 	error: str | None = None,
 	db: Session = Depends(get_db),
@@ -3518,11 +3519,17 @@ def staff_panel(
                 "payment_status": payment_status,
                 "payment_status_class": payment_status_class,
                 "lesson_days": lesson_days_str,
+                "lesson_days_set": lesson_days,
                 "lesson_courses": lesson_courses_str,
             })
         
         # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)
         payment_status_list.sort(key=lambda x: (not x["needs_payment"], x["student"].first_name, x["student"].last_name))
+        
+        # Gün filtresi: seçilen güne göre listeyi filtrele
+        if payment_day_filter and payment_day_filter.strip():
+            day_val = payment_day_filter.strip()
+            payment_status_list = [x for x in payment_status_list if day_val in x.get("lesson_days_set", set())]
         
         # Geçmişe dönük yoklama için öğretmen ve tarih seçildiğinde öğrencileri getir
         selected_teacher = None
@@ -3785,6 +3792,8 @@ def staff_panel(
             "all_lesson_dates_sorted": all_lesson_dates_sorted if 'all_lesson_dates_sorted' in locals() else [],
             "attendance_dates_sorted": attendance_dates_sorted if 'attendance_dates_sorted' in locals() else [],
             "payment_status_list": payment_status_list,
+            "payment_day_filter": payment_day_filter or "",
+            "payment_day_options": weekday_map,
             "today": today,
             "selected_teacher": selected_teacher,
             "selected_teacher_id": teacher_id_int,

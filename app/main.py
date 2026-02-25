@@ -1431,6 +1431,12 @@ def ui_lessons(
              )
              .distinct()
         )
+    from sqlalchemy.orm import joinedload
+    q = q.options(
+        joinedload(models.Lesson.lesson_students).joinedload(models.LessonStudent.student),
+        joinedload(models.Lesson.course),
+        joinedload(models.Lesson.teacher),
+    )
     lessons = q.order_by(models.Lesson.lesson_date.asc()).all()
     teachers = crud.list_teachers(db)
     courses = crud.list_courses(db)
@@ -2254,13 +2260,17 @@ def list_students(db: Session = Depends(get_db)):
 
 @app.get("/api/students/search")
 def search_students(q: str = None, db: Session = Depends(get_db)):
-	"""Öğrenci arama API endpoint'i - autocomplete için"""
+	"""Öğrenci arama API endpoint'i - autocomplete için (en az 3 harf)"""
 	if not q or len(q.strip()) < 3:
 		return []
+	from sqlalchemy import or_
 	search_term = f"%{q.strip()}%"
 	students = db.query(models.Student).filter(
-		(models.Student.first_name.ilike(search_term)) | 
-		(models.Student.last_name.ilike(search_term))
+		or_(
+			models.Student.first_name.ilike(search_term),
+			models.Student.last_name.ilike(search_term),
+			(models.Student.first_name + " " + models.Student.last_name).ilike(search_term),
+		)
 	).limit(10).all()
 	return [
 		{

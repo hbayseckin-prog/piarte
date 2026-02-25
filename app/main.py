@@ -3876,12 +3876,12 @@ async def staff_retrospective_payment(
 ):
     """Geçmişe dönük ödeme kaydı oluştur"""
     user = request.session.get("user")
-    if not user or user.get("role") != "staff":
+    if not user or user.get("role") not in ("admin", "staff"):
         return RedirectResponse(url="/login/staff", status_code=302)
-    
+
     try:
         from datetime import datetime
-        
+
         # Ödeme kaydı oluştur
         payment_date_obj = datetime.strptime(payment_date, "%Y-%m-%d").date()
         payment_data = schemas.PaymentCreate(

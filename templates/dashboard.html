@@ -833,10 +833,10 @@ if (quickSearchInput) {
 </div>
 {% endif %}
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+{% if (request.session.get('user') and request.session.get('user').get('role') == 'admin') or (user and user.get('role') == 'admin') %}
 <div class="card">
 	<h3 class="h2">Ödeme Gerekli Öğrenciler</h3>
-	{% if students_needing_payment %}
+	{% if students_needing_payment and students_needing_payment|length > 0 %}
 	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
 		{% for student in students_needing_payment %}
 		<div 

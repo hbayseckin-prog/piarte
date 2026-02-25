@@ -3405,41 +3405,42 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Tek kural: Ödeme gerekli SADECE hiç ödeme yoksa VEYA alınan ders >= (yapılan set sayısı * 4)
-            # 8 ders + 3 set → 8 >= 12 değil → gerekli DEĞİL (Ada Karadağ gibi)
+            # Görsel tabloya göre: Her set ödemesi önümüzdeki 4 dersi kapsıyor
+            # 0 set → Ödeme gerekli | 0-1-2. dersler (set içi) → Yapıldı | 3-7-11... → Bekleniyor | 4-8-12... → Gerekli
             lessons_covered_by_payment = total_paid_sets * 4
-            needs_payment = (total_paid_sets == 0) or (total_lessons >= lessons_covered_by_payment)
+            within_paid = total_paid_sets > 0 and total_lessons < lessons_covered_by_payment
+            in_unpaid_set = total_lessons >= lessons_covered_by_payment
             
             payment_status = ""
             payment_status_class = ""
+            needs_payment = False
             
             if total_paid_sets == 0:
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
+                needs_payment = True
             elif total_lessons == 0:
                 payment_status = "✅ Ödendi"
                 payment_status_class = "paid"
-            elif not needs_payment:
-                # Henüz ödediği setlerin dersini doldurmadı → asla Gerekli gösterme
-                # Sonraki set ödemesi yapılmadıysa sadece 3, 7, 11, 15... derslerde Ödeme Bekleniyor
-                next_set_not_paid = (current_set + 1) > total_paid_sets
-                at_bekleniyor_lesson = total_lessons >= 3 and (total_lessons - 3) % 4 == 0  # 3, 7, 11, 15...
-                if next_set_not_paid and at_bekleniyor_lesson:
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
-                else:
+            elif within_paid:
+                # Ödenen setlerin kapsadığı derslerde: 0-1-2. ders → Yapıldı, 3. ders (3,7,11...) → Bekleniyor
+                if position_in_set in (0, 1, 2):
                     payment_status = "✅ Ödeme Yapıldı"
                     payment_status_class = "paid"
+                else:
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
             else:
-                # needs_payment True: sonraki set ödenmemiş
+                # Ödenmemiş sette: 4-8-12... (position 0) ve 5-6, 9-10... (position 1,2) → Gerekli; 7-11-15... (position 3) → Bekleniyor
                 if position_in_set == 0:
                     payment_status = "⚠️ Ödeme Gerekli"
                     payment_status_class = "needs_payment"
+                    needs_payment = True
                 elif position_in_set in (1, 2):
                     payment_status = "⚠️ Ödeme Gerekli"
                     payment_status_class = "needs_payment"
+                    needs_payment = True
                 else:
-                    # 3, 7, 11, 15... → Ödeme Bekleniyor
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             
@@ -3462,8 +3463,8 @@ def staff_panel(
             lesson_days_str = ", ".join(sorted(lesson_days)) if lesson_days else "-"
             lesson_courses_str = ", ".join(sorted(lesson_courses)) if lesson_courses else "-"
             
-            # Zorunlu kural: alınan ders ödenen setlerin karşıladığından azsa asla Gerekli gösterme (8 ders 3 set = Yapıldı)
-            if total_paid_sets > 0 and total_lessons < (total_paid_sets * 4):
+            # Alınan ders ödenen setin kapsamındaysa (8 ders 3 set) Gerekli gösterme; 3-7-11'de Bekleniyor kalsın
+            if total_paid_sets > 0 and total_lessons < (total_paid_sets * 4) and position_in_set in (0, 1, 2):
                 payment_status = "✅ Ödeme Yapıldı"
                 payment_status_class = "paid"
                 needs_payment = False

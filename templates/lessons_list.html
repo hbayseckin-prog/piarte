@@ -66,7 +66,7 @@
               <form method="post"
                     action="/lessons/{{ l.id }}/delete"
                     style="display:inline;margin:0;"
-                    onsubmit="return confirm('Bu dersi programdan silmek istediğinizden emin misiniz?');">
+                    onsubmit="var n={{ attendance_counts.get(l.id, 0) }}; return confirm(n ? 'Bu derse ait ' + n + ' adet yoklama kayd\u0131 da silinecek. Emin misiniz?' : 'Bu dersi programdan silmek istedi\u011finizden emin misiniz?');">
                 <button type="submit"
                         style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
                   Sil

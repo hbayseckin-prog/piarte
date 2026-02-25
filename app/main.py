@@ -1440,6 +1440,15 @@ def ui_lessons(
     lessons = q.order_by(models.Lesson.lesson_date.asc()).all()
     teachers = crud.list_teachers(db)
     courses = crud.list_courses(db)
+    # Ders başına yoklama sayısı (silme uyarısı için)
+    attendance_counts = {}
+    if lessons:
+        from sqlalchemy import func
+        lesson_ids = [l.id for l in lessons]
+        rows = db.query(models.Attendance.lesson_id, func.count(models.Attendance.id)).filter(
+            models.Attendance.lesson_id.in_(lesson_ids)
+        ).group_by(models.Attendance.lesson_id).all()
+        attendance_counts = {r[0]: r[1] for r in rows}
     return templates.TemplateResponse(
         "lessons_list.html",
         {
@@ -1447,6 +1456,7 @@ def ui_lessons(
             "lessons": lessons,
             "teachers": teachers,
             "courses": courses,
+            "attendance_counts": attendance_counts,
             "start": start or "",
             "end": end or "",
             "teacher_id": teacher_id_int or "",
@@ -2762,11 +2772,12 @@ def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(g
     if not teacher:
         raise HTTPException(status_code=404, detail="Öğretmen bulunamadı")
     lessons = crud.list_lessons_by_teacher(db, teacher_id)
-    # Her ders için öğrencileri getir
+    # Her ders için öğrencileri ve yoklama sayısını getir
     lessons_with_students = []
     for lesson in lessons:
         students = crud.list_students_by_lesson(db, lesson.id)
-        lessons_with_students.append({"lesson": lesson, "students": students})
+        att_count = len(crud.list_attendance_for_lesson(db, lesson.id))
+        lessons_with_students.append({"lesson": lesson, "students": students, "attendance_count": att_count})
     teacher_students = crud.list_students_by_teacher(db, teacher_id)
     return templates.TemplateResponse("teacher_detail.html", {"request": request, "teacher": teacher, "lessons_with_students": lessons_with_students, "teacher_students": teacher_students})
 

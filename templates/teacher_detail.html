@@ -74,7 +74,7 @@
 				<td>
 					<a href="/lessons/{{ l.id }}/edit" style="margin-right:8px; padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;">Düzenle</a>
 					<a href="/lessons/{{ l.id }}/add-student" style="margin-right:8px; padding:6px 12px; background:#10b981; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;">Öğrenci Ekle</a>
-					<form method="post" action="/lessons/{{ l.id }}/delete" style="display:inline;" onsubmit="return confirm('Bu dersi silmek istediğinizden emin misiniz?');">
+					<form method="post" action="/lessons/{{ l.id }}/delete" style="display:inline;" onsubmit="var n={{ entry.attendance_count|default(0) }}; return confirm(n ? 'Bu derse ait ' + n + ' adet yoklama kayd\u0131 da silinecek. Emin misiniz?' : 'Bu dersi silmek istedi\u011finizden emin misiniz?');">
 						<button type="submit" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:8px; font-size:13px; cursor:pointer;">Sil</button>
 					</form>
 				</td>

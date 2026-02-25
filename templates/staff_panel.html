@@ -362,7 +362,6 @@
 					<th>Ders Günleri</th>
 					<th>Kurslar</th>
 					<th>Toplam Ders</th>
-					<th>Beklenen Ödeme</th>
 					<th>Yapılan Ödeme</th>
 					<th>Durum</th>
 				</tr>
@@ -379,13 +378,6 @@
 					<td>{{ item.lesson_courses }}</td>
 					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
 						{{ item.total_lessons }}
-					</td>
-					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.total_paid_sets > 0 %}
-							{{ item.expected_paid_sets }} set ({{ item.expected_paid_sets * 4 }} ders)
-						{% else %}
-							-
-						{% endif %}
 					</td>
 					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
 						{% if item.total_paid_sets > 0 %}
@@ -430,16 +422,6 @@
 					<div class="mobile-card-label">Toplam Ders</div>
 					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
 						{{ item.total_lessons }}
-					</div>
-				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Beklenen Ödeme</div>
-					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.total_paid_sets > 0 %}
-							{{ item.expected_paid_sets }} set ({{ item.expected_paid_sets * 4 }} ders)
-						{% else %}
-							-
-						{% endif %}
 					</div>
 				</div>
 				<div class="mobile-card-row">

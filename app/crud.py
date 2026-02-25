@@ -619,7 +619,7 @@ def check_student_payment_status(db: Session, student_id: int):
 		select(func.count(models.Attendance.id))
 		.where(
 			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "TELAFI", "LATE"])  # LATE eski kayıtlar için
+			models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"])  # Habersiz gelmedi de toplam derse dahil
 		)
 	).first() or 0
 	

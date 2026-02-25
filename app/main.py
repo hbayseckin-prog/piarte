@@ -3394,35 +3394,63 @@ def staff_panel(
             payments = crud.list_payments_by_student(db, student.id)
             total_paid_sets = len(payments)
             
-            # Beklenen ödeme seti: baştan beri toplam derse göre (her 4 ders = 1 set, ilk set 0-3 ders)
-            # crud.check_student_payment_status ile aynı mantık
-            expected_paid_sets = (total_lessons // 4) + 1
-            needs_payment = total_paid_sets < expected_paid_sets
+            # 4 derslik döngü: set = 0-3, 4-7, 8-11... (baştan beri toplam ders)
+            current_set = total_lessons // 4
+            position_in_set = total_lessons % 4  # 0=1. ders, 1=2. ders, 2=3. ders, 3=4. ders
+            expected_paid_sets = (total_lessons // 4) + 1  # tablo için (crud ile aynı mantık)
             
             # En son ödeme tarihi
             last_payment_date = None
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Görüntü metni: toplam ders ve ödeme sayısına göre
+            # Ödeme durumu: 0-2. ders set ödemesi yapıldıysa Yapıldı, 3. ders sonraki set yoksa Bekleniyor, 4. ders yeni set yoksa Gerekli
             payment_status = ""
             payment_status_class = ""
-            if total_lessons == 0:
-                if total_paid_sets > 0:
-                    payment_status = "✅ Ödendi"
-                    payment_status_class = "paid"
-                else:
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-            elif needs_payment:
+            needs_payment = False
+            
+            if total_paid_sets == 0:
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
-            elif total_lessons % 4 == 3 and total_paid_sets == (total_lessons // 4):
-                payment_status = "⏳ Ödeme Bekleniyor"
-                payment_status_class = "waiting"
-            else:
-                payment_status = "✅ Ödeme Yapıldı"
+                needs_payment = True
+            elif total_lessons == 0:
+                payment_status = "✅ Ödendi"
                 payment_status_class = "paid"
+            elif current_set < total_paid_sets:
+                # Bu set için ödeme yapılmış → 0, 1, 2. derslerde Yapıldı
+                if position_in_set in (0, 1, 2):
+                    payment_status = "✅ Ödeme Yapıldı"
+                    payment_status_class = "paid"
+                else:
+                    # 3. ders (4. derslik setin sonu): 2. set ödemesi yapılmadıysa Bekleniyor
+                    if (current_set + 1) < total_paid_sets:
+                        payment_status = "✅ Ödeme Yapıldı"
+                        payment_status_class = "paid"
+                    else:
+                        payment_status = "⏳ Ödeme Bekleniyor"
+                        payment_status_class = "waiting"
+            elif current_set == total_paid_sets:
+                # Yeni set, ödeme yapılmamış → 4. derste (position 0) Gerekli
+                if position_in_set == 0:
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
+                elif position_in_set in (1, 2):
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
+                else:
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
+            else:
+                # Daha ileri set, ödeme yok
+                if position_in_set == 0:
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
+                else:
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
             
             # Öğrencinin ders programı: takvim günleri ve kurs isimleri
             lesson_days = set()

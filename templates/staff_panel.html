@@ -388,8 +388,8 @@
 						{% endif %}
 					</td>
 					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.last_payment_date %}
-							{{ item.last_payment_date.strftime('%d.%m.%Y') }}
+						{% if item.total_paid_sets > 0 %}
+							{{ item.total_paid_sets }} set — {% if item.last_payment_date %}{{ item.last_payment_date.strftime('%d.%m.%Y') }}{% else %}-{% endif %}
 						{% else %}
 							-
 						{% endif %}
@@ -445,8 +445,8 @@
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Yapılan Ödeme</div>
 					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.last_payment_date %}
-							{{ item.last_payment_date.strftime('%d.%m.%Y') }}
+						{% if item.total_paid_sets > 0 %}
+							{{ item.total_paid_sets }} set — {% if item.last_payment_date %}{{ item.last_payment_date.strftime('%d.%m.%Y') }}{% else %}-{% endif %}
 						{% else %}
 							-
 						{% endif %}
@@ -455,12 +455,12 @@
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">Durum</div>
 					<div class="mobile-card-value">
-						{% if item.needs_payment %}
-						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">⚠️ Ödeme Gerekli</span>
-						{% elif item.total_lessons >= 4 %}
-						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">✅ Ödendi</span>
+						{% if item.payment_status_class == 'needs_payment' %}
+						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status }}</span>
+						{% elif item.payment_status_class == 'paid' %}
+						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status }}</span>
 						{% else %}
-						<span style="padding:4px 8px;background:#64748b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">⏳ Beklemede</span>
+						<span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status }}</span>
 						{% endif %}
 					</div>
 				</div>

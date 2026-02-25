@@ -3404,8 +3404,9 @@ def staff_panel(
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
             
-            # Ödeme yeterliliği: yapılan ödeme sayısı en az beklenen kadar mı?
-            paid_enough = total_paid_sets >= expected_paid_sets
+            # Ödeme yeterliliği: aldıkları ders sayısı, yaptıkları ödemeyle karşılanan ders sayısından az mı?
+            # 3 set ödeme = 12 derse kadar karşılanır; 8 veya 9 ders almışsa henüz "Ödeme Gerekli" gösterilmez
+            paid_enough = total_lessons < (total_paid_sets * 4)
             
             # Ödeme durumu: 0-2. ders set ödemesi yapıldıysa Yapıldı, 3. ders sonraki set yoksa Bekleniyor, 4. ders yeni set yoksa Gerekli
             payment_status = ""

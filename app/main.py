@@ -3394,8 +3394,8 @@ def staff_panel(
             payments = crud.list_payments_by_student(db, student.id)
             total_paid_sets = len(payments)
             
-            # 4 derslik döngü: set = 0-3, 4-7, 8-11... (baştan beri toplam ders)
-            current_set = total_lessons // 4
+            # 4 derslik döngü: set = 0-3, 4-7, 8-11, 12-15... (baştan beri toplam ders)
+            current_set = total_lessons // 4   # 12 ders → set 3, 16 ders → set 4
             position_in_set = total_lessons % 4  # 0=1. ders, 1=2. ders, 2=3. ders, 3=4. ders
             expected_paid_sets = (total_lessons // 4) + 1  # tablo için (crud ile aynı mantık)
             
@@ -3403,6 +3403,9 @@ def staff_panel(
             last_payment_date = None
             if payments:
                 last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
+            
+            # Ödeme yeterliliği: yapılan ödeme sayısı en az beklenen kadar mı?
+            paid_enough = total_paid_sets >= expected_paid_sets
             
             # Ödeme durumu: 0-2. ders set ödemesi yapıldıysa Yapıldı, 3. ders sonraki set yoksa Bekleniyor, 4. ders yeni set yoksa Gerekli
             payment_status = ""
@@ -3416,13 +3419,20 @@ def staff_panel(
             elif total_lessons == 0:
                 payment_status = "✅ Ödendi"
                 payment_status_class = "paid"
-            elif current_set < total_paid_sets:
-                # Bu set için ödeme yapılmış → 0, 1, 2. derslerde Yapıldı
+            elif paid_enough:
+                # Ödeme sayısı yeterli → asla Gerekli gösterme; 0-2. ders Yapıldı, 3. ders Bekleniyor
                 if position_in_set in (0, 1, 2):
                     payment_status = "✅ Ödeme Yapıldı"
                     payment_status_class = "paid"
                 else:
-                    # 3. ders (4. derslik setin sonu): 2. set ödemesi yapılmadıysa Bekleniyor
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
+            elif current_set < total_paid_sets:
+                # Bu set için ödeme yapılmış
+                if position_in_set in (0, 1, 2):
+                    payment_status = "✅ Ödeme Yapıldı"
+                    payment_status_class = "paid"
+                else:
                     if (current_set + 1) < total_paid_sets:
                         payment_status = "✅ Ödeme Yapıldı"
                         payment_status_class = "paid"
@@ -3430,7 +3440,6 @@ def staff_panel(
                         payment_status = "⏳ Ödeme Bekleniyor"
                         payment_status_class = "waiting"
             elif current_set == total_paid_sets:
-                # Yeni set, ödeme yapılmamış → 4. derste (position 0) Gerekli
                 if position_in_set == 0:
                     payment_status = "⚠️ Ödeme Gerekli"
                     payment_status_class = "needs_payment"
@@ -3443,7 +3452,6 @@ def staff_panel(
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             else:
-                # Daha ileri set, ödeme yok
                 if position_in_set == 0:
                     payment_status = "⚠️ Ödeme Gerekli"
                     payment_status_class = "needs_payment"

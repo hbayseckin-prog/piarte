@@ -2123,6 +2123,7 @@ def edit_attendance_form(
 	student = db.get(models.Student, attendance.student_id)
 	teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
 	course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+	courses = crud.list_courses(db)
 	
 	return templates.TemplateResponse("attendance_edit.html", {
 		"request": request,
@@ -2131,6 +2132,7 @@ def edit_attendance_form(
 		"student": student,
 		"teacher": teacher,
 		"course": course,
+		"courses": courses,
 	})
 
 
@@ -2142,15 +2144,45 @@ def update_attendance_endpoint(
 	marked_at_date: str = Form(...),
 	marked_at_time: str | None = Form(None),
 	note: str | None = Form(None),
+	course_id: str | None = Form(None),
 	db: Session = Depends(get_db),
 ):
-	"""Yoklama kaydını güncelle (staff için)"""
+	"""Yoklama kaydını güncelle (staff için). Kurs değişirse sadece bu kayıt etkilenir."""
 	user = request.session.get("user")
 	if not user or user.get("role") not in ["admin", "staff"]:
 		return RedirectResponse(url="/", status_code=302)
 	
 	try:
 		from datetime import datetime
+		from sqlalchemy import select, func
+		
+		attendance = db.get(models.Attendance, attendance_id)
+		if not attendance:
+			request.session["error"] = "Yoklama kaydı bulunamadı"
+			return RedirectResponse(url="/ui/staff", status_code=302)
+		
+		lesson = db.get(models.Lesson, attendance.lesson_id)
+		new_course_id = int(course_id) if course_id and course_id.strip() and course_id.isdigit() else None
+		
+		# Kurs değiştiyse: sadece bu yoklamayı etkile (başka öğrencilere dokunma)
+		if new_course_id and lesson and lesson.course_id != new_course_id:
+			count = db.scalar(select(func.count(models.Attendance.id)).where(models.Attendance.lesson_id == lesson.id))
+			if count == 1:
+				# Ders sadece bu yoklamaya ait; dersin kursunu güncelle
+				crud.update_lesson(db, lesson.id, schemas.LessonUpdate(course_id=new_course_id))
+			else:
+				# Başka yoklamalar da var; yeni ders oluştur (aynı tarih/öğretmen/saat), bu yoklamayı taşı
+				new_lesson = crud.create_lesson(db, schemas.LessonCreate(
+					course_id=new_course_id,
+					teacher_id=lesson.teacher_id,
+					lesson_date=lesson.lesson_date,
+					start_time=lesson.start_time,
+					end_time=lesson.end_time,
+					description=lesson.description,
+				))
+				attendance.lesson_id = new_lesson.id
+				db.commit()
+				db.refresh(attendance)
 		
 		# Tarih ve saat bilgisini birleştir
 		marked_at_datetime = None
@@ -2172,7 +2204,7 @@ def update_attendance_endpoint(
 				datetime.min.time()
 			)
 		
-		# Yoklama kaydını güncelle
+		# Yoklama kaydını güncelle (durum, tarih, not)
 		updated_attendance = crud.update_attendance(
 			db,
 			attendance_id=attendance_id,

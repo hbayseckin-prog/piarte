@@ -14,13 +14,23 @@
     <h3 class="h2">Yoklama Bilgileri</h3>
     <div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">
         <div style="margin-bottom:8px;"><strong>Öğrenci:</strong> {{ student.first_name }} {{ student.last_name }}</div>
-        <div style="margin-bottom:8px;"><strong>Kurs:</strong> {{ course.name if course else '-' }}</div>
         <div style="margin-bottom:8px;"><strong>Öğretmen:</strong> {% if teacher %}{{ teacher.first_name }} {{ teacher.last_name }}{% else %}-{% endif %}</div>
         <div><strong>Ders Tarihi:</strong> {{ lesson.lesson_date.strftime('%d.%m.%Y') if lesson.lesson_date else '-' }}</div>
     </div>
     
     <form method="post" action="/attendances/{{ attendance.id }}/edit">
         <div style="display:flex;flex-direction:column;gap:16px;">
+            {% if courses %}
+            <div>
+                <label for="course_id" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Kurs</label>
+                <select name="course_id" id="course_id" required style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                    {% for c in courses %}
+                    <option value="{{ c.id }}" {% if course and course.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+                <p style="margin:4px 0 0 0;font-size:12px;color:#64748b;">Yanlış kurs görünüyorsa buradan düzeltebilirsiniz (sadece bu kayıt etkilenir).</p>
+            </div>
+            {% endif %}
             <div>
                 <label for="status" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Durum</label>
                 <select 

@@ -3972,6 +3972,18 @@ def toggle_student_active(student_id: int, request: Request, db: Session = Depen
         request.session["student_toggle_success"] = f"Öğrenci {status_text} yapıldı"
     return RedirectResponse(url="/ui/students", status_code=status.HTTP_303_SEE_OTHER)
 
+
+@app.post("/students/{student_id}/delete")
+def delete_student_route(student_id: int, request: Request, db: Session = Depends(get_db)):
+    """Öğrenciyi kalıcı olarak siler (admin ve staff)."""
+    user = request.session.get("user")
+    if not user or user.get("role") not in ["admin", "staff"]:
+        return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
+    if crud.delete_student(db, student_id):
+        request.session["student_toggle_success"] = "Öğrenci kalıcı olarak silindi"
+    return RedirectResponse(url="/ui/students", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.post("/teachers/{teacher_id}/delete")
 def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_db)):
     user = request.session.get("user")

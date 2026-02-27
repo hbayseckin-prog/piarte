@@ -73,6 +73,16 @@ def update_student(db: Session, student_id: int, data: schemas.StudentUpdate):
 	return student
 
 
+def delete_student(db: Session, student_id: int) -> bool:
+	"""Öğrenciyi ve ilişkili kayıtları (cascade) kalıcı olarak siler."""
+	student = db.get(models.Student, student_id)
+	if not student:
+		return False
+	db.delete(student)
+	db.commit()
+	return True
+
+
 # Teachers
 def create_teacher(db: Session, data: schemas.TeacherCreate):
 	teacher = models.Teacher(**data.model_dump())

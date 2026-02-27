@@ -50,6 +50,16 @@
 </div>
 {% endif %}
 
+{% if request.session.get('user') and request.session.get('user').get('role') in ['admin', 'staff'] %}
+<div class="card" style="border-color:#dc2626;">
+	<h3 style="color:#dc2626;">Tehlikeli İşlem</h3>
+	<p style="margin-bottom:12px;color:#64748b;">Bu öğrenci ve tüm ilişkili kayıtlar (yoklama, ödeme, kurs kayıtları vb.) kalıcı olarak silinecektir. Bu işlem geri alınamaz.</p>
+	<form method="post" action="/students/{{ student.id }}/delete" id="delete-student-form" style="display:inline;">
+		<button type="submit" onclick="return confirm('{{ student.first_name }} {{ student.last_name }} öğrencisini kalıcı olarak silmek istediğinize emin misiniz? Tüm yoklama, ödeme ve kurs kayıtları da silinecektir.');" style="padding:10px 16px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;">Kalıcı Olarak Sil</button>
+	</form>
+</div>
+{% endif %}
+
 <div class="card">
 	<h3>Kayıtlı Kurslar</h3>
 	<ul>

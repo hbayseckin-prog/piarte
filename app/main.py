@@ -447,6 +447,7 @@ def dashboard(
     end_date: str | None = None,
     order_by: str = "marked_at_desc",
     student_name: str | None = None,
+    payment_day: str | None = None,
 ):
     user = request.session.get("user")
     if not user:
@@ -729,6 +730,14 @@ def dashboard(
                 "lesson_days": ", ".join(sorted(lesson_days)) if lesson_days else "-",
                 "lesson_courses": ", ".join(sorted(lesson_courses)) if lesson_courses else "-",
             }
+        # Gün bazlı filtre: sadece seçilen günde dersi olan öğrencileri göster (tam gün adı eşleşmesi)
+        if payment_day and payment_day.strip():
+            payment_day_clean = payment_day.strip()
+            def student_has_lesson_on_day(sid: int) -> bool:
+                days_str = (students_needing_payment_lessons.get(sid) or {}).get("lesson_days", "") or ""
+                day_set = {d.strip() for d in days_str.split(",") if d.strip()}
+                return payment_day_clean in day_set
+            students_needing_payment = [s for s in students_needing_payment if student_has_lesson_on_day(s.id)]
     
     context = {
         "request": request,
@@ -754,6 +763,7 @@ def dashboard(
             "end_date": end_date or "",
             "order_by": order_by,
             "student_name": student_name or "",
+            "payment_day": payment_day or "",
         },
     }
     return templates.TemplateResponse("dashboard.html", context)

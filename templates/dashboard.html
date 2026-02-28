@@ -836,6 +836,27 @@ if (quickSearchInput) {
 {% if (request.session.get('user') and request.session.get('user').get('role') == 'admin') or (user and user.get('role') == 'admin') %}
 <div class="card">
 	<h3 class="h2">Ödeme Gerekli Öğrenciler</h3>
+	<form method="get" action="/dashboard" id="payment-day-form" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+		<input type="hidden" name="teacher_id" value="{{ filters.teacher_id or '' }}">
+		<input type="hidden" name="student_id" value="{{ filters.student_id or '' }}">
+		<input type="hidden" name="course_id" value="{{ filters.course_id or '' }}">
+		<input type="hidden" name="status" value="{{ filters.status or '' }}">
+		<input type="hidden" name="start_date" value="{{ filters.start_date or '' }}">
+		<input type="hidden" name="end_date" value="{{ filters.end_date or '' }}">
+		<input type="hidden" name="order_by" value="{{ filters.order_by or 'marked_at_desc' }}">
+		<input type="hidden" name="student_name" value="{{ filters.student_name or '' }}">
+		<label for="payment_day" style="font-weight:500;color:#475569;">Ders gününe göre filtrele:</label>
+		<select name="payment_day" id="payment_day" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:160px;">
+			<option value="">Tümü</option>
+			<option value="Pazartesi" {% if filters.payment_day == 'Pazartesi' %}selected{% endif %}>Pazartesi</option>
+			<option value="Salı" {% if filters.payment_day == 'Salı' %}selected{% endif %}>Salı</option>
+			<option value="Çarşamba" {% if filters.payment_day == 'Çarşamba' %}selected{% endif %}>Çarşamba</option>
+			<option value="Perşembe" {% if filters.payment_day == 'Perşembe' %}selected{% endif %}>Perşembe</option>
+			<option value="Cuma" {% if filters.payment_day == 'Cuma' %}selected{% endif %}>Cuma</option>
+			<option value="Cumartesi" {% if filters.payment_day == 'Cumartesi' %}selected{% endif %}>Cumartesi</option>
+			<option value="Pazar" {% if filters.payment_day == 'Pazar' %}selected{% endif %}>Pazar</option>
+		</select>
+	</form>
 	{% if students_needing_payment and students_needing_payment|length > 0 %}
 	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
 		{% for student in students_needing_payment %}

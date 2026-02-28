@@ -647,10 +647,11 @@ def dashboard(
         import logging
         logging.error(f"Debug log error: {e}")
     # #endregion
-    # Puantaj raporunu getir (sadece admin için ve sadece filtreler varsa)
+    # Puantaj raporunu getir (admin ve puantaj/her ikisi görünümünde; tüm öğretmenler seçiliyse hepsinin puantajı)
     attendance_report = []
     attendance_totals_by_teacher = {}
-    if user.get("role") == "admin" and has_filters:
+    _show_puantaj = (attendance_view or "both").strip() in ("both", "puantaj")
+    if user.get("role") == "admin" and _show_puantaj:
         attendance_report = crud.get_attendance_report_by_teacher(
             db,
             teacher_id=teacher_id_int,

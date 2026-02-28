@@ -320,14 +320,8 @@
 				</div>
 				<div>
 					<label for="payment_date" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Ödeme Tarihi</label>
-					<input 
-						type="date" 
-						name="payment_date" 
-						id="payment_date" 
-						value="{{ selected_date or '' }}"
-						required
-						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" 
-					/>
+					<input type="hidden" name="payment_date" value="{{ today.strftime('%Y-%m-%d') if today else '' }}" />
+					<div style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#f1f5f9;color:#0f172a;">{{ today.strftime('%d.%m.%Y') if today else '-' }}</div>
 				</div>
 				<div>
 					<label for="payment_note" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Not (Opsiyonel)</label>

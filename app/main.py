@@ -3935,25 +3935,25 @@ async def staff_retrospective_payment(
     request: Request,
     student_id: int = Form(...),
     amount: float = Form(...),
-    payment_date: str = Form(...),
+    payment_date: str = Form(None),
     note: str = Form(None),
     db: Session = Depends(get_db)
 ):
-    """Geçmişe dönük ödeme kaydı oluştur"""
+    """Staff panelinden ödeme kaydı — tarih her zaman bugün, değiştirilemez."""
     user = request.session.get("user")
     if not user or user.get("role") != "staff":
         return RedirectResponse(url="/login/staff", status_code=302)
     
     try:
-        from datetime import datetime
+        from datetime import date
         
-        # Ödeme kaydı oluştur
-        payment_date_obj = datetime.strptime(payment_date, "%Y-%m-%d").date()
+        # Staff panelinde tarih seçilemez; her zaman bugünün tarihi kullanılır
+        payment_date_obj = date.today()
         payment_data = schemas.PaymentCreate(
             student_id=student_id,
             amount=amount,
             payment_date=payment_date_obj,
-            note=note or f"Geçmişe dönük ödeme - {payment_date}"
+            note=note or f"Staff paneli - {payment_date_obj.isoformat()}"
         )
         crud.create_payment(db, payment_data)
         

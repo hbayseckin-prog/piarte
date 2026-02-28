@@ -448,6 +448,7 @@ def dashboard(
     order_by: str = "marked_at_desc",
     student_name: str | None = None,
     payment_day: str | None = None,
+    attendance_view: str | None = None,
 ):
     user = request.session.get("user")
     if not user:
@@ -764,6 +765,7 @@ def dashboard(
             "order_by": order_by,
             "student_name": student_name or "",
             "payment_day": payment_day or "",
+            "attendance_view": (attendance_view or "both").strip() or "both",
         },
     }
     return templates.TemplateResponse("dashboard.html", context)

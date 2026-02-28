@@ -391,6 +391,12 @@ if (quickSearchInput) {
 <div class="card">
     <h3 class="h2">Yoklamalar/Puantaj</h3>
     <form method="get" action="/dashboard" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
+        <input type="hidden" name="payment_day" value="{{ filters.payment_day or '' }}" />
+        <select name="attendance_view" style="min-width:180px;">
+            <option value="both" {% if filters.attendance_view == 'both' or not filters.attendance_view %}selected{% endif %}>Göster: Her ikisi</option>
+            <option value="yoklama" {% if filters.attendance_view == 'yoklama' %}selected{% endif %}>Göster: Sadece yoklamalar</option>
+            <option value="puantaj" {% if filters.attendance_view == 'puantaj' %}selected{% endif %}>Göster: Sadece puantaj</option>
+        </select>
         <input type="date" name="start_date" value="{{ filters.start_date }}" placeholder="Başlangıç Tarihi" />
         <input type="date" name="end_date" value="{{ filters.end_date }}" placeholder="Bitiş Tarihi" />
         <select name="teacher_id">
@@ -430,6 +436,7 @@ if (quickSearchInput) {
             <a href="/dashboard" style="padding:12px 20px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">Temizle</a>
         </div>
     </form>
+    {% if filters.attendance_view != 'puantaj' %}
     {% if attendances %}
     <div class="table-wrap">
         <table>
@@ -556,9 +563,10 @@ if (quickSearchInput) {
     {% else %}
     <p>Henüz yoklama kaydı bulunmuyor.</p>
     {% endif %}
+    {% endif %}
 </div>
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and (filters.attendance_view == 'both' or filters.attendance_view == 'puantaj' or not filters.attendance_view) %}
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>

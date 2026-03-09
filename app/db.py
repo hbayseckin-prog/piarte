@@ -76,6 +76,41 @@ def ensure_is_active_column():
 		import traceback
 		traceback.print_exc()
 
+def ensure_attendance_lesson_fk_restrict():
+	"""PostgreSQL'de attendances.lesson_id FK'yi RESTRICT yap (yoklama kayıtları ders silinirken silinmesin)"""
+	try:
+		from sqlalchemy import text
+		if "postgresql" not in str(engine.url).lower() and "postgres" not in str(engine.url).lower():
+			return
+		db = SessionLocal()
+		try:
+			# Şu an delete_rule CASCADE mı kontrol et; RESTRICT ise dokunma
+			r = db.execute(text("""
+				SELECT rc.constraint_name, rc.delete_rule
+				FROM information_schema.referential_constraints rc
+				JOIN information_schema.key_column_usage kcu
+				  ON rc.constraint_name = kcu.constraint_name AND kcu.table_name = 'attendances'
+				WHERE kcu.table_schema = current_schema() AND kcu.table_name = 'attendances' AND kcu.column_name = 'lesson_id'
+			"""))
+			row = r.fetchone()
+			if not row or row[1].upper() == "RESTRICT":
+				return
+			old_constraint = row[0]
+			db.execute(text(f"ALTER TABLE attendances DROP CONSTRAINT IF EXISTS {old_constraint}"))
+			db.execute(text("""
+				ALTER TABLE attendances ADD CONSTRAINT attendances_lesson_id_fkey
+				FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE RESTRICT
+			"""))
+			db.commit()
+			print("attendances.lesson_id FK RESTRICT olarak güncellendi")
+		except Exception as e:
+			db.rollback()
+		finally:
+			db.close()
+	except Exception:
+		pass
+
+
 # Uygulama başlangıcında kolonu kontrol et
 try:
 	ensure_is_active_column()
@@ -83,6 +118,11 @@ except Exception as e:
 	print(f"Baslangic migration kontrolu hatasi: {e}")
 	import traceback
 	traceback.print_exc()
+
+try:
+	ensure_attendance_lesson_fk_restrict()
+except Exception as e:
+	pass
 
 
 

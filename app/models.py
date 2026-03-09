@@ -91,16 +91,18 @@ class Lesson(Base):
 
 	course = relationship("Course", back_populates="lessons")
 	teacher = relationship("Teacher", back_populates="lessons")
-	attendances = relationship("Attendance", back_populates="lesson", cascade="all, delete-orphan")
+	# delete-orphan YOK: Yoklamalar sadece açık delete_attendance/delete_lesson ile silinsin; ilişki üzerinden silinmesin
+	attendances = relationship("Attendance", back_populates="lesson", cascade="save-update")
 	lesson_students = relationship("LessonStudent", back_populates="lesson", cascade="all, delete-orphan")
 
 
 class Attendance(Base):
 	__tablename__ = "attendances"
 	# Unique constraint kaldırıldı - aynı ders ve öğrenci için birden fazla yoklama kaydı olabilir
+	# lesson_id RESTRICT: Ders silinirken yoklama varsa DB silmeyi reddeder; yoklamaların kendiliğinden silinmesi önlenir
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
+	lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id", ondelete="RESTRICT"), nullable=False)
 	student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
 	status: Mapped[str] = mapped_column(String(20), nullable=False)  # PRESENT, UNEXCUSED_ABSENT, EXCUSED_ABSENT, TELAFI
 	note: Mapped[str | None] = mapped_column(Text, nullable=True)

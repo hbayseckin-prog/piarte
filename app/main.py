@@ -2684,7 +2684,11 @@ def lesson_delete(lesson_id: int, request: Request, db: Session = Depends(get_db
     lesson = crud.get_lesson(db, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
-    crud.delete_lesson(db, lesson_id)
+    result = crud.delete_lesson(db, lesson_id)
+    if result is False:
+        # Bu derse ait yoklama kaydı var; silme engellendi
+        request.session["lesson_delete_error"] = "Bu derse ait yoklama kayıtları bulunduğu için ders silinemiyor. Yoklamaları korumak için önce ilgili yoklamaları panelden silin."
+        return RedirectResponse(url="/ui/lessons", status_code=status.HTTP_303_SEE_OTHER)
     # Program düzenleme ekranına geri dön
     return RedirectResponse(url="/ui/lessons", status_code=status.HTTP_303_SEE_OTHER)
 

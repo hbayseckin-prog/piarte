@@ -398,8 +398,15 @@ def update_lesson(db: Session, lesson_id: int, data: schemas.LessonUpdate):
 
 
 def delete_lesson(db: Session, lesson_id: int):
+	"""Dersi siler. Bu derse ait yoklama kaydı varsa silmez (yoklamaların kendiliğinden silinmesini önler)."""
 	lesson = db.get(models.Lesson, lesson_id)
 	if not lesson:
+		return None
+	# Yoklama kaydı varsa dersi silme — CASCADE ile yoklamaların silinmesini engelle
+	attendance_count = db.scalars(
+		select(func.count(models.Attendance.id)).where(models.Attendance.lesson_id == lesson_id)
+	).first() or 0
+	if attendance_count and int(attendance_count) > 0:
 		return False
 	db.delete(lesson)
 	db.commit()

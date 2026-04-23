@@ -12,7 +12,14 @@
 	<label>Tutar</label>
 	<input type="number" name="amount_try" step="0.01" min="0" required />
 	<label>Tarih</label>
+	{% if is_staff_user %}
+	<input type="hidden" name="payment_date" value="{{ today_iso }}" />
+	<div style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;color:#0f172a;">
+		{{ today_display }} (Sadece bugün)
+	</div>
+	{% else %}
 	<input type="date" name="payment_date" />
+	{% endif %}
 	<label>Yöntem</label>
 	<select name="method">
 		<option value="">Seçiniz</option>

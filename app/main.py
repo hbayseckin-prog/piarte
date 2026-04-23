@@ -1393,7 +1393,20 @@ def payment_form(request: Request, db: Session = Depends(get_db), student_id: st
             selected_student_id = int(student_id)
         except (ValueError, TypeError):
             selected_student_id = None
-    return templates.TemplateResponse("payment_new.html", {"request": request, "students": students, "selected_student_id": selected_student_id})
+    from datetime import date
+    user = request.session.get("user") or {}
+    is_staff_user = user.get("role") == "staff"
+    return templates.TemplateResponse(
+        "payment_new.html",
+        {
+            "request": request,
+            "students": students,
+            "selected_student_id": selected_student_id,
+            "is_staff_user": is_staff_user,
+            "today_iso": date.today().isoformat(),
+            "today_display": date.today().strftime("%d.%m.%Y"),
+        },
+    )
 
 
 @app.post("/payments/new")
@@ -1412,8 +1425,13 @@ def payment_create(
     if redirect:
         return redirect
     from datetime import date
+    user = request.session.get("user") or {}
+    is_staff_user = user.get("role") == "staff"
     pd = None
-    if payment_date:
+    if is_staff_user:
+        # Staff kullanıcıları için ödeme tarihi her zaman bugündür.
+        pd = date.today()
+    elif payment_date:
         try:
             y, m, d = map(int, payment_date.split("-"))
             pd = date(y, m, d)

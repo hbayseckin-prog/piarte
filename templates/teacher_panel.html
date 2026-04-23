@@ -2,6 +2,11 @@
 {% block title %}Öğretmen Paneli - Piarte{% endblock %}
 {% block content %}
 <h2 class="h1">Öğretmen Paneli</h2>
+{% if request.session.get('admin_original_user') %}
+<div style="margin-bottom:12px;">
+	<a href="/session/switch-back-admin" style="display:inline-block;padding:8px 12px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Yönetici Paneline Geri Dön</a>
+</div>
+{% endif %}
 
 <div class="card">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>

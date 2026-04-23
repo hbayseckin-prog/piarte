@@ -39,6 +39,16 @@
 		<strong style="color:#0f172a;font-size:16px;display:block;margin-bottom:8px;">Admin İşlemleri:</strong>
 		<a href="/ui/admin/users" style="padding:10px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;display:inline-block;text-align:center;">Kullanıcı Yönetimi</a>
 	</div>
+	{% if admin_switch_targets %}
+	<div style="margin-top:12px;">
+		<strong style="color:#0f172a;font-size:16px;display:block;margin-bottom:8px;">Kullanıcı Geçişi:</strong>
+		<div class="btn-group">
+			{% for switch_target in admin_switch_targets %}
+			<a href="/session/switch-user/{{ switch_target.user_id }}" style="padding:10px 16px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">{{ switch_target.label }}</a>
+			{% endfor %}
+		</div>
+	</div>
+	{% endif %}
 	{% endif %}
 </div>
 

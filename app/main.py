@@ -416,6 +416,20 @@ def require_admin(request: Request):
     return user
 
 
+def build_session_user_payload(user: models.User, role_override: str | None = None) -> dict:
+    """DB user nesnesini session payload formatına çevirir."""
+    role_value = (role_override or user.role or "admin").strip().lower()
+    if role_value not in {"admin", "staff", "teacher"}:
+        role_value = "admin"
+    return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "role": role_value,
+        "teacher_id": getattr(user, "teacher_id", None),
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
 	# Kullanıcı giriş yapmışsa dashboard'a, yoksa index.html'i göster
@@ -486,6 +500,43 @@ def logout(request: Request):
 		return RedirectResponse(url="/login/admin", status_code=302)
 
 
+@app.get("/session/switch-user/{target_user_id}")
+def session_switch_user(target_user_id: int, request: Request, db: Session = Depends(get_db)):
+    """Admin kullanıcısının çıkış yapmadan staff/teacher kullanıcıya geçmesini sağlar."""
+    current_user = request.session.get("user")
+    if not current_user or current_user.get("role") != "admin":
+        return RedirectResponse(url="/login/admin", status_code=302)
+
+    target_user = db.get(models.User, target_user_id)
+    target_role = (getattr(target_user, "role", "") or "").strip().lower() if target_user else ""
+    if not target_user or target_role not in {"staff", "teacher"}:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    # İlk geçişte admin oturumunu sakla; geri dönüşte kullanılacak.
+    if not request.session.get("admin_original_user"):
+        request.session["admin_original_user"] = current_user
+
+    request.session["user"] = build_session_user_payload(target_user, role_override=target_role)
+    if target_role == "teacher":
+        return RedirectResponse(url="/ui/teacher", status_code=302)
+    return RedirectResponse(url="/ui/staff", status_code=302)
+
+
+@app.get("/session/switch-back-admin")
+def session_switch_back_admin(request: Request):
+    """Kullanıcı geçişinden sonra admin oturumuna geri döner."""
+    original_admin_user = request.session.get("admin_original_user")
+    if original_admin_user:
+        request.session["user"] = original_admin_user
+        request.session.pop("admin_original_user", None)
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    active_user = request.session.get("user")
+    if active_user and active_user.get("role") == "admin":
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return RedirectResponse(url="/login/admin", status_code=302)
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(
     request: Request,
@@ -519,6 +570,50 @@ def dashboard(
     # Staff (personel) kullanıcılarını getir
     from sqlalchemy import select
     staff_users = db.scalars(select(models.User).where(models.User.role == "staff").order_by(models.User.created_at.desc())).all()
+    admin_switch_targets: list[dict] = []
+    staff_switch_user = db.scalars(
+        select(models.User)
+        .where(models.User.role == "staff")
+        .order_by(models.User.created_at.asc())
+    ).first()
+    if staff_switch_user:
+        admin_switch_targets.append({
+            "user_id": staff_switch_user.id,
+            "label": "Staff Paneline Geç",
+        })
+
+    from sqlalchemy import or_
+    target_teacher_user = db.scalars(
+        select(models.User)
+        .join(models.Teacher, models.Teacher.id == models.User.teacher_id)
+        .where(
+            models.User.role == "teacher",
+            or_(
+                models.Teacher.first_name.ilike("%Gokhan%"),
+                models.Teacher.first_name.ilike("%Gökhan%"),
+            ),
+            or_(
+                models.Teacher.last_name.ilike("%Husunbeyi%"),
+                models.Teacher.last_name.ilike("%Hüsünbeyi%"),
+            ),
+        )
+        .order_by(models.User.created_at.asc())
+    ).first()
+    if not target_teacher_user:
+        target_teacher_user = db.scalars(
+            select(models.User)
+            .where(models.User.role == "teacher")
+            .order_by(models.User.created_at.asc())
+        ).first()
+    if target_teacher_user:
+        teacher_display = "Öğretmen Paneline Geç"
+        target_teacher = db.get(models.Teacher, target_teacher_user.teacher_id) if target_teacher_user.teacher_id else None
+        if target_teacher and (target_teacher.first_name or target_teacher.last_name):
+            teacher_display = f"{target_teacher.first_name or ''} {target_teacher.last_name or ''} Paneline Geç".strip()
+        admin_switch_targets.append({
+            "user_id": target_teacher_user.id,
+            "label": teacher_display,
+        })
     
     # Query parametrelerini integer'a çevir (boş string'leri None yap)
     teacher_id_int = None
@@ -887,6 +982,7 @@ def dashboard(
         "payment_status_list": payment_status_list,
         "show_passive_students": show_passive_students,
         "user": user,
+        "admin_switch_targets": admin_switch_targets,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
             "student_id": str(student_id_int) if student_id_int else "",

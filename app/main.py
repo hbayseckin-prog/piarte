@@ -1258,7 +1258,8 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         </html>
         """, status_code=400)
     try:
-        show_passive_students = parse_show_passive_flag(show_passive)
+        # Öğretmen panelinde pasif öğrenciler her zaman gizli tutulur.
+        show_passive_students = False
         # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
         display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
         

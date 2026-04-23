@@ -442,6 +442,19 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 		# Her ders için, o derse atanmış öğrencileri getir.
 		# Program ekranında pasif öğrencilerin de görünmesi gerekir; aksi halde sadece saat/tarih görünüp isimler "kaybolmuş" gibi olur.
 		lesson_students = list_students_by_lesson(db, lesson.id, active_only=False)
+		
+		# Tekil veri tutarsızlığına karşı güvenlik:
+		# LessonStudent boşsa, kalabalık liste oluşturmadan yalnızca son yoklama öğrencisini göster.
+		if not lesson_students:
+			last_attendance = db.scalars(
+				select(models.Attendance)
+				.where(models.Attendance.lesson_id == lesson.id)
+				.order_by(models.Attendance.marked_at.desc())
+			).first()
+			if last_attendance and last_attendance.student_id:
+				fallback_student = db.get(models.Student, last_attendance.student_id)
+				if fallback_student:
+					lesson_students = [fallback_student]
 		out.append({"lesson": lesson, "students": lesson_students})
 	return out
 

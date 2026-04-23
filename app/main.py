@@ -710,6 +710,10 @@ def dashboard(
         formatted_lessons = []
         for entry in lessons_with_students:
             lesson = entry["lesson"]
+            students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+            if not students_for_view:
+                # Öğrencisi olmayan dersleri program grid'inde gizle
+                continue
             weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
             # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
             current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
@@ -717,7 +721,7 @@ def dashboard(
                 "weekday": weekday,
                 "lesson": lesson,
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
+                "students": students_for_view,
             })
         teachers_schedules.append({
             "teacher": teacher,
@@ -1078,6 +1082,10 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         formatted_lessons = []
         for entry in lessons_with_students:
             lesson = entry["lesson"]
+            students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+            if not students_for_view:
+                # Öğrencisi olmayan dersleri program grid'inde gizle
+                continue
             weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
             # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
             current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
@@ -1085,7 +1093,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 "weekday": weekday,
                 "lesson": lesson,
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
+                "students": students_for_view,
             })
         # Öğretmene atanmış öğrencileri getir
         teacher_students = []
@@ -1120,6 +1128,10 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             teacher_formatted_lessons = []
             for entry in teacher_lessons:
                 lesson = entry["lesson"]
+                students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+                if not students_for_view:
+                    # Öğrencisi olmayan dersleri program grid'inde gizle
+                    continue
                 weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
                 # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
                 current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
@@ -1127,7 +1139,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                     "weekday": weekday,
                     "lesson": lesson,
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
+                    "students": students_for_view,
                 })
             teachers_schedules.append({
                 "teacher": teacher,
@@ -1401,6 +1413,7 @@ def ui_lessons(
     teacher_id: str | None = None,
     course_id: str | None = None,
     student_name: str | None = None,
+    show_empty: str | None = None,
     db: Session = Depends(get_db),
 ):
     if not request.session.get("user"):
@@ -1437,6 +1450,7 @@ def ui_lessons(
             course_id_int = int(str(course_id).strip())
         except (ValueError, TypeError):
             course_id_int = None
+    show_empty_lessons = str(show_empty or "").strip().lower() in {"1", "true", "yes", "on"}
 
     q = db.query(models.Lesson)
     if start_date:
@@ -1464,6 +1478,10 @@ def ui_lessons(
              )
              .distinct()
         )
+    elif not show_empty_lessons:
+        # Varsayılan: öğrencisi olmayan ders satırlarını listede gizle
+        from sqlalchemy import exists
+        q = q.filter(exists().where(models.LessonStudent.lesson_id == models.Lesson.id))
     from sqlalchemy.orm import joinedload
     q = q.options(
         joinedload(models.Lesson.lesson_students).joinedload(models.LessonStudent.student),
@@ -1495,6 +1513,7 @@ def ui_lessons(
             "teacher_id": teacher_id_int or "",
             "course_id": course_id_int or "",
             "student_name": student_name or "",
+            "show_empty": show_empty_lessons,
         },
     )
 
@@ -2824,6 +2843,9 @@ def ui_teacher_detail(teacher_id: int, request: Request, show_passive: str | Non
     for lesson in lessons:
         students = crud.list_students_by_lesson(db, lesson.id, active_only=False)
         students = filter_students_by_passive_flag(students, show_passive_students)
+        if not students:
+            # Öğrencisi olmayan dersleri detay program tablosunda gizle
+            continue
         att_count = len(crud.list_attendance_for_lesson(db, lesson.id))
         lessons_with_students.append({"lesson": lesson, "students": students, "attendance_count": att_count})
     teacher_students = crud.list_students_by_teacher(db, teacher_id)
@@ -3346,6 +3368,10 @@ def staff_panel(
             formatted_lessons = []
             for entry in lessons_with_students:
                 lesson = entry["lesson"]
+                students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+                if not students_for_view:
+                    # Öğrencisi olmayan dersleri program grid'inde gizle
+                    continue
                 weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
                 # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
                 current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
@@ -3353,7 +3379,7 @@ def staff_panel(
                     "weekday": weekday,
                     "lesson": lesson,
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
+                    "students": students_for_view,
                 })
             teachers_schedules.append({
                 "teacher": teacher,

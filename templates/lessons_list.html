@@ -35,6 +35,10 @@
       <input type="text" id="lesson-student-name-input" name="student_name" placeholder="Öğrenci adı (en az 3 harf)" value="{{ student_name or '' }}" autocomplete="off" style="width:100%;padding:8px;" />
       <div id="lesson-student-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1000;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:280px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.12);"></div>
     </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#475569;padding:0 6px;">
+      <input type="checkbox" name="show_empty" value="1" {% if show_empty %}checked{% endif %} />
+      Boş öğrenci kayıtlarını göster
+    </label>
     <button type="submit">Filtrele</button>
     <a href="/ui/lessons" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none">Temizle</a>
   </form>

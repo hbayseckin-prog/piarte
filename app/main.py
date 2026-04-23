@@ -499,6 +499,7 @@ def dashboard(
     order_by: str = "marked_at_desc",
     student_name: str | None = None,
     payment_day: str | None = None,
+    payment_status_filter: str | None = None,
     attendance_view: str | None = None,
     show_passive: str | None = None,
 ):
@@ -766,13 +767,54 @@ def dashboard(
             "lessons": formatted_lessons
         })
     
-    # Ödeme gerekli öğrencileri ve ders bilgilerini getir (sadece admin için)
+    # Ödeme durumu listesi ve ders bilgileri (sadece admin için)
     students_needing_payment = []
     students_needing_payment_lessons = {}
+    payment_status_list = []
     if user.get("role") == "admin":
-        students_needing_payment = crud.list_students_needing_payment(db)
         weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-        for s in students_needing_payment:
+        all_students_for_payment = crud.list_students(db, active_only=True)
+        for s in all_students_for_payment:
+            # Toplam ders sayısı (PRESENT/TELAFI/UNEXCUSED_ABSENT)
+            total_lessons = db.scalars(
+                select(func.count(models.Attendance.id)).where(
+                    models.Attendance.student_id == s.id,
+                    models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"]),
+                )
+            ).first() or 0
+            total_lessons = int(total_lessons or 0)
+            payments = crud.list_payments_by_student(db, s.id)
+            total_paid_sets = len(payments)
+            position_in_set = total_lessons % 4
+            lessons_covered_by_payment = total_paid_sets * 4
+            within_paid = total_paid_sets > 0 and total_lessons < lessons_covered_by_payment
+
+            payment_status = ""
+            payment_status_class = ""
+            needs_payment = False
+            if total_paid_sets == 0:
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
+            elif total_lessons == 0:
+                payment_status = "✅ Ödendi"
+                payment_status_class = "paid"
+            elif within_paid:
+                if position_in_set in (0, 1, 2):
+                    payment_status = "✅ Ödeme Yapıldı"
+                    payment_status_class = "paid"
+                else:
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
+            else:
+                if position_in_set in (0, 1, 2):
+                    payment_status = "⚠️ Ödeme Gerekli"
+                    payment_status_class = "needs_payment"
+                    needs_payment = True
+                else:
+                    payment_status = "⏳ Ödeme Bekleniyor"
+                    payment_status_class = "waiting"
+
             lesson_days = set()
             lesson_courses = set()
             lessons_for_student = crud.list_lessons_by_student(db, s.id)
@@ -789,15 +831,44 @@ def dashboard(
             students_needing_payment_lessons[s.id] = {
                 "lesson_days": ", ".join(sorted(lesson_days)) if lesson_days else "-",
                 "lesson_courses": ", ".join(sorted(lesson_courses)) if lesson_courses else "-",
+                "lesson_days_set": lesson_days,
             }
+            payment_status_list.append({
+                "student": s,
+                "needs_payment": needs_payment,
+                "payment_status": payment_status,
+                "payment_status_class": payment_status_class,
+            })
+
+        payment_status_list.sort(
+            key=lambda x: (
+                x["payment_status_class"] != "needs_payment",
+                (x["student"].first_name or "").lower(),
+                (x["student"].last_name or "").lower(),
+            )
+        )
+
         # Gün bazlı filtre: sadece seçilen günde dersi olan öğrencileri göster (tam gün adı eşleşmesi)
         if payment_day and payment_day.strip():
             payment_day_clean = payment_day.strip()
-            def student_has_lesson_on_day(sid: int) -> bool:
-                days_str = (students_needing_payment_lessons.get(sid) or {}).get("lesson_days", "") or ""
-                day_set = {d.strip() for d in days_str.split(",") if d.strip()}
-                return payment_day_clean in day_set
-            students_needing_payment = [s for s in students_needing_payment if student_has_lesson_on_day(s.id)]
+            payment_status_list = [
+                item for item in payment_status_list
+                if payment_day_clean in ((students_needing_payment_lessons.get(item["student"].id) or {}).get("lesson_days_set", set()))
+            ]
+
+        # Durum filtresi: all|needs_payment|waiting|paid
+        payment_status_filter_value = (payment_status_filter or "all").strip().lower()
+        if payment_status_filter_value in {"needs_payment", "waiting", "paid"}:
+            payment_status_list = [
+                item for item in payment_status_list
+                if item.get("payment_status_class") == payment_status_filter_value
+            ]
+        else:
+            payment_status_filter_value = "all"
+
+        students_needing_payment = [item["student"] for item in payment_status_list if item.get("needs_payment")]
+    else:
+        payment_status_filter_value = "all"
     
     context = {
         "request": request,
@@ -813,6 +884,7 @@ def dashboard(
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,
         "students_needing_payment_lessons": students_needing_payment_lessons,
+        "payment_status_list": payment_status_list,
         "show_passive_students": show_passive_students,
         "user": user,
         "filters": {
@@ -825,6 +897,7 @@ def dashboard(
             "order_by": order_by,
             "student_name": student_name or "",
             "payment_day": payment_day or "",
+            "payment_status_filter": payment_status_filter_value,
             "attendance_view": (attendance_view or "both").strip() or "both",
             "show_passive": "1" if show_passive_students else "0",
         },

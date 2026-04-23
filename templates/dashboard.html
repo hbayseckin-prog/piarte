@@ -865,7 +865,7 @@ if (quickSearchInput) {
 
 {% if (request.session.get('user') and request.session.get('user').get('role') == 'admin') or (user and user.get('role') == 'admin') %}
 <div class="card">
-	<h3 class="h2">Ödeme Gerekli Öğrenciler</h3>
+	<h3 class="h2">Ödeme Durumu Öğrenciler</h3>
 	<form method="get" action="/dashboard" id="payment-day-form" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
 		<input type="hidden" name="teacher_id" value="{{ filters.teacher_id or '' }}">
 		<input type="hidden" name="student_id" value="{{ filters.student_id or '' }}">
@@ -875,6 +875,7 @@ if (quickSearchInput) {
 		<input type="hidden" name="end_date" value="{{ filters.end_date or '' }}">
 		<input type="hidden" name="order_by" value="{{ filters.order_by or 'marked_at_desc' }}">
 		<input type="hidden" name="student_name" value="{{ filters.student_name or '' }}">
+		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ filters.payment_status_filter or 'all' }}">
 		<label for="payment_day" style="font-weight:500;color:#475569;">Ders gününe göre filtrele:</label>
 		<select name="payment_day" id="payment_day" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:160px;">
 			<option value="">Tümü</option>
@@ -886,20 +887,38 @@ if (quickSearchInput) {
 			<option value="Cumartesi" {% if filters.payment_day == 'Cumartesi' %}selected{% endif %}>Cumartesi</option>
 			<option value="Pazar" {% if filters.payment_day == 'Pazar' %}selected{% endif %}>Pazar</option>
 		</select>
+		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+			<button type="button" onclick="setPaymentStatusFilter('all')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'all' %}#0ea5e9{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'all' %}#e0f2fe{% else %}#fff{% endif %};color:#0f172a;border-radius:8px;font-size:13px;cursor:pointer;">Tümü</button>
+			<button type="button" onclick="setPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
+			<button type="button" onclick="setPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
+			<button type="button" onclick="setPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
+		</div>
 	</form>
-	{% if students_needing_payment and students_needing_payment|length > 0 %}
+	<script>
+		function setPaymentStatusFilter(value) {
+			const input = document.getElementById('payment_status_filter_input');
+			const form = document.getElementById('payment-day-form');
+			if (input && form) {
+				input.value = value;
+				form.submit();
+			}
+		}
+	</script>
+	{% if payment_status_list and payment_status_list|length > 0 %}
 	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
-		{% for student in students_needing_payment %}
+		{% for item in payment_status_list %}
+		{% set student = item.student %}
+		{% set status_class = item.payment_status_class %}
 		<div 
-			style="display:block;padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:8px;color:#0f172a;transition:all 0.2s;border-left:4px solid #ef4444;"
-			onmouseover="this.style.background='#fecaca';this.style.borderColor='#0ea5e9';"
-			onmouseout="this.style.background='#fee2e2';this.style.borderColor='#ef4444';"
+			style="display:block;padding:12px;background:{% if status_class == 'needs_payment' %}#fee2e2{% elif status_class == 'waiting' %}#fffbeb{% else %}#dcfce7{% endif %};border:1px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};border-radius:8px;color:#0f172a;transition:all 0.2s;border-left:4px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};"
+			onmouseover="this.style.borderColor='#0ea5e9';"
+			onmouseout="this.style.borderColor='{% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %}';"
 		>
 			<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
 				<div style="flex:1;min-width:200px;">
-					<strong style="color:#dc2626;font-size:15px;">
+					<strong style="color:#0f172a;font-size:15px;">
 						{{ student.first_name }} {{ student.last_name }}
-						<span style="font-size:12px;color:#dc2626;margin-left:8px;">⚠️ Ödeme Gerekli</span>
+						<span style="font-size:12px;margin-left:8px;color:{% if status_class == 'needs_payment' %}#dc2626{% elif status_class == 'waiting' %}#b45309{% else %}#15803d{% endif %};">{{ item.payment_status }}</span>
 					</strong>
 					{% set lesson_info = students_needing_payment_lessons.get(student.id) if students_needing_payment_lessons else None %}
 					{% if lesson_info %}
@@ -926,7 +945,7 @@ if (quickSearchInput) {
 		{% endfor %}
 	</div>
 	{% else %}
-	<p style="color:#64748b;text-align:center;padding:20px;">Ödeme gerekli öğrenci bulunmuyor.</p>
+	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen filtre için öğrenci bulunmuyor.</p>
 	{% endif %}
 </div>
 {% endif %}

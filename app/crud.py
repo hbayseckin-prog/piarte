@@ -344,7 +344,44 @@ def enroll_student(db: Session, student_id: int, course_id: int, commit: bool = 
 
 
 # Lesson Students
+def _enforce_single_student_slot_per_teacher_day(
+	db: Session,
+	teacher_id: int,
+	student_id: int,
+	target_lesson_id: int,
+	target_weekday: int,
+):
+	"""
+	Aynı öğretmen + aynı gün için öğrenciyi tek ders slotunda tutar.
+	Hedef ders dışındaki LessonStudent kayıtlarını temizler.
+	"""
+	conflicting_links = db.scalars(
+		select(models.LessonStudent)
+		.join(models.Lesson, models.Lesson.id == models.LessonStudent.lesson_id)
+		.where(
+			models.LessonStudent.student_id == student_id,
+			models.Lesson.teacher_id == teacher_id,
+			models.Lesson.id != target_lesson_id,
+		)
+	).all()
+	for link in conflicting_links:
+		other_lesson = db.get(models.Lesson, link.lesson_id)
+		if not other_lesson or not other_lesson.lesson_date:
+			continue
+		if other_lesson.lesson_date.weekday() == target_weekday:
+			db.delete(link)
+
+
 def assign_student_to_lesson(db: Session, lesson_id: int, student_id: int):
+	lesson = db.get(models.Lesson, lesson_id)
+	if lesson and lesson.lesson_date and lesson.teacher_id:
+		_enforce_single_student_slot_per_teacher_day(
+			db=db,
+			teacher_id=lesson.teacher_id,
+			student_id=student_id,
+			target_lesson_id=lesson_id,
+			target_weekday=lesson.lesson_date.weekday(),
+		)
 	# Öğrenci zaten bu derse atanmış mı kontrol et
 	existing = db.scalars(
 		select(models.LessonStudent)
@@ -389,6 +426,20 @@ def update_lesson(db: Session, lesson_id: int, data: schemas.LessonUpdate):
 		return None
 	for k, v in data.model_dump(exclude_unset=True).items():
 		setattr(lesson, k, v)
+
+	# Ders günü/öğretmeni değiştiyse, derse bağlı öğrenciler için aynı gün tek slot kuralını uygula.
+	if lesson.teacher_id and lesson.lesson_date:
+		linked_students = db.scalars(
+			select(models.LessonStudent).where(models.LessonStudent.lesson_id == lesson.id)
+		).all()
+		for ls in linked_students:
+			_enforce_single_student_slot_per_teacher_day(
+				db=db,
+				teacher_id=lesson.teacher_id,
+				student_id=ls.student_id,
+				target_lesson_id=lesson.id,
+				target_weekday=lesson.lesson_date.weekday(),
+			)
 	db.commit()
 	db.refresh(lesson)
 	return lesson

@@ -70,6 +70,43 @@ def filter_students_by_passive_flag(students, show_passive_students: bool):
     return [s for s in students if getattr(s, "is_active", True)]
 
 
+def dedupe_daily_students_in_schedule(entries: list[dict]) -> list[dict]:
+    """
+    Aynı öğrenci aynı gün birden fazla ders slotunda görünüyorsa tek slotta bırakır.
+    Öncelik: daha geç başlangıç saati, saat eşitse daha yeni lesson id.
+    """
+    chosen: dict[tuple[str, int], dict] = {}
+    for entry in entries:
+        lesson = entry.get("lesson")
+        weekday = entry.get("weekday", "")
+        students = entry.get("students") or []
+        start_time = getattr(lesson, "start_time", None)
+        lesson_id = getattr(lesson, "id", 0) or 0
+        start_sort = (start_time.hour, start_time.minute) if start_time else (-1, -1)
+        for s in students:
+            key = (weekday, getattr(s, "id", 0))
+            prev = chosen.get(key)
+            if not prev:
+                chosen[key] = {"entry": entry, "start_sort": start_sort, "lesson_id": lesson_id}
+                continue
+            if start_sort > prev["start_sort"] or (start_sort == prev["start_sort"] and lesson_id > prev["lesson_id"]):
+                chosen[key] = {"entry": entry, "start_sort": start_sort, "lesson_id": lesson_id}
+
+    filtered_entries: list[dict] = []
+    for entry in entries:
+        weekday = entry.get("weekday", "")
+        kept_students = []
+        for s in entry.get("students") or []:
+            key = (weekday, getattr(s, "id", 0))
+            if chosen.get(key, {}).get("entry") is entry:
+                kept_students.append(s)
+        if kept_students:
+            new_entry = dict(entry)
+            new_entry["students"] = kept_students
+            filtered_entries.append(new_entry)
+    return filtered_entries
+
+
 # Alt klasör desteği için root_path (eğer /piarte altında çalışıyorsa)
 # Production'da environment variable veya Nginx yapılandırması ile ayarlanabilir
 ROOT_PATH = os.getenv("ROOT_PATH", "")  # Varsayılan: boş (root'ta çalışır)
@@ -723,6 +760,7 @@ def dashboard(
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                 "students": students_for_view,
             })
+        formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
         teachers_schedules.append({
             "teacher": teacher,
             "lessons": formatted_lessons
@@ -1095,6 +1133,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                 "students": students_for_view,
             })
+        formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
         # Öğretmene atanmış öğrencileri getir
         teacher_students = []
         if current_teacher_id:
@@ -1141,6 +1180,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                     "students": students_for_view,
                 })
+            teacher_formatted_lessons = dedupe_daily_students_in_schedule(teacher_formatted_lessons)
             teachers_schedules.append({
                 "teacher": teacher,
                 "lessons": teacher_formatted_lessons
@@ -3381,6 +3421,7 @@ def staff_panel(
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
                     "students": students_for_view,
                 })
+            formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
             teachers_schedules.append({
                 "teacher": teacher,
                 "lessons": formatted_lessons

@@ -2498,12 +2498,12 @@ def search_students(q: str = None, db: Session = Depends(get_db)):
 	if not q or len(q.strip()) < 3:
 		return []
 	from sqlalchemy import or_
-	search_term = f"%{q.strip()}%"
+	search_prefix = f"{q.strip()[:3]}%"
 	students = db.query(models.Student).filter(
 		or_(
-			models.Student.first_name.ilike(search_term),
-			models.Student.last_name.ilike(search_term),
-			(models.Student.first_name + " " + models.Student.last_name).ilike(search_term),
+			models.Student.first_name.ilike(search_prefix),
+			models.Student.last_name.ilike(search_prefix),
+			(models.Student.first_name + " " + models.Student.last_name).ilike(search_prefix),
 		)
 	).limit(10).all()
 	return [
@@ -2524,10 +2524,10 @@ def search_teachers(q: str = None, db: Session = Depends(get_db)):
 	"""Öğretmen arama API endpoint'i - autocomplete için"""
 	if not q or len(q.strip()) < 3:
 		return []
-	search_term = f"%{q.strip()}%"
+	search_prefix = f"{q.strip()[:3]}%"
 	teachers = db.query(models.Teacher).filter(
-		(models.Teacher.first_name.ilike(search_term)) | 
-		(models.Teacher.last_name.ilike(search_term))
+		(models.Teacher.first_name.ilike(search_prefix)) | 
+		(models.Teacher.last_name.ilike(search_prefix))
 	).limit(10).all()
 	return [
 		{
@@ -2562,16 +2562,16 @@ def search_courses(q: str = None, db: Session = Depends(get_db)):
 
 @app.get("/api/search/all")
 def search_all(q: str = None, db: Session = Depends(get_db)):
-	"""Tüm türlerde arama API endpoint'i - autocomplete için (öğrenci, öğretmen, kurs)"""
+	"""İsim bazlı arama API endpoint'i - autocomplete için (öğrenci, öğretmen)"""
 	if not q or len(q.strip()) < 3:
 		return []
-	search_term = f"%{q.strip()}%"
+	search_prefix = f"{q.strip()[:3]}%"
 	results = []
 	
 	# Öğrenciler
 	students = db.query(models.Student).filter(
-		(models.Student.first_name.ilike(search_term)) | 
-		(models.Student.last_name.ilike(search_term))
+		(models.Student.first_name.ilike(search_prefix)) | 
+		(models.Student.last_name.ilike(search_prefix))
 	).limit(5).all()
 	for s in students:
 		results.append({
@@ -2583,8 +2583,8 @@ def search_all(q: str = None, db: Session = Depends(get_db)):
 	
 	# Öğretmenler
 	teachers = db.query(models.Teacher).filter(
-		(models.Teacher.first_name.ilike(search_term)) | 
-		(models.Teacher.last_name.ilike(search_term))
+		(models.Teacher.first_name.ilike(search_prefix)) | 
+		(models.Teacher.last_name.ilike(search_prefix))
 	).limit(5).all()
 	for t in teachers:
 		results.append({
@@ -2592,18 +2592,6 @@ def search_all(q: str = None, db: Session = Depends(get_db)):
 			"name": f"{t.first_name} {t.last_name}",
 			"type": "teacher",
 			"url": f"/ui/teachers/{t.id}"
-		})
-	
-	# Kurslar
-	courses = db.query(models.Course).filter(
-		models.Course.name.ilike(search_term)
-	).limit(5).all()
-	for c in courses:
-		results.append({
-			"id": c.id,
-			"name": c.name,
-			"type": "course",
-			"url": f"/ui/courses"
 		})
 	
 	return results

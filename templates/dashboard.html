@@ -950,6 +950,55 @@ if (quickSearchInput) {
 </div>
 {% endif %}
 
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+<style>
+	.admin-accordion > summary {
+		list-style: none;
+		cursor: pointer;
+		font-weight: 700;
+		color: #0f172a;
+		padding: 12px 4px;
+		border-bottom: 1px solid var(--border);
+	}
+	.admin-accordion > summary::-webkit-details-marker {
+		display: none;
+	}
+	.admin-accordion-body {
+		padding-top: 12px;
+	}
+</style>
+<script>
+	(function() {
+		const cards = Array.from(document.querySelectorAll('.card'));
+		cards.forEach((card) => {
+			const heading = card.querySelector('h1, h2, h3, .h1, .h2');
+			if (!heading) return;
+			const titleText = (heading.textContent || '').trim();
+			if (!titleText) return;
+
+			const details = document.createElement('details');
+			details.className = 'card admin-accordion';
+
+			const summary = document.createElement('summary');
+			summary.textContent = titleText;
+
+			const body = document.createElement('div');
+			body.className = 'admin-accordion-body';
+
+			while (card.firstChild) {
+				body.appendChild(card.firstChild);
+			}
+			const duplicatedHeading = body.querySelector('h1, h2, h3, .h1, .h2');
+			if (duplicatedHeading) duplicatedHeading.remove();
+
+			details.appendChild(summary);
+			details.appendChild(body);
+			card.replaceWith(details);
+		});
+	})();
+</script>
+{% endif %}
+
 {% endblock %}
 
 

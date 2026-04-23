@@ -65,7 +65,14 @@
 				<td>
 					{% if entry.students %}
 						{% for s in entry.students %}
-							<span style="display:inline-block;padding:4px 8px;background:#e0e7ff;border-radius:6px;margin:2px;font-size:13px;">{{ s.first_name }} {{ s.last_name }}</span>
+							<span style="display:inline-block;padding:4px 8px;background:#e0e7ff;border-radius:6px;margin:2px;font-size:13px;{% if not s.is_active %}color:#dc2626;font-weight:600;{% endif %}">
+								{% if s.first_name or s.last_name %}
+									{{ s.first_name or '' }} {{ s.last_name or '' }}
+								{% else %}
+									Öğrenci #{{ s.id }}
+								{% endif %}
+								{% if not s.is_active %}(Pasif){% endif %}
+							</span>
 						{% endfor %}
 					{% else %}-{% endif %}
 				</td>

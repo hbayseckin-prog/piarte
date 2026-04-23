@@ -244,8 +244,15 @@
 					<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
 						{% for student in entry.students %}
 						<div style="display:flex;align-items:center;gap:12px;padding:8px;background:#f9fafb;border-radius:6px;flex-wrap:wrap;">
-							<div style="flex:1;min-width:150px;font-size:14px;color:#0f172a;font-weight:500;">
-								{{ student.first_name }} {{ student.last_name }}
+							<div style="flex:1;min-width:150px;font-size:14px;{% if not student.is_active %}color:#dc2626;{% else %}color:#0f172a;{% endif %};font-weight:500;">
+								{% if student.first_name or student.last_name %}
+									{{ student.first_name or '' }} {{ student.last_name or '' }}
+								{% else %}
+									Öğrenci #{{ student.id }}
+								{% endif %}
+								{% if not student.is_active %}
+								<span style="font-size:12px;color:#dc2626;margin-left:6px;">(Pasif)</span>
+								{% endif %}
 							</div>
 							<input 
 								type="time" 
@@ -513,7 +520,16 @@
 										{% if entry.students %}
 										<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,0.1);">
 											{% for s in entry.students %}
-												<div style="font-size:10px;color:#475569;">{{ s.first_name }} {{ s.last_name }}</div>
+												<div style="font-size:10px;{% if not s.is_active %}color:#dc2626;font-weight:600;{% else %}color:#475569;{% endif %}">
+													{% if s.first_name or s.last_name %}
+														{{ s.first_name or '' }} {{ s.last_name or '' }}
+													{% else %}
+														Öğrenci #{{ s.id }}
+													{% endif %}
+													{% if not s.is_active %}
+													<span style="font-size:9px;color:#dc2626;">(Pasif)</span>
+													{% endif %}
+												</div>
 											{% endfor %}
 										</div>
 										{% endif %}

@@ -767,7 +767,11 @@ if (quickSearchInput) {
 										<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,0.1);">
 											{% for s in entry.students %}
 												<div style="font-size:10px;{% if not s.is_active %}color:#dc2626;font-weight:600;{% else %}color:#475569;{% endif %}">
-													{{ s.first_name }} {{ s.last_name }}
+													{% if s.first_name or s.last_name %}
+														{{ s.first_name or '' }} {{ s.last_name or '' }}
+													{% else %}
+														Öğrenci #{{ s.id }}
+													{% endif %}
 													{% if not s.is_active %}
 													<span style="font-size:9px;color:#dc2626;">(Pasif)</span>
 													{% endif %}

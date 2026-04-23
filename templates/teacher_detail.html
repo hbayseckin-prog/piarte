@@ -34,6 +34,11 @@
 
 <div class="card">
 	<h3>Ders Programı</h3>
+	<p style="margin:8px 0 12px 0;">
+		<a href="/ui/teachers/{{ teacher.id }}?show_passive={% if show_passive_students %}0{% else %}1{% endif %}" style="padding:8px 12px;background:#fff;color:#0f172a;border:1px solid var(--border);text-decoration:none;border-radius:8px;font-size:13px;display:inline-block;">
+			{% if show_passive_students %}Pasif Öğrencileri Gizle{% else %}Pasif Öğrencileri Göster{% endif %}
+		</a>
+	</p>
 	{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 	<p><a href="/lessons/new" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;">Yeni Ders Ekle</a></p>
 	{% endif %}

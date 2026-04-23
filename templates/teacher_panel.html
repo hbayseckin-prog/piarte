@@ -5,6 +5,11 @@
 
 <div class="card">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
+	<div style="margin-bottom:12px;">
+		<button type="button" onclick="togglePassiveStudents()" style="padding:8px 12px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;">
+			{% if show_passive_students %}Pasif Öğrencileri Gizle{% else %}Pasif Öğrencileri Göster{% endif %}
+		</button>
+	</div>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
 	<div class="tabs-container" style="margin-bottom:16px;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
@@ -114,9 +119,19 @@
 	</style>
 	
 	<script>
+		function togglePassiveStudents() {
+			const url = new URL(window.location.href);
+			const currentValue = url.searchParams.get('show_passive');
+			const isVisible = currentValue !== '0';
+			url.searchParams.set('show_passive', isVisible ? '0' : '1');
+			window.location.href = url.toString();
+		}
+
 		function showTeacherSchedule(teacherId) {
-			// URL'yi güncelle
-			window.location.href = '/ui/teacher?selected_teacher_id=' + teacherId;
+			// URL'yi güncelle (mevcut filtreleri koru)
+			const url = new URL(window.location.href);
+			url.searchParams.set('selected_teacher_id', teacherId);
+			window.location.href = url.toString();
 		}
 	</script>
 	{% else %}
@@ -133,6 +148,7 @@
 	<form method="get" action="/ui/teacher" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
 		<input type="date" name="start_date" value="{{ start_date }}" placeholder="Başlangıç Tarihi" />
 		<input type="date" name="end_date" value="{{ end_date }}" placeholder="Bitiş Tarihi" />
+		<input type="hidden" name="show_passive" value="{% if show_passive_students %}1{% else %}0{% endif %}" />
 		{% if selected_teacher_id %}
 		<input type="hidden" name="selected_teacher_id" value="{{ selected_teacher_id }}" />
 		{% endif %}

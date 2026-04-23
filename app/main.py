@@ -56,6 +56,20 @@ def calculate_next_lesson_date(original_date):
     return next_date
 
 
+def parse_show_passive_flag(show_passive: str | None) -> bool:
+    """Query paramdan pasif öğrenci görünürlüğünü çözer."""
+    if show_passive is None:
+        return True
+    return str(show_passive).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def filter_students_by_passive_flag(students, show_passive_students: bool):
+    """Program kartı için öğrenci listesini pasif filtresine göre döndürür."""
+    if show_passive_students:
+        return students
+    return [s for s in students if getattr(s, "is_active", True)]
+
+
 # Alt klasör desteği için root_path (eğer /piarte altında çalışıyorsa)
 # Production'da environment variable veya Nginx yapılandırması ile ayarlanabilir
 ROOT_PATH = os.getenv("ROOT_PATH", "")  # Varsayılan: boş (root'ta çalışır)
@@ -449,6 +463,7 @@ def dashboard(
     student_name: str | None = None,
     payment_day: str | None = None,
     attendance_view: str | None = None,
+    show_passive: str | None = None,
 ):
     user = request.session.get("user")
     if not user:
@@ -486,6 +501,7 @@ def dashboard(
             course_id_int = int(course_id)
         except (ValueError, TypeError):
             course_id_int = None
+    show_passive_students = parse_show_passive_flag(show_passive)
     
     # Tarih filtrelerini parse et
     from datetime import date, datetime
@@ -701,7 +717,7 @@ def dashboard(
                 "weekday": weekday,
                 "lesson": lesson,
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": entry["students"],
+                "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
             })
         teachers_schedules.append({
             "teacher": teacher,
@@ -755,6 +771,7 @@ def dashboard(
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,
         "students_needing_payment_lessons": students_needing_payment_lessons,
+        "show_passive_students": show_passive_students,
         "user": user,
         "filters": {
             "teacher_id": str(teacher_id_int) if teacher_id_int else "",
@@ -767,6 +784,7 @@ def dashboard(
             "student_name": student_name or "",
             "payment_day": payment_day or "",
             "attendance_view": (attendance_view or "both").strip() or "both",
+            "show_passive": "1" if show_passive_students else "0",
         },
     }
     return templates.TemplateResponse("dashboard.html", context)
@@ -1002,7 +1020,7 @@ def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
 
 # UI: Teacher panel
 @app.get("/ui/teacher", response_class=HTMLResponse)
-def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, db: Session = Depends(get_db)):
+def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, show_passive: str | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/teacher", status_code=302)
@@ -1029,6 +1047,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         </html>
         """, status_code=400)
     try:
+        show_passive_students = parse_show_passive_flag(show_passive)
         # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
         display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
         
@@ -1066,7 +1085,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 "weekday": weekday,
                 "lesson": lesson,
                 "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": entry["students"],
+                "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
             })
         # Öğretmene atanmış öğrencileri getir
         teacher_students = []
@@ -1108,7 +1127,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                     "weekday": weekday,
                     "lesson": lesson,
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": entry["students"],
+                    "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
                 })
             teachers_schedules.append({
                 "teacher": teacher,
@@ -1150,6 +1169,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             "attendance_totals": attendance_totals,
             "start_date": start_date or "",
             "end_date": end_date or "",
+            "show_passive_students": show_passive_students,
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:
@@ -2789,7 +2809,7 @@ def ui_teachers(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/ui/teachers/{teacher_id}", response_class=HTMLResponse)
-def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(get_db)):
+def ui_teacher_detail(teacher_id: int, request: Request, show_passive: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
@@ -2797,15 +2817,17 @@ def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(g
     teacher = db.get(models.Teacher, teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Öğretmen bulunamadı")
+    show_passive_students = parse_show_passive_flag(show_passive)
     lessons = crud.list_lessons_by_teacher(db, teacher_id)
     # Her ders için öğrencileri ve yoklama sayısını getir
     lessons_with_students = []
     for lesson in lessons:
-        students = crud.list_students_by_lesson(db, lesson.id)
+        students = crud.list_students_by_lesson(db, lesson.id, active_only=False)
+        students = filter_students_by_passive_flag(students, show_passive_students)
         att_count = len(crud.list_attendance_for_lesson(db, lesson.id))
         lessons_with_students.append({"lesson": lesson, "students": students, "attendance_count": att_count})
     teacher_students = crud.list_students_by_teacher(db, teacher_id)
-    return templates.TemplateResponse("teacher_detail.html", {"request": request, "teacher": teacher, "lessons_with_students": lessons_with_students, "teacher_students": teacher_students})
+    return templates.TemplateResponse("teacher_detail.html", {"request": request, "teacher": teacher, "lessons_with_students": lessons_with_students, "teacher_students": teacher_students, "show_passive_students": show_passive_students})
 
 
 # UI: Payment Reports
@@ -3280,6 +3302,7 @@ def staff_panel(
 	order_by: str = "marked_at_desc",
 	edit_search: str | None = None,
 	payment_day_filter: str | None = None,
+	show_passive: str | None = None,
 	success: str | None = None,
 	error: str | None = None,
 	db: Session = Depends(get_db),
@@ -3294,6 +3317,7 @@ def staff_panel(
         return RedirectResponse(url="/login/staff", status_code=302)
     try:
         from sqlalchemy import select
+        show_passive_students = parse_show_passive_flag(show_passive)
         
         # Query parametrelerini integer'a çevir (boş string'leri None yap)
         student_id_int = None
@@ -3329,7 +3353,7 @@ def staff_panel(
                     "weekday": weekday,
                     "lesson": lesson,
                     "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": entry["students"],
+                    "students": filter_students_by_passive_flag(entry["students"], show_passive_students),
                 })
             teachers_schedules.append({
                 "teacher": teacher,
@@ -3845,7 +3869,8 @@ def staff_panel(
             "attendances": attendances_with_details,
             # Yoklama düzeltme için
             "edit_search": edit_search,
-            "edit_attendances": edit_attendances
+            "edit_attendances": edit_attendances,
+            "show_passive_students": show_passive_students,
         })
     except Exception as e:
         import logging

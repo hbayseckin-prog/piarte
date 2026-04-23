@@ -1803,6 +1803,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             logging.warning(f"🔍 FORM DEBUG:   {key} = '{value}'")
     logging.warning(f"🔍 FORM DEBUG: Toplam {len(status_fields)} status field bulundu: {status_fields}")
     
+    passive_attempted_student_names = []
     # Her öğrenci için status değerini al
     for key, value in form.items():
         if not key.startswith("status_"):
@@ -1814,6 +1815,11 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             continue
         if allowed_student_ids is not None and sid not in allowed_student_ids:
             logging.warning(f"🔍 FORM DEBUG: Öğrenci {sid} bu derse atanmamış (allowed: {allowed_student_ids}), atlanıyor")
+            # Öğretmen tarafında pasif öğrenciye yoklama giriş denemesini ayrı mesajla bildir.
+            if user.get("role") == "teacher":
+                blocked_student = db.get(models.Student, sid)
+                if blocked_student and blocked_student.is_active == False:
+                    passive_attempted_student_names.append(f"{blocked_student.first_name} {blocked_student.last_name}")
             continue
         
         # Form'dan gelen değeri al - DEĞİŞTİRME, OLDUĞU GİBİ KULLAN
@@ -1926,6 +1932,10 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         logging.error(f"❌ HATA: Form'da {len(status_fields)} status field var ama hepsi boş!")
         logging.error(f"❌ HATA: Derse atanmış öğrenci sayısı: {len(lesson_students) if 'lesson_students' in locals() else 0}")
         # Eğer hiç öğrenci yoksa farklı mesaj göster
+        if user.get("role") == "teacher" and passive_attempted_student_names:
+            names = ", ".join(dict.fromkeys(passive_attempted_student_names))
+            request.session["attendance_errors"] = f"Pasif öğrenciler için yoklama alınamaz: {names}"
+            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?error=no_data", status_code=302)
         if len(lesson_students) == 0:
             request.session["attendance_errors"] = "Bu derse henüz öğrenci atanmamış. Lütfen önce öğrenci atayın."
         else:

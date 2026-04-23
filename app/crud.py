@@ -169,7 +169,7 @@ def reset_teacher_student_links(db: Session):
 
 
 def delete_attendance(db: Session, attendance_id: int):
-	"""Tek bir yoklama kaydını sil ve öğrenciyi dersten çıkar"""
+	"""Tek bir yoklama kaydını sil (yalnızca ilgili attendance satırı)."""
 	import logging
 	import sys
 	
@@ -212,18 +212,15 @@ def delete_attendance(db: Session, attendance_id: int):
 	db.delete(attendance)
 	logging.info(f"✅ Yoklama kaydı silindi: ID={attendance_id}")
 	
-	# Öğrenciyi o dersten çıkar (LessonStudent ilişkisini sil)
+	# KRİTİK: Yoklama silerken LessonStudent ilişkisine dokunma.
+	# Aksi halde geçmiş/gelecek yoklama akışları beklenmedik şekilde etkilenebilir.
 	lesson_student = db.scalars(
 		select(models.LessonStudent)
 		.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)
 	).first()
-	
-	if lesson_student:
-		logging.info(f"✅ LessonStudent ilişkisi bulundu ve siliniyor: Ders={lesson_id}, Öğrenci={student_id}")
-		db.delete(lesson_student)
-		logging.info(f"✅ LessonStudent ilişkisi silindi")
-	else:
-		logging.warning(f"⚠️ LessonStudent ilişkisi bulunamadı: Ders={lesson_id}, Öğrenci={student_id}")
+	logging.info(
+		f"ℹ️ LessonStudent ilişkisi korunuyor: Ders={lesson_id}, Öğrenci={student_id}, Var mı={lesson_student is not None}"
+	)
 	
 	# Commit öncesi flush yap
 	db.flush()
@@ -252,9 +249,9 @@ def delete_attendance(db: Session, attendance_id: int):
 		logging.info(f"   - Toplam yoklama kaydı sayısı: {len(attendances_after)}")
 		
 		if lesson_student_after:
-			logging.error(f"❌ HATA: LessonStudent ilişkisi hala var! ID={lesson_student_after.id}")
+			logging.info(f"✅ BAŞARILI: LessonStudent ilişkisi korundu. ID={lesson_student_after.id}")
 		else:
-			logging.info(f"✅ BAŞARILI: LessonStudent ilişkisi silindi")
+			logging.warning(f"⚠️ UYARI: LessonStudent ilişkisi bulunmuyor")
 			
 		if len(attendances_after) > 0:
 			logging.warning(f"⚠️ UYARI: Hala {len(attendances_after)} yoklama kaydı var")
@@ -442,8 +439,9 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 	
 	out = []
 	for lesson in lessons:
-		# Her ders için, sadece o derse özel olarak atanmış öğrencileri getir
-		lesson_students = list_students_by_lesson(db, lesson.id)
+		# Her ders için, o derse atanmış öğrencileri getir.
+		# Program ekranında pasif öğrencilerin de görünmesi gerekir; aksi halde sadece saat/tarih görünüp isimler "kaybolmuş" gibi olur.
+		lesson_students = list_students_by_lesson(db, lesson.id, active_only=False)
 		out.append({"lesson": lesson, "students": lesson_students})
 	return out
 

@@ -2250,7 +2250,6 @@ def update_attendance_endpoint(
 	return RedirectResponse(url="/ui/staff", status_code=302)
 
 
-@app.get("/admin/clear-all-attendances")
 @app.post("/admin/clear-all-attendances")
 def clear_all_attendances(request: Request, db: Session = Depends(get_db)):
 	"""Tüm yoklama kayıtlarını sil (sadece admin)"""

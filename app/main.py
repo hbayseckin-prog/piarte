@@ -3730,8 +3730,19 @@ def staff_panel(
                 "lesson_courses": lesson_courses_str,
             })
         
-        # Ödeme durumuna göre sırala (önce ödeme gerekli olanlar)
-        payment_status_list.sort(key=lambda x: (not x["needs_payment"], x["student"].first_name, x["student"].last_name))
+        # Ödeme durumuna göre sırala: önce gerekli, sonra bekleniyor, en sonda yapıldı
+        payment_status_priority = {
+            "needs_payment": 0,
+            "waiting": 1,
+            "paid": 2,
+        }
+        payment_status_list.sort(
+            key=lambda x: (
+                payment_status_priority.get(x.get("payment_status_class"), 3),
+                (x["student"].first_name or "").lower(),
+                (x["student"].last_name or "").lower(),
+            )
+        )
         
         # Gün filtresi: seçilen güne göre listeyi filtrele
         if payment_day_filter and payment_day_filter.strip():

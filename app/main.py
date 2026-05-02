@@ -1231,7 +1231,7 @@ def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
 
 # UI: Teacher panel
 @app.get("/ui/teacher", response_class=HTMLResponse)
-def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, show_passive: str | None = None, db: Session = Depends(get_db)):
+def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/teacher", status_code=302)
@@ -1258,8 +1258,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         </html>
         """, status_code=400)
     try:
-        # Pasif öğrenciler: program / puantaj / geçmiş yoklamalarda görünsün; ?show_passive=0 ile gizlenebilir.
-        show_passive_students = parse_show_passive_flag(show_passive)
+        # Ders programında pasif öğrenciler hiç gösterilmez (yoklama/puantaj yine tüm öğrencilerle hesaplanır).
         # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
         display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
         
@@ -1290,7 +1289,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         formatted_lessons = []
         for entry in lessons_with_students:
             lesson = entry["lesson"]
-            students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+            students_for_view = filter_students_by_passive_flag(entry["students"], False)
             if not students_for_view:
                 # Öğrencisi olmayan dersleri program grid'inde gizle
                 continue
@@ -1337,7 +1336,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             teacher_formatted_lessons = []
             for entry in teacher_lessons:
                 lesson = entry["lesson"]
-                students_for_view = filter_students_by_passive_flag(entry["students"], show_passive_students)
+                students_for_view = filter_students_by_passive_flag(entry["students"], False)
                 if not students_for_view:
                     # Öğrencisi olmayan dersleri program grid'inde gizle
                     continue
@@ -1391,7 +1390,6 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             "attendance_totals": attendance_totals,
             "start_date": start_date or "",
             "end_date": end_date or "",
-            "show_passive_students": show_passive_students,
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:

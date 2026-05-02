@@ -10,12 +10,6 @@
 
 <div class="card">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
-	<div style="margin-bottom:12px;">
-		<button type="button" onclick="togglePassiveInTeacherSchedule()" style="padding:8px 12px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;">
-			{% if show_passive_students %}Pasif öğrencileri gizle{% else %}Pasif öğrencileri göster{% endif %}
-		</button>
-		<span style="font-size:12px;color:#64748b;margin-left:8px;">Pasif yapılan öğrencilerin daha önceki yoklamaları ve puantajı listede görünmeye devam eder.</span>
-	</div>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
 	<div class="tabs-container" style="margin-bottom:16px;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
@@ -130,13 +124,6 @@
 			url.searchParams.set('selected_teacher_id', teacherId);
 			window.location.href = url.toString();
 		}
-		function togglePassiveInTeacherSchedule() {
-			const url = new URL(window.location.href);
-			const v = (url.searchParams.get('show_passive') || '').toLowerCase();
-			const showingPassive = v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
-			url.searchParams.set('show_passive', showingPassive ? '0' : '1');
-			window.location.href = url.toString();
-		}
 	</script>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Henüz öğretmen kaydı bulunmuyor.</p>
@@ -155,7 +142,6 @@
 		{% if selected_teacher_id %}
 		<input type="hidden" name="selected_teacher_id" value="{{ selected_teacher_id }}" />
 		{% endif %}
-		<input type="hidden" name="show_passive" value="{% if show_passive_students %}1{% else %}0{% endif %}" />
 		<div class="btn-group" style="width:100%;margin-top:8px;">
 			<button type="submit" style="flex:1;">Filtrele</button>
 			<a href="/ui/teacher{% if selected_teacher_id %}?selected_teacher_id={{ selected_teacher_id }}{% endif %}" style="padding:12px 20px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">Temizle</a>

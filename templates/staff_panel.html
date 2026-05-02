@@ -302,6 +302,9 @@
 		<form method="post" action="/ui/staff/payment/retrospective">
 			<div style="display:flex;flex-direction:column;gap:12px;">
 				<div>
+					<label for="retro_payment_student_search" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci ara</label>
+					<input type="search" id="retro_payment_student_search" autocomplete="off" placeholder="Ada veya soyada göre en az 3 harf yazın…" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:4px;" />
+					<p style="margin:0 0 8px;color:#64748b;font-size:12px;line-height:1.45;">3 harften az yazdığınızda tüm listedeki öğrenciler görünür; 3 veya daha fazla harfte ad veya soyadın başıyla eşleşenler listelenir.</p>
 					<label for="payment_student_id" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci</label>
 					<select 
 						name="student_id" 
@@ -312,7 +315,7 @@
 						{% if selected_teacher_lessons %}
 							{% for entry in selected_teacher_lessons %}
 								{% for student in entry.students %}
-								<option value="{{ student.id }}">{{ student.first_name }} {{ student.last_name }}</option>
+								<option value="{{ student.id }}" data-fn="{{ student.first_name }}" data-ln="{{ student.last_name }}">{{ student.first_name }} {{ student.last_name }}</option>
 								{% endfor %}
 							{% endfor %}
 						{% endif %}
@@ -1137,4 +1140,14 @@
     {% endif %}
 </div>
 
+{% include "_student_select_filter_script.html" %}
+<script>
+	document.addEventListener("DOMContentLoaded", function () {
+		if (typeof piarteStudentSelectFilter !== "function") return;
+		var inp = document.getElementById("retro_payment_student_search");
+		var sel = document.getElementById("payment_student_id");
+		if (!inp || !sel) return;
+		piarteStudentSelectFilter(inp, sel, null);
+	});
+</script>
 {% endblock %}

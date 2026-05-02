@@ -1,0 +1,90 @@
+{# Ortak öğrenci select arama filtresi (Ödeme formları). En az 3 karakter yazınca ada/soyada göre filtrelenir. #}
+<script>
+(function () {
+  function norm(s) {
+    return (s || '').toLocaleLowerCase('tr-TR');
+  }
+  /** @param {HTMLInputElement|null} inputEl @param {HTMLSelectElement|null} selectEl @param {string|null|number} preselectVal */
+  window.piarteStudentSelectFilter = function (inputEl, selectEl, preselectVal) {
+    if (!inputEl || !selectEl) return;
+    var original = Array.from(selectEl.options);
+    var placeholderText = null;
+    for (var i = 0; i < original.length; i++) {
+      if (original[i].value === '') {
+        placeholderText = original[i].textContent.trim() || 'Seçiniz';
+        break;
+      }
+    }
+    var rows = [];
+    var seen = new Set();
+    for (var j = 0; j < original.length; j++) {
+      var o = original[j];
+      if (!o.value) continue;
+      if (seen.has(o.value)) continue;
+      seen.add(o.value);
+      rows.push({
+        value: o.value,
+        label: o.textContent.trim(),
+        fn: o.getAttribute('data-fn') || '',
+        ln: o.getAttribute('data-ln') || ''
+      });
+    }
+
+    function render() {
+      var qRaw = (inputEl.value || '').trim();
+      var q = norm(qRaw);
+      var filterOn = q.length >= 3;
+
+      selectEl.innerHTML = '';
+      if (placeholderText !== null) {
+        var ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = placeholderText;
+        selectEl.appendChild(ph);
+      }
+
+      var matched = 0;
+      for (var k = 0; k < rows.length; k++) {
+        var r = rows[k];
+        var fn = norm(r.fn);
+        var ln = norm(r.ln);
+        var full = (fn + ' ' + ln).trim();
+        if (filterOn && !(fn.indexOf(q) === 0 || ln.indexOf(q) === 0 || full.indexOf(q) === 0)) continue;
+        var opt = document.createElement('option');
+        opt.value = r.value;
+        opt.textContent = r.label;
+        opt.setAttribute('data-fn', r.fn);
+        opt.setAttribute('data-ln', r.ln);
+        selectEl.appendChild(opt);
+        matched++;
+      }
+
+      if (filterOn && matched === 0) {
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.disabled = true;
+        empty.textContent = 'Eşleşen öğrenci yok (aramayı daraltın veya bir kısımdaki adı/soyı yazın)';
+        selectEl.appendChild(empty);
+        selectEl.value = '';
+        return;
+      }
+
+      var pv = preselectVal != null && preselectVal !== '' ? String(preselectVal) : '';
+      var hasVal = pv && Array.prototype.some.call(selectEl.options, function (opt) {
+        return opt.value === pv && opt.value !== '';
+      });
+      if (hasVal) selectEl.value = pv;
+      else {
+        var firstReal = Array.prototype.find.call(selectEl.options, function (opt) {
+          return opt.value !== '';
+        });
+        selectEl.value = firstReal ? firstReal.value : '';
+      }
+    }
+
+    inputEl.addEventListener('input', render);
+    inputEl.addEventListener('change', render);
+    render();
+  };
+})();
+</script>

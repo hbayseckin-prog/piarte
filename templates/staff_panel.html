@@ -301,17 +301,12 @@
 		</h4>
 		<form method="post" action="/ui/staff/payment/retrospective">
 			<div style="display:flex;flex-direction:column;gap:12px;">
-				<div>
-					<label for="retro_payment_student_search" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci ara</label>
-					<input type="search" id="retro_payment_student_search" autocomplete="off" placeholder="Ada veya soyada göre en az 3 harf yazın…" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:4px;" />
-					<p style="margin:0 0 8px;color:#64748b;font-size:12px;line-height:1.45;">3 harften az yazdığınızda tüm listedeki öğrenciler görünür; 3 veya daha fazla harfte ad veya soyadın başıyla eşleşenler listelenir.</p>
-					<label for="payment_student_id" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci</label>
-					<select 
-						name="student_id" 
-						id="payment_student_id" 
-						required
-						style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
-						<option value="">Öğrenci Seçin</option>
+				<div class="piarte-student-combo-wrap" style="max-width:100%;">
+					<label for="retro_payment_student_search" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Öğrenci</label>
+					<input type="search" id="retro_payment_student_search" autocomplete="off" placeholder="En az 3 harf yazın, listeden seçin…" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" />
+					<ul id="retro_payment_student_suggestions" class="piarte-student-suggestions" role="listbox" aria-label="Eşleşen öğrenciler"></ul>
+					<input type="hidden" name="student_id" id="retro_payment_student_id" value="" />
+					<select id="retro_payment_student_source" style="display:none" aria-hidden="true" tabindex="-1">
 						{% if selected_teacher_lessons %}
 							{% for entry in selected_teacher_lessons %}
 								{% for student in entry.students %}
@@ -320,6 +315,7 @@
 							{% endfor %}
 						{% endif %}
 					</select>
+					<p style="margin:8px 0 0;color:#64748b;font-size:12px;line-height:1.45;">Ada veya soyadın yazdığınızla başlaması gerekiyor; açılan kaydırılabilir listeden seçin.</p>
 				</div>
 				<div>
 					<label for="payment_amount" style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;color:#0f172a;">Ödeme Tutarı (TL)</label>
@@ -1143,11 +1139,19 @@
 {% include "_student_select_filter_script.html" %}
 <script>
 	document.addEventListener("DOMContentLoaded", function () {
-		if (typeof piarteStudentSelectFilter !== "function") return;
+		if (typeof piarteStudentSearchCombobox !== "function") return;
 		var inp = document.getElementById("retro_payment_student_search");
-		var sel = document.getElementById("payment_student_id");
-		if (!inp || !sel) return;
-		piarteStudentSelectFilter(inp, sel, null);
+		var hidden = document.getElementById("retro_payment_student_id");
+		var panel = document.getElementById("retro_payment_student_suggestions");
+		var source = document.getElementById("retro_payment_student_source");
+		if (!inp || !hidden || !panel || !source) return;
+		piarteStudentSearchCombobox({
+			searchInput: inp,
+			hiddenInput: hidden,
+			suggestionsPanel: panel,
+			sourceSelect: source,
+			initialStudentId: null
+		});
 	});
 </script>
 {% endblock %}

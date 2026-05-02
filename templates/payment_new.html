@@ -3,15 +3,18 @@
 {% block content %}
 <h2>Ödeme Gir</h2>
 <form method="post" action="/payments/new">
-	<label for="payment_student_search">Öğrenci ara</label>
-	<input type="search" id="payment_student_search" autocomplete="off" placeholder="Ada veya soyada göre en az 3 harf yazın…" style="margin-bottom:4px;" />
-	<p style="margin:0 0 8px;color:var(--muted);font-size:13px;line-height:1.45;">Liste, yazdığınız metnin başıyla eşleşen ad veya soyadı olan öğrencilere daralır (&lt;3 harf tüm liste).</p>
-	<label for="payment_student_select">Öğrenci</label>
-	<select id="payment_student_select" name="student_id" required>
-		{% for s in students %}
-		<option value="{{ s.id }}" data-fn="{{ s.first_name }}" data-ln="{{ s.last_name }}" {% if selected_student_id and s.id == selected_student_id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
-		{% endfor %}
-	</select>
+	<div class="piarte-student-combo-wrap" style="max-width:100%;">
+		<label for="payment_student_search">Öğrenci</label>
+		<input type="search" id="payment_student_search" autocomplete="off" placeholder="En az 3 harf yazın, listeden seçin…" />
+		<ul id="payment_student_suggestions" class="piarte-student-suggestions" role="listbox" aria-label="Eşleşen öğrenciler"></ul>
+		<input type="hidden" name="student_id" id="payment_student_id_hidden" value="{% if selected_student_id %}{{ selected_student_id }}{% endif %}" />
+		<select id="payment_student_source" style="display:none" aria-hidden="true" tabindex="-1">
+			{% for s in students %}
+			<option value="{{ s.id }}" data-fn="{{ s.first_name }}" data-ln="{{ s.last_name }}">{{ s.first_name }} {{ s.last_name }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<p style="margin:8px 0 12px;color:var(--muted);font-size:13px;line-height:1.45;">Adın veya soyadın yazdığınız harflerle başlaması gerekiyor; çıkan listeden tek tıklamayla seçim yapılır.</p>
 	<label>Tutar</label>
 	<input type="number" name="amount_try" step="0.01" min="0" required />
 	<label>Tarih</label>
@@ -37,12 +40,14 @@
 {% include "_student_select_filter_script.html" %}
 <script>
 	document.addEventListener("DOMContentLoaded", function () {
-		if (typeof piarteStudentSelectFilter !== "function") return;
-		piarteStudentSelectFilter(
-			document.getElementById("payment_student_search"),
-			document.getElementById("payment_student_select"),
-			{% if selected_student_id is none %}null{% else %}{{ selected_student_id | int }}{% endif %}
-		);
+		if (typeof piarteStudentSearchCombobox !== "function") return;
+		piarteStudentSearchCombobox({
+			searchInput: document.getElementById("payment_student_search"),
+			hiddenInput: document.getElementById("payment_student_id_hidden"),
+			suggestionsPanel: document.getElementById("payment_student_suggestions"),
+			sourceSelect: document.getElementById("payment_student_source"),
+			initialStudentId: {% if selected_student_id is none %}null{% else %}{{ selected_student_id | int }}{% endif %}
+		});
 	});
 </script>
 {% endblock %}

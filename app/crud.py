@@ -876,12 +876,13 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             # Her yoklama için lesson bilgisini al
             lesson = db.get(models.Lesson, att.lesson_id)
             
-            student_id = att.student_id
-            if student_id not in student_stats:
-                student = db.get(models.Student, student_id)
+            # Parametre `student_id` ile çakışma: üst döngüdeki öğretmenler için filtreyi bozmayın
+            att_student_id = att.student_id
+            if att_student_id not in student_stats:
+                student = db.get(models.Student, att_student_id)
                 if not student:
                     continue
-                student_stats[student_id] = {
+                student_stats[att_student_id] = {
                     "student": student,
                     "present": 0,
                     "excused_absent": 0,
@@ -922,30 +923,30 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 lesson_count = 1  # Diğer kurslar için normal
             
             if status == "PRESENT":
-                student_stats[student_id]["present"] += lesson_count
-                student_stats[student_id]["total"] += lesson_count
-                student_stats[student_id]["dates"].append(date_str)
+                student_stats[att_student_id]["present"] += lesson_count
+                student_stats[att_student_id]["total"] += lesson_count
+                student_stats[att_student_id]["dates"].append(date_str)
             elif status == "EXCUSED_ABSENT":
-                student_stats[student_id]["excused_absent"] += lesson_count
-                student_stats[student_id]["dates"].append(date_str)
+                student_stats[att_student_id]["excused_absent"] += lesson_count
+                student_stats[att_student_id]["dates"].append(date_str)
                 # Haberli gelmedi durumunda toplam ders sayısına eklenmez
             elif status == "TELAFI":
-                student_stats[student_id]["telafi"] += lesson_count
-                student_stats[student_id]["total"] += lesson_count
-                student_stats[student_id]["dates"].append(date_str)
+                student_stats[att_student_id]["telafi"] += lesson_count
+                student_stats[att_student_id]["total"] += lesson_count
+                student_stats[att_student_id]["dates"].append(date_str)
             elif status == "UNEXCUSED_ABSENT":
                 # Resim kursu için: Öğrenci puantajında görünür ama öğretmen puantajına eklenmez
                 # Diğer kurslar için: Normal şekilde sayılır
                 if is_resim_course:
                     # Öğrenci bazlı puantajda görünür (unexcused_absent artar)
-                    student_stats[student_id]["unexcused_absent"] += 1
+                    student_stats[att_student_id]["unexcused_absent"] += 1
                     # Ama öğretmen puantajına eklenmez (lesson_count = 0, total'e eklenmez)
-                    student_stats[student_id]["dates"].append(date_str)
+                    student_stats[att_student_id]["dates"].append(date_str)
                 else:
                     # Diğer kurslar için normal
-                    student_stats[student_id]["unexcused_absent"] += lesson_count
-                    student_stats[student_id]["total"] += lesson_count
-                    student_stats[student_id]["dates"].append(date_str)
+                    student_stats[att_student_id]["unexcused_absent"] += lesson_count
+                    student_stats[att_student_id]["total"] += lesson_count
+                    student_stats[att_student_id]["dates"].append(date_str)
         
         # Tüm öğretmenler (veya tek öğretmen) görünümünde her öğretmen kartı çıksın; veri yoksa boş tablo mesajı üst yüzeye bırakılır
         report.append({

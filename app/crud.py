@@ -800,75 +800,72 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             logging.error(f"Debug log error: {e}")
         # #endregion
         
-        if not lesson_ids:
-            continue
-        
-        # Bu derslere ait tüm yoklamaları getir
-        # #region agent log - Before query
-        import json, os, time
-        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-        try:
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            # First check all attendances directly
-            all_attendances_all_lessons = db.scalars(select(models.Attendance)).all()
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_report_before_query", "timestamp": int(time.time() * 1000), "location": "crud.py:569", "message": "Before query - all attendances in DB", "data": {"teacher_id": teacher.id, "lesson_ids": lesson_ids, "total_attendances_in_db": len(all_attendances_all_lessons), "all_lesson_ids_in_db": list(set([a.lesson_id for a in all_attendances_all_lessons]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
-        except Exception as e:
-            import logging
-            logging.error(f"Debug log error: {e}")
-        # #endregion
-        
-        # Yoklamaları getir
-        stmt = select(models.Attendance).where(
-            models.Attendance.lesson_id.in_(lesson_ids)
-        )
-        
-        # Öğrenci filtresi
-        if student_id:
-            stmt = stmt.where(models.Attendance.student_id == student_id)
-        
-        attendances = db.scalars(stmt).all()
-        
-        # Kurs ve tarih filtrelerini uygula (lesson bilgisi gerektiği için Python'da filtrele)
-        if course_id or start_date or end_date:
-            filtered_attendances = []
-            for att in attendances:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                if not lesson:
-                    continue
-                
-                # Kurs filtresi
-                if course_id and lesson.course_id != course_id:
-                    continue
-                
-                # Tarih filtreleri - yoklama zamanına (marked_at) göre
-                if start_date:
-                    if att.marked_at:
-                        attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
-                        if attendance_date < start_date:
-                            continue
-                    else:
-                        continue  # marked_at yoksa atla
-                if end_date:
-                    if att.marked_at:
-                        attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
-                        if attendance_date > end_date:
-                            continue
-                    else:
-                        continue  # marked_at yoksa atla
-                
-                filtered_attendances.append(att)
-            attendances = filtered_attendances
-        
-        # #region agent log
-        try:
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:585", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances])), "expected_lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-        except Exception as e:
-            import logging
-            logging.error(f"Debug log error: {e}")
-        # #endregion
+        attendances = []
+        if lesson_ids:
+            # Bu derslere ait tüm yoklamaları getir
+            # #region agent log - Before query
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                # First check all attendances directly
+                all_attendances_all_lessons = db.scalars(select(models.Attendance)).all()
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_report_before_query", "timestamp": int(time.time() * 1000), "location": "crud.py:569", "message": "Before query - all attendances in DB", "data": {"teacher_id": teacher.id, "lesson_ids": lesson_ids, "total_attendances_in_db": len(all_attendances_all_lessons), "all_lesson_ids_in_db": list(set([a.lesson_id for a in all_attendances_all_lessons]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
+            except Exception as e:
+                import logging
+                logging.error(f"Debug log error: {e}")
+            # #endregion
+            
+            # Yoklamaları getir
+            stmt = select(models.Attendance).where(
+                models.Attendance.lesson_id.in_(lesson_ids)
+            )
+            
+            # Öğrenci filtresi
+            if student_id:
+                stmt = stmt.where(models.Attendance.student_id == student_id)
+            
+            attendances = db.scalars(stmt).all()
+            
+            # Kurs ve tarih filtrelerini uygula (lesson bilgisi gerektiği için Python'da filtrele)
+            if course_id or start_date or end_date:
+                filtered_attendances = []
+                for att in attendances:
+                    lesson = db.get(models.Lesson, att.lesson_id)
+                    if not lesson:
+                        continue
+                    
+                    # Kurs filtresi
+                    if course_id and lesson.course_id != course_id:
+                        continue
+                    
+                    # Tarih filtreleri - yoklama zamanına (marked_at) göre
+                    if start_date:
+                        if att.marked_at:
+                            attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
+                            if attendance_date < start_date:
+                                continue
+                        else:
+                            continue  # marked_at yoksa atla
+                    if end_date:
+                        if att.marked_at:
+                            attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
+                            if attendance_date > end_date:
+                                continue
+                        else:
+                            continue  # marked_at yoksa atla
+                    
+                    filtered_attendances.append(att)
+                attendances = filtered_attendances
+            
+            # #region agent log
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:585", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances])), "expected_lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
+            except Exception as e:
+                import logging
+                logging.error(f"Debug log error: {e}")
+            # #endregion
         
         # Resim kursu için özel hesaplama: Her yoklama kaydı için 1 ekleme yapılacak
         # Diğer kurslar için mevcut sistem aynı kalacak (her yoklama = 1 ders)
@@ -950,11 +947,11 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                     student_stats[student_id]["total"] += lesson_count
                     student_stats[student_id]["dates"].append(date_str)
         
-        if student_stats:
-            report.append({
-                "teacher": teacher,
-                "students": list(student_stats.values())
-            })
+        # Tüm öğretmenler (veya tek öğretmen) görünümünde her öğretmen kartı çıksın; veri yoksa boş tablo mesajı üst yüzeye bırakılır
+        report.append({
+            "teacher": teacher,
+            "students": list(student_stats.values())
+        })
     
     return report
 

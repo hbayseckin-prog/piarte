@@ -638,7 +638,7 @@ if (quickSearchInput) {
         <div>
             <h3 class="h2" style="margin:0;">Puantaj Tablosu</h3>
             <p style="color:var(--muted);margin-top:8px;margin-bottom:0;font-size:14px;">
-        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez. Filtreleme yaparak sonuçları görüntüleyebilirsiniz.
+        Öğretmenlerin öğrenciler için aldığı yoklamalar. Haberli gelmedi durumları tabloya işlenmez. Tüm öğretmenler seçildiğinde her öğretmen için tam puantaj listelenir; tarih ve diğer filtreleri daraltabilirsiniz.
     </p>
         </div>
         <div>
@@ -765,11 +765,7 @@ if (quickSearchInput) {
         {% endfor %}
     {% else %}
     <p style="color:var(--muted);text-align:center;padding:16px;">
-        {% if filters.teacher_id or filters.student_id or filters.course_id or filters.start_date or filters.end_date %}
-            Seçilen filtreler için puantaj verisi bulunmuyor.
-        {% else %}
-            Puantaj verilerini görmek için lütfen filtreleme yapın.
-        {% endif %}
+        Puantaj listesi oluşturulamadı (sistemde kayıtlı öğretmen yoksa bu alan boş kalır).
     </p>
     {% endif %}
 </div>

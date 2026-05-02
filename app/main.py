@@ -64,7 +64,7 @@ def parse_show_passive_flag(show_passive: str | None) -> bool:
 
 
 def filter_students_by_passive_flag(students, show_passive_students: bool):
-    """Program kartı için öğrenci listesini pasif filtresine göre döndürür."""
+    """Pasif öğrenciler varsayılan olarak listede kalır (geçmiş yoklama/puantaj); show_passive_students=False iken çıkarılır."""
     if show_passive_students:
         return students
     return [s for s in students if getattr(s, "is_active", True)]
@@ -1258,8 +1258,8 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         </html>
         """, status_code=400)
     try:
-        # Öğretmen panelinde pasif öğrenciler her zaman gizli tutulur.
-        show_passive_students = False
+        # Pasif öğrenciler: program / puantaj / geçmiş yoklamalarda görünsün; ?show_passive=0 ile gizlenebilir.
+        show_passive_students = parse_show_passive_flag(show_passive)
         # Seçilen öğretmen ID'si yoksa, kendi ID'sini kullan
         display_teacher_id = selected_teacher_id if selected_teacher_id else current_teacher_id
         
@@ -1308,7 +1308,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         teacher_students = []
         if current_teacher_id:
             try:
-                teacher_students = crud.list_students_by_teacher(db, current_teacher_id)
+                teacher_students = crud.list_students_by_teacher(db, current_teacher_id, active_only=False)
                 # Debug: Eğer öğrenci yoksa, tüm öğrencileri kontrol et
                 if not teacher_students:
                     # Tüm öğrencileri getir ve öğretmene atanmış olanları filtrele
@@ -1851,11 +1851,10 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
     if user.get("role") == "teacher":
         if lesson.teacher_id != user.get("teacher_id"):
             return RedirectResponse(url="/ui/teacher", status_code=302)
-        # Sadece bu derse atanmış öğrencileri getir
-        students = crud.list_students_by_lesson(db, lesson_id)
+        # Pasif öğrenciler de derse bağlıysa listede görünsün (geçmiş yoklama / puantaj tutarlılığı)
+        students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
     else:
-        # Admin/staff için de sadece bu derse atanmış öğrencileri göster
-        students = crud.list_students_by_lesson(db, lesson_id)
+        students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
     
     # Bu ders için mevcut yoklamaları getir
     existing_attendances = crud.list_attendance_for_lesson(db, lesson_id)
@@ -1987,12 +1986,11 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
     if user.get("role") == "teacher":
         if lesson.teacher_id != user.get("teacher_id"):
             return RedirectResponse(url="/ui/teacher", status_code=302)
-        # Sadece bu derse atanmış öğrencileri kontrol et
-        lesson_students = crud.list_students_by_lesson(db, lesson_id)
+        # Pasif öğrenciler de derse bağlıysa yoklamaya dahil sayılır (kayıtlar saklı kalır)
+        lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
         allowed_student_ids = {s.id for s in lesson_students}
     else:
-        # Admin/staff için de sadece bu derse atanmış öğrencileri kontrol et
-        lesson_students = crud.list_students_by_lesson(db, lesson_id)
+        lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
     import logging
@@ -3064,7 +3062,7 @@ def ui_teacher_detail(teacher_id: int, request: Request, show_passive: str | Non
             continue
         att_count = len(crud.list_attendance_for_lesson(db, lesson.id))
         lessons_with_students.append({"lesson": lesson, "students": students, "attendance_count": att_count})
-    teacher_students = crud.list_students_by_teacher(db, teacher_id)
+    teacher_students = crud.list_students_by_teacher(db, teacher_id, active_only=False)
     return templates.TemplateResponse("teacher_detail.html", {"request": request, "teacher": teacher, "lessons_with_students": lessons_with_students, "teacher_students": teacher_students, "show_passive_students": show_passive_students})
 
 

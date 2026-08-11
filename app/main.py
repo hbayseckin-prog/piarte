@@ -902,13 +902,10 @@ def dashboard(
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             else:
-                if position_in_set in (0, 1, 2):
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
-                else:
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
+                # Ödenen setlerin kapsamı doldu: tüm dersler ödeme gerekli (bekleniyor sadece ödenen set içinde 3. derste)
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
 
             lesson_days = set()
             lesson_courses = set()
@@ -3771,18 +3768,10 @@ def staff_panel(
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             else:
-                # Ödenmemiş sette: 4-8-12... (position 0) ve 5-6, 9-10... (position 1,2) → Gerekli; 7-11-15... (position 3) → Bekleniyor
-                if position_in_set == 0:
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
-                elif position_in_set in (1, 2):
-                    payment_status = "⚠️ Ödeme Gerekli"
-                    payment_status_class = "needs_payment"
-                    needs_payment = True
-                else:
-                    payment_status = "⏳ Ödeme Bekleniyor"
-                    payment_status_class = "waiting"
+                # Ödenen setlerin kapsamı doldu: tüm dersler ödeme gerekli (bekleniyor sadece ödenen set içinde 3. derste)
+                payment_status = "⚠️ Ödeme Gerekli"
+                payment_status_class = "needs_payment"
+                needs_payment = True
             
             # Öğrencinin ders programı: takvim günleri ve kurs isimleri
             lesson_days = set()

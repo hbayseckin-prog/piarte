@@ -116,13 +116,28 @@ app = FastAPI(title="Piarte Kurs Yönetimi", root_path=ROOT_PATH)
 # Uygulama başlangıcında migration kontrolü
 @app.on_event("startup")
 async def startup_event():
-	"""Uygulama başlangıcında migration kontrolü yap"""
+	"""Uygulama başlangıcında migration ve DB bağlantı kontrolü"""
+	import logging
 	try:
 		from app.db import ensure_is_active_column
 		ensure_is_active_column()
 	except Exception as e:
-		import logging
 		logging.error(f"Startup migration hatasi: {e}")
+	try:
+		Base.metadata.create_all(bind=engine)
+		db = next(get_db())
+		try:
+			from sqlalchemy import text
+			db.execute(text("SELECT 1"))
+			user_count = db.scalar(select(func.count(models.User.id))) or 0
+			db_kind = "postgresql" if str(engine.url).startswith("postgresql") else "sqlite"
+			logging.info(f"Piarte DB hazir ({db_kind}, {user_count} kullanici)")
+			if user_count == 0:
+				logging.warning("Veritabaninda kullanici yok; /setup-database veya admin olusturun")
+		finally:
+			db.close()
+	except Exception as e:
+		logging.error(f"Startup DB baglanti hatasi: {e}")
 
 # CORS ayarları - iframe ve farklı domain'den erişim için
 app.add_middleware(
@@ -135,7 +150,19 @@ app.add_middleware(
 
 # Session secret key - environment variable'dan al, yoksa varsayılan kullan
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key-in-production")
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+IS_PRODUCTION = os.getenv("RAILWAY_ENVIRONMENT") == "production" or os.getenv("ENVIRONMENT") == "production"
+app.add_middleware(
+	SessionMiddleware,
+	secret_key=SECRET_KEY,
+	same_site="lax",
+	https_only=IS_PRODUCTION,
+	max_age=14 * 24 * 60 * 60,
+)
+try:
+	from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+	app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+except ImportError:
+	pass
 templates = Jinja2Templates(directory="templates")
 
 # Static files için - logo ve diğer statik dosyalar (proje root dizini)
@@ -158,8 +185,24 @@ async def add_security_headers(request: Request, call_next):
 
 # Basit health check endpoint
 @app.get("/health")
-def health_check():
-	return {"status": "ok", "message": "Server is running"}
+def health_check(db: Session = Depends(get_db)):
+	from sqlalchemy import text
+	try:
+		db.execute(text("SELECT 1"))
+		user_count = db.scalar(select(func.count(models.User.id))) or 0
+		return {
+			"status": "ok",
+			"message": "Server is running",
+			"database": "connected",
+			"users": user_count,
+		}
+	except Exception as e:
+		return {
+			"status": "degraded",
+			"message": "Server is running but database unreachable",
+			"database": "error",
+			"detail": str(e),
+		}
 
 # Veritabanı kurulum endpoint'i
 @app.get("/setup-database", response_class=HTMLResponse)
@@ -3406,27 +3449,33 @@ def login_teacher_form(request: Request):
         elif user.get("role") == "staff":
             return RedirectResponse(url="/ui/staff", status_code=302)
     
-    html_content = """<!DOCTYPE html>
+    login_error = request.session.get("login_error", "")
+    if login_error:
+        request.session.pop("login_error", None)
+    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
+    
+    html_content = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Öğretmen Giriş - Piarte</title>
     <style>
-        body { font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }
-        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #111827; }
-        label { display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }
-        input { padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
-        input:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
-        button { padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
-        button:hover { background: #1f2937; }
-        .info { color: #6b7280; font-size: 13px; margin-top: 16px; }
+        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
+        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        h2 {{ margin-top: 0; color: #111827; }}
+        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
+        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
+        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
+        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
+        button:hover {{ background: #1f2937; }}
+        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Piarte - Öğretmen Girişi</h2>
+        {error_html}
         <form method="post" action="/login/teacher">
             <label>Kullanıcı adı</label>
             <input type="text" name="username" required autocomplete="username" />
@@ -3442,18 +3491,38 @@ def login_teacher_form(request: Request):
 
 @app.post("/login/teacher")
 def login_teacher(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    from passlib.hash import pbkdf2_sha256
-    user = crud.get_user_by_username(db, username)
-    if not user or not pbkdf2_sha256.verify(password, user.password_hash) or user.role != "teacher":
+    try:
+        from passlib.hash import pbkdf2_sha256
+        user = crud.get_user_by_username(db, username)
+        if not user:
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı."
+            return RedirectResponse(url="/login/teacher", status_code=302)
+        try:
+            password_valid = pbkdf2_sha256.verify(password, user.password_hash)
+        except Exception as e:
+            import logging
+            logging.error(f"Şifre doğrulama hatası: {e}")
+            request.session["login_error"] = "Giriş hatası. Lütfen tekrar deneyin."
+            return RedirectResponse(url="/login/teacher", status_code=302)
+        if not password_valid or user.role != "teacher":
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da öğretmen yetkisi yok."
+            return RedirectResponse(url="/login/teacher", status_code=302)
+        request.session["user"] = {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": "teacher",
+            "teacher_id": getattr(user, 'teacher_id', None),
+        }
+        request.session.pop("login_error", None)
+        return RedirectResponse(url="/ui/teacher", status_code=302)
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Login hatası: {e}")
+        logging.error(traceback.format_exc())
+        request.session["login_error"] = f"Sunucu hatası: {str(e)}"
         return RedirectResponse(url="/login/teacher", status_code=302)
-    request.session["user"] = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "role": "teacher",
-        "teacher_id": getattr(user, 'teacher_id', None),
-    }
-    return RedirectResponse(url="/ui/teacher", status_code=302)
 
 # Personel için giriş (örnek rol adı: staff)
 @app.get("/login/staff", response_class=HTMLResponse)
@@ -3468,27 +3537,33 @@ def login_staff_form(request: Request):
         elif user.get("role") == "teacher":
             return RedirectResponse(url="/ui/teacher", status_code=302)
     
-    html_content = """<!DOCTYPE html>
+    login_error = request.session.get("login_error", "")
+    if login_error:
+        request.session.pop("login_error", None)
+    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
+    
+    html_content = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Personel Giriş - Piarte</title>
     <style>
-        body { font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }
-        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #111827; }
-        label { display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }
-        input { padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
-        input:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
-        button { padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
-        button:hover { background: #1f2937; }
-        .info { color: #6b7280; font-size: 13px; margin-top: 16px; }
+        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
+        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        h2 {{ margin-top: 0; color: #111827; }}
+        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
+        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
+        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
+        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
+        button:hover {{ background: #1f2937; }}
+        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Piarte - Personel Girişi</h2>
+        {error_html}
         <form method="post" action="/login/staff">
             <label>Kullanıcı adı</label>
             <input type="text" name="username" required autocomplete="username" />
@@ -3504,18 +3579,38 @@ def login_staff_form(request: Request):
 
 @app.post("/login/staff")
 def login_staff(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    from passlib.hash import pbkdf2_sha256
-    user = crud.get_user_by_username(db, username)
-    if not user or not pbkdf2_sha256.verify(password, user.password_hash) or user.role != "staff":
+    try:
+        from passlib.hash import pbkdf2_sha256
+        user = crud.get_user_by_username(db, username)
+        if not user:
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı."
+            return RedirectResponse(url="/login/staff", status_code=302)
+        try:
+            password_valid = pbkdf2_sha256.verify(password, user.password_hash)
+        except Exception as e:
+            import logging
+            logging.error(f"Şifre doğrulama hatası: {e}")
+            request.session["login_error"] = "Giriş hatası. Lütfen tekrar deneyin."
+            return RedirectResponse(url="/login/staff", status_code=302)
+        if not password_valid or user.role != "staff":
+            request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da personel yetkisi yok."
+            return RedirectResponse(url="/login/staff", status_code=302)
+        request.session["user"] = {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": "staff",
+            "teacher_id": getattr(user, 'teacher_id', None),
+        }
+        request.session.pop("login_error", None)
+        return RedirectResponse(url="/ui/staff", status_code=302)
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Login hatası: {e}")
+        logging.error(traceback.format_exc())
+        request.session["login_error"] = f"Sunucu hatası: {str(e)}"
         return RedirectResponse(url="/login/staff", status_code=302)
-    request.session["user"] = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "role": "staff",
-        "teacher_id": getattr(user, 'teacher_id', None),
-    }
-    return RedirectResponse(url="/ui/staff", status_code=302)
 
 @app.get("/ui/staff", response_class=HTMLResponse)
 def staff_panel(

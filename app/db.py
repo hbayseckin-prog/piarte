@@ -5,6 +5,9 @@ import os
 # Environment variable'dan al (cloud platformlar otomatik ekler)
 # Eğer DATABASE_URL yoksa, varsayılan olarak SQLite kullan (geliştirme için)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data.db")
+# Railway vb. postgres:// verir; SQLAlchemy psycopg2 için postgresql:// gerekir
+if DATABASE_URL.startswith("postgres://"):
+	DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # PostgreSQL veya SQLite için farklı ayarlar
 if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres://"):

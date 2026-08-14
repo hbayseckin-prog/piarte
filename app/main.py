@@ -1200,13 +1200,107 @@ def export_punctuality_excel(
 # UI: Quick search
 @app.get("/ui/search", response_class=HTMLResponse)
 def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
-    if not request.session.get("user"):
+    user = request.session.get("user")
+    if not user:
         return RedirectResponse(url="/", status_code=302)
+    if user.get("role") == "teacher":
+        return RedirectResponse(url="/ui/teacher", status_code=302)
+
     term = f"%{q.strip()}%"
-    s = db.query(models.Student).filter((models.Student.first_name.ilike(term)) | (models.Student.last_name.ilike(term))).limit(20).all()
-    t = db.query(models.Teacher).filter((models.Teacher.first_name.ilike(term)) | (models.Teacher.last_name.ilike(term))).limit(20).all()
-    c = db.query(models.Course).filter(models.Course.name.ilike(term)).limit(20).all()
-    return templates.TemplateResponse("search_results.html", {"request": request, "q": q, "students": s, "teachers": t, "courses": c})
+    students = db.query(models.Student).filter(
+        (models.Student.first_name.ilike(term)) | (models.Student.last_name.ilike(term))
+    ).limit(20).all()
+    teachers = db.query(models.Teacher).filter(
+        (models.Teacher.first_name.ilike(term)) | (models.Teacher.last_name.ilike(term))
+    ).limit(20).all()
+    courses = db.query(models.Course).filter(models.Course.name.ilike(term)).limit(20).all()
+
+    if user.get("role") == "admin" and len(students) == 1 and not teachers and not courses:
+        from urllib.parse import urlencode
+        params = {"q": q.strip(), "return_to": "/dashboard"}
+        return RedirectResponse(
+            url=f"/ui/search/student/{students[0].id}?{urlencode(params)}",
+            status_code=302,
+        )
+
+    return templates.TemplateResponse(
+        "search_results.html",
+        {
+            "request": request,
+            "q": q,
+            "students": students,
+            "teachers": teachers,
+            "courses": courses,
+            "is_admin": user.get("role") == "admin",
+        },
+    )
+
+
+@app.get("/ui/search/student/{student_id}", response_class=HTMLResponse)
+def search_student_actions(
+    student_id: int,
+    request: Request,
+    q: str | None = None,
+    return_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Admin hızlı arama: öğrenci yoklama/ödeme işlemleri."""
+    from sqlalchemy.orm import joinedload
+
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse(url="/", status_code=302)
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    student = crud.get_student(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+
+    resolved_return_to = safe_return_url(return_to, "/dashboard")
+    page_return_to = f"/ui/search/student/{student_id}"
+    if q and q.strip():
+        from urllib.parse import urlencode
+        page_return_to += "?" + urlencode({"q": q.strip(), "return_to": resolved_return_to})
+
+    payments = crud.list_payments_by_student(db, student_id)
+
+    attendances_raw = crud.list_all_attendances(
+        db, student_id=student_id, limit=500, order_by="marked_at_desc"
+    )
+    attendance_rows = []
+    for att in attendances_raw:
+        lesson = db.get(models.Lesson, att.lesson_id) if att.lesson_id else None
+        course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
+        teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
+        attendance_rows.append({
+            "attendance": att,
+            "lesson": lesson,
+            "course": course,
+            "teacher": teacher,
+        })
+
+    lessons = db.scalars(
+        select(models.Lesson)
+        .join(models.LessonStudent, models.LessonStudent.lesson_id == models.Lesson.id)
+        .where(models.LessonStudent.student_id == student_id)
+        .options(joinedload(models.Lesson.course), joinedload(models.Lesson.teacher))
+        .order_by(models.Lesson.lesson_date.asc(), models.Lesson.start_time.asc())
+    ).all()
+
+    return templates.TemplateResponse(
+        "search_student_actions.html",
+        {
+            "request": request,
+            "student": student,
+            "q": q or "",
+            "return_to": resolved_return_to,
+            "page_return_to": page_return_to,
+            "attendance_rows": attendance_rows,
+            "payments": payments,
+            "lessons": lessons,
+        },
+    )
 
 
 # UI: Teacher panel
@@ -2477,13 +2571,19 @@ def delete_attendance_endpoint(
 	user = request.session.get("user")
 	if user.get("role") != "admin":
 		raise HTTPException(status_code=403, detail="Sadece admin bu işlemi yapabilir")
-	
+
+	return_to = request.query_params.get("return_to")
+
 	try:
 		attendance = crud.delete_attendance(db, attendance_id)
 		if attendance:
 			import logging
 			logging.warning(f"Yoklama kaydı silindi: ID={attendance_id}, Öğrenci={attendance.student_id}, Ders={attendance.lesson_id}")
-			request.session["delete_attendance_success"] = "Yoklama kaydı başarıyla silindi"
+			msg = "Yoklama kaydı başarıyla silindi"
+			if return_to:
+				set_flash_success(request, msg)
+			else:
+				request.session["delete_attendance_success"] = msg
 		else:
 			request.session["delete_attendance_error"] = "Yoklama kaydı bulunamadı"
 	except Exception as e:
@@ -2495,26 +2595,28 @@ def delete_attendance_endpoint(
 	
 	# Filtreleri koruyarak dashboard'a yönlendir
 	from urllib.parse import urlencode
-	params = {}
-	if request.query_params.get("teacher_id"):
-		params["teacher_id"] = request.query_params.get("teacher_id")
-	if request.query_params.get("student_id"):
-		params["student_id"] = request.query_params.get("student_id")
-	if request.query_params.get("course_id"):
-		params["course_id"] = request.query_params.get("course_id")
-	if request.query_params.get("status"):
-		params["status"] = request.query_params.get("status")
-	if request.query_params.get("start_date"):
-		params["start_date"] = request.query_params.get("start_date")
-	if request.query_params.get("end_date"):
-		params["end_date"] = request.query_params.get("end_date")
-	if request.query_params.get("order_by"):
-		params["order_by"] = request.query_params.get("order_by")
-	
-	redirect_url = "/dashboard"
-	if params:
-		redirect_url += "?" + urlencode(params)
-	
+	if return_to:
+		redirect_url = safe_return_url(return_to, "/dashboard")
+	else:
+		params = {}
+		if request.query_params.get("teacher_id"):
+			params["teacher_id"] = request.query_params.get("teacher_id")
+		if request.query_params.get("student_id"):
+			params["student_id"] = request.query_params.get("student_id")
+		if request.query_params.get("course_id"):
+			params["course_id"] = request.query_params.get("course_id")
+		if request.query_params.get("status"):
+			params["status"] = request.query_params.get("status")
+		if request.query_params.get("start_date"):
+			params["start_date"] = request.query_params.get("start_date")
+		if request.query_params.get("end_date"):
+			params["end_date"] = request.query_params.get("end_date")
+		if request.query_params.get("order_by"):
+			params["order_by"] = request.query_params.get("order_by")
+		redirect_url = "/dashboard"
+		if params:
+			redirect_url += "?" + urlencode(params)
+
 	return RedirectResponse(url=redirect_url, status_code=302)
 
 
@@ -2812,7 +2914,7 @@ def search_all(q: str = None, db: Session = Depends(get_db)):
 			"id": s.id,
 			"name": f"{s.first_name} {s.last_name}",
 			"type": "student",
-			"url": f"/ui/students/{s.id}"
+			"url": f"/ui/search/student/{s.id}?return_to=/dashboard"
 		})
 	
 	# Öğretmenler
@@ -4472,7 +4574,17 @@ def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_
     return RedirectResponse(url="/ui/teachers", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/payments/{payment_id}/edit", response_class=HTMLResponse)
-def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(get_db), start: str | None = None, end: str | None = None, course_id: str | None = None, teacher_id: str | None = None, method: str | None = None):
+def payment_edit_form(
+    payment_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    start: str | None = None,
+    end: str | None = None,
+    course_id: str | None = None,
+    teacher_id: str | None = None,
+    method: str | None = None,
+    return_to: str | None = None,
+):
     """Ödeme düzenleme formu (sadece admin için)"""
     user = request.session.get("user")
     if not user or user.get("role") != "admin":
@@ -4498,6 +4610,7 @@ def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(g
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
     
     students = crud.list_students(db)
+    resolved_return_to = safe_return_url(return_to, "/ui/reports/payments")
     return templates.TemplateResponse("payment_edit.html", {
         "request": request,
         "payment": payment,
@@ -4506,7 +4619,8 @@ def payment_edit_form(payment_id: int, request: Request, db: Session = Depends(g
         "end": end or "",
         "course_id": course_id or "",
         "teacher_id": teacher_id or "",
-        "method": method or ""
+        "method": method or "",
+        "return_to": resolved_return_to,
     })
 
 
@@ -4525,6 +4639,7 @@ def update_payment(
     course_id: str | None = None,
     teacher_id: str | None = None,
     method_filter: str | None = None,
+    return_to: str | None = Form(None),
 ):
     """Ödeme kaydını günceller (sadece admin için)"""
     user = request.session.get("user")
@@ -4549,29 +4664,29 @@ def update_payment(
     )
     
     updated_payment = crud.update_payment(db, payment_id, payload)
-    
-    # Filtre parametrelerini koruyarak geri yönlendir
-    params = []
-    if start:
-        params.append(f"start={start}")
-    if end:
-        params.append(f"end={end}")
-    if course_id:
-        params.append(f"course_id={course_id}")
-    if teacher_id:
-        params.append(f"teacher_id={teacher_id}")
-    
-    query_string = "&".join(params)
-    redirect_url = f"/ui/reports/payments"
-    if query_string:
-        redirect_url += "?" + query_string
-    
-    # Başarı/hata mesajı için session kullan
-    if updated_payment:
-        request.session["delete_payment_success"] = "Ödeme kaydı başarıyla güncellendi."
+
+    if return_to and str(return_to).strip():
+        redirect_url = safe_return_url(return_to, "/ui/reports/payments")
     else:
-        request.session["delete_payment_error"] = "Ödeme kaydı güncellenemedi."
-    
+        params = []
+        if start:
+            params.append(f"start={start}")
+        if end:
+            params.append(f"end={end}")
+        if course_id:
+            params.append(f"course_id={course_id}")
+        if teacher_id:
+            params.append(f"teacher_id={teacher_id}")
+        query_string = "&".join(params)
+        redirect_url = "/ui/reports/payments"
+        if query_string:
+            redirect_url += "?" + query_string
+
+    if updated_payment:
+        set_flash_success(request, "Ödeme kaydı başarıyla güncellendi.")
+    else:
+        request.session["flash_error"] = "Ödeme kaydı güncellenemedi."
+
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 

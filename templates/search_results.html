@@ -1,21 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Arama - Piarte{% endblock %}
 {% block content %}
-<h2>Arama: "{{ q }}"</h2>
+<h2 class="h1">Arama: "{{ q }}"</h2>
+
+<p style="margin-bottom:16px;"><a href="/dashboard" style="color:#0ea5e9;">← Panele Dön</a></p>
 
 <div class="card">
-	<h3>Öğrenciler</h3>
-	<ul>
+	<h3 class="h2">Öğrenciler</h3>
 	{% for s in students %}
-		<li><a href="/ui/students/{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</a></li>
+	<div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+		<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+			<strong style="font-size:16px;">{{ s.first_name }} {{ s.last_name }}</strong>
+			{% if is_admin %}
+			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}" style="padding:8px 14px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;">Yoklama &amp; Ödeme İşlemleri</a>
+			{% else %}
+			<a href="/ui/students/{{ s.id }}" style="padding:8px 14px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;">Detay</a>
+			{% endif %}
+		</div>
+		{% if is_admin %}
+		<div style="display:flex;flex-wrap:wrap;gap:6px;">
+			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#yoklama-ekle" style="padding:6px 10px;background:#e0f2fe;color:#0369a1;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">+ Yoklama Ekle</a>
+			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#yoklama-duzelt" style="padding:6px 10px;background:#fef3c7;color:#b45309;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Yoklama Düzelt</a>
+			<a href="/payments/new?student_id={{ s.id }}&amp;return_to={{ ('/ui/search/student/' ~ s.id ~ '?q=' ~ q) | urlencode }}" style="padding:6px 10px;background:#d1fae5;color:#065f46;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">+ Ödeme Ekle</a>
+			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#odeme-duzelt" style="padding:6px 10px;background:#ffedd5;color:#c2410c;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Ödeme Düzelt</a>
+		</div>
+		{% endif %}
+	</div>
 	{% else %}
-		<li>Sonuç yok</li>
+	<p style="color:#64748b;">Sonuç yok</p>
 	{% endfor %}
-	</ul>
 </div>
 
 <div class="card">
-	<h3>Öğretmenler</h3>
+	<h3 class="h2">Öğretmenler</h3>
 	<ul>
 	{% for t in teachers %}
 		<li><a href="/ui/teachers/{{ t.id }}">{{ t.first_name }} {{ t.last_name }}</a></li>
@@ -26,7 +43,7 @@
 </div>
 
 <div class="card">
-	<h3>Kurslar</h3>
+	<h3 class="h2">Kurslar</h3>
 	<ul>
 	{% for c in courses %}
 		<li>{{ c.name }}</li>
@@ -36,11 +53,3 @@
 	</ul>
 </div>
 {% endblock %}
-
-
-
-
-
-
-
-

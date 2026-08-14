@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Öğrenci İşlemleri - Piarte{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+	<div>
+		<h2 class="h1" style="margin:0 0 4px 0;">{{ student.first_name }} {{ student.last_name }}</h2>
+		<p style="margin:0;color:#64748b;font-size:14px;">Hızlı arama sonucu — yoklama ve ödeme işlemleri</p>
+	</div>
+	<a href="{{ return_to }}" style="padding:10px 16px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;font-size:14px;">← Panele Dön</a>
+</div>
+
+{% if request.session.get('flash_success') %}
+<div style="padding:12px 16px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ request.session.pop('flash_success') }}
+</div>
+{% endif %}
+{% if request.session.get('flash_error') %}
+<div style="padding:12px 16px;background:#fee2e2;color:#991b1b;border:1px solid #ef4444;border-radius:8px;margin-bottom:16px;">
+	❌ {{ request.session.pop('flash_error') }}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px;">
+	<h3 class="h2">Hızlı İşlemler</h3>
+	<div class="btn-group" style="flex-wrap:wrap;">
+		<a href="#yoklama-ekle" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;">+ Yoklama Ekle</a>
+		<a href="/payments/new?student_id={{ student.id }}&amp;return_to={{ page_return_to | urlencode }}" style="padding:10px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;">+ Ödeme Ekle</a>
+		<a href="/ui/students/{{ student.id }}" style="padding:10px 16px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;">Öğrenci Detayı</a>
+	</div>
+</div>
+
+<div class="card" id="yoklama-ekle" style="margin-bottom:16px;">
+	<h3 class="h2">Yoklama Ekle</h3>
+	<p style="color:#64748b;font-size:14px;margin-bottom:12px;">Öğrencinin kayıtlı olduğu derslerden birini seçerek yoklama alın.</p>
+	{% if lessons %}
+	<div style="display:flex;flex-direction:column;gap:8px;">
+		{% for lesson in lessons %}
+		<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;">
+			<div>
+				<strong>{{ lesson.course.name if lesson.course else 'Ders #' ~ lesson.id }}</strong>
+				{% if lesson.teacher %}
+				<span style="color:#64748b;font-size:13px;"> — {{ lesson.teacher.first_name }} {{ lesson.teacher.last_name }}</span>
+				{% endif %}
+				<div style="color:#64748b;font-size:12px;margin-top:4px;">
+					{% if lesson.lesson_date %}{{ lesson.lesson_date.strftime('%d.%m.%Y') }}{% endif %}
+					{% if lesson.start_time %} · {{ lesson.start_time.strftime('%H:%M') }}{% if lesson.end_time %}–{{ lesson.end_time.strftime('%H:%M') }}{% endif %}{% endif %}
+				</div>
+			</div>
+			<a href="/lessons/{{ lesson.id }}/attendance/new?focus_student={{ student.id }}&amp;return_to={{ page_return_to | urlencode }}" style="padding:8px 14px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;">Yoklama Al</a>
+		</div>
+		{% endfor %}
+	</div>
+	{% else %}
+	<p style="color:#64748b;">Bu öğrenci henüz bir derse atanmamış. Önce ders kaydı yapın.</p>
+	{% endif %}
+</div>
+
+<div class="card" id="yoklama-duzelt" style="margin-bottom:16px;">
+	<h3 class="h2">Yoklama Düzelt / Sil</h3>
+	{% if attendance_rows %}
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Tarih</th>
+					<th>Saat</th>
+					<th>Kurs</th>
+					<th>Öğretmen</th>
+					<th>Durum</th>
+					<th>İşlem</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for row in attendance_rows %}
+			<tr>
+				<td>{{ row.attendance.marked_at.strftime('%d.%m.%Y') if row.attendance.marked_at else '-' }}</td>
+				<td>{{ row.attendance.marked_at.strftime('%H:%M') if row.attendance.marked_at else '-' }}</td>
+				<td><strong>{{ row.course.name if row.course else '-' }}</strong></td>
+				<td>{% if row.teacher %}{{ row.teacher.first_name }} {{ row.teacher.last_name }}{% else %}-{% endif %}</td>
+				<td>
+					{% if row.attendance.status == 'PRESENT' %}
+						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;">Geldi</span>
+					{% elif row.attendance.status == 'UNEXCUSED_ABSENT' %}
+						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;">Habersiz</span>
+					{% elif row.attendance.status == 'EXCUSED_ABSENT' %}
+						<span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;">Haberli</span>
+					{% elif row.attendance.status == 'TELAFI' or row.attendance.status == 'LATE' %}
+						<span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;">Telafi</span>
+					{% else %}{{ row.attendance.status }}{% endif %}
+				</td>
+				<td>
+					<a href="/attendances/{{ row.attendance.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:6px 10px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;margin-right:4px;">Düzenle</a>
+					<form method="post" action="/attendances/{{ row.attendance.id }}/delete?return_to={{ page_return_to | urlencode }}" style="display:inline;margin:0;" onsubmit="return confirm('Bu yoklama kaydını silmek istediğinizden emin misiniz?');">
+						<button type="submit" style="padding:6px 10px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Sil</button>
+					</form>
+				</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for row in attendance_rows %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tarih</div>
+					<div class="mobile-card-value">{{ row.attendance.marked_at.strftime('%d.%m.%Y %H:%M') if row.attendance.marked_at else '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kurs</div>
+					<div class="mobile-card-value"><strong>{{ row.course.name if row.course else '-' }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value">{% if row.teacher %}{{ row.teacher.first_name }} {{ row.teacher.last_name }}{% else %}-{% endif %}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Durum</div>
+					<div class="mobile-card-value">
+						{% if row.attendance.status == 'PRESENT' %}Geldi
+						{% elif row.attendance.status == 'UNEXCUSED_ABSENT' %}Habersiz gelmedi
+						{% elif row.attendance.status == 'EXCUSED_ABSENT' %}Haberli gelmedi
+						{% elif row.attendance.status == 'TELAFI' or row.attendance.status == 'LATE' %}Telafi
+						{% else %}{{ row.attendance.status }}{% endif %}
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">İşlem</div>
+					<div class="mobile-card-value">
+						<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+							<a href="/attendances/{{ row.attendance.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Düzenle</a>
+							<form method="post" action="/attendances/{{ row.attendance.id }}/delete?return_to={{ page_return_to | urlencode }}" style="margin:0;" onsubmit="return confirm('Bu yoklama kaydını silmek istediğinizden emin misiniz?');">
+								<button type="submit" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Sil</button>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	{% else %}
+	<p style="color:#64748b;">Henüz yoklama kaydı yok. Yukarıdan yoklama ekleyebilirsiniz.</p>
+	{% endif %}
+</div>
+
+<div class="card" id="odeme-duzelt">
+	<h3 class="h2">Ödeme Düzelt</h3>
+	{% if payments %}
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Tarih</th>
+					<th>Tutar</th>
+					<th>Yöntem</th>
+					<th>Not</th>
+					<th>İşlem</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for p in payments %}
+			<tr>
+				<td>{{ p.payment_date.strftime('%d.%m.%Y') if p.payment_date else '-' }}</td>
+				<td>{{ '%.2f'|format(p.amount_try) }} ₺</td>
+				<td>{{ p.method or '-' }}</td>
+				<td>{{ p.note or '-' }}</td>
+				<td>
+					<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:6px 12px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Düzenle</a>
+				</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		<div class="mobile-card-view">
+			{% for p in payments %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tarih</div>
+					<div class="mobile-card-value">{{ p.payment_date.strftime('%d.%m.%Y') if p.payment_date else '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tutar</div>
+					<div class="mobile-card-value">{{ '%.2f'|format(p.amount_try) }} ₺</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Yöntem</div>
+					<div class="mobile-card-value">{{ p.method or '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Not</div>
+					<div class="mobile-card-value">{{ p.note or '-' }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">İşlem</div>
+					<div class="mobile-card-value">
+						<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:8px 14px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;display:inline-block;">Düzenle</a>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	{% else %}
+	<p style="color:#64748b;">Ödeme kaydı yok. <a href="/payments/new?student_id={{ student.id }}&amp;return_to={{ page_return_to | urlencode }}">Ödeme ekleyin</a>.</p>
+	{% endif %}
+</div>
+{% endblock %}

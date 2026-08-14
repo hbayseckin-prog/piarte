@@ -89,19 +89,6 @@ def calculate_next_lesson_date(original_date):
     return next_date
 
 
-def student_name_matches_prefix(full_name: str, term: str) -> bool:
-    """Öğrenci adı filtresi: yazılan metnin ilk 3 harfi ad, soyad veya tam adla eşleşmeli."""
-    term = (term or "").strip().lower()
-    if len(term) < 3:
-        return False
-    prefix = term[:3]
-    normalized = (full_name or "").strip().lower()
-    parts = normalized.split()
-    first = parts[0] if parts else ""
-    last = parts[-1] if len(parts) > 1 else ""
-    return first.startswith(prefix) or last.startswith(prefix) or normalized.startswith(prefix)
-
-
 def filter_students_by_passive_flag(students, show_passive_students: bool):
 	"""Ders programlarında pasif öğrenciler gösterilmez; yoklama/puantaj listeleri için show_passive_students=True kullanılabilir."""
 	if show_passive_students:
@@ -751,7 +738,7 @@ def dashboard(
                 if not stu:
                     continue
                 full_name = f"{stu.first_name} {stu.last_name}"
-                if student_name_matches_prefix(full_name, student_name):
+                if crud.student_name_matches_prefix(full_name, student_name):
                     filtered.append(a)
             attendances = filtered
     
@@ -778,18 +765,20 @@ def dashboard(
                 "teacher": teacher,
                 "course": course,
             })
-    # Puantaj raporunu getir (admin ve puantaj/her ikisi görünümünde; tüm öğretmenler seçiliyse hepsinin puantajı)
+    # Puantaj raporunu getir (yalnızca filtre uygulandığında; tüm filtreler puantaja yansır)
     attendance_report = []
     attendance_totals_by_teacher = {}
     _show_puantaj = (attendance_view or "yoklama").strip() in ("both", "puantaj")
-    if user.get("role") == "admin" and _show_puantaj:
+    if user.get("role") == "admin" and _show_puantaj and has_filters:
         attendance_report = crud.get_attendance_report_by_teacher(
             db,
             teacher_id=teacher_id_int,
             student_id=student_id_int,
             course_id=course_id_int,
             start_date=start_date_obj,
-            end_date=end_date_obj
+            end_date=end_date_obj,
+            status=status,
+            student_name=student_name if not student_id_int else None,
         )
         
         # Her öğretmen için toplamları hesapla
@@ -971,6 +960,7 @@ def dashboard(
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
         "attendance_totals_by_teacher": attendance_totals_by_teacher,
+        "has_attendance_filters": has_filters,
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,
         "students_needing_payment_lessons": students_needing_payment_lessons,
@@ -1004,6 +994,7 @@ def export_punctuality_excel(
     status: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    student_name: str | None = None,
 ):
     """Puantaj tablosunu Excel formatında export eder"""
     user = request.session.get("user")
@@ -1050,12 +1041,17 @@ def export_punctuality_excel(
         except Exception:
             pass
     
-    # Puantaj raporunu getir
-    attendance_report = crud.get_attendance_report_by_teacher(db)
-    
-    # Filtreleri uygula
-    if teacher_id_int:
-        attendance_report = [r for r in attendance_report if r["teacher"].id == teacher_id_int]
+    # Puantaj raporunu getir (dashboard filtreleriyle aynı)
+    attendance_report = crud.get_attendance_report_by_teacher(
+        db,
+        teacher_id=teacher_id_int,
+        student_id=student_id_int,
+        course_id=course_id_int,
+        start_date=start_date_obj,
+        end_date=end_date_obj,
+        status=status,
+        student_name=student_name if not student_id_int else None,
+    )
     
     # Excel workbook oluştur
     wb = Workbook()
@@ -1093,16 +1089,8 @@ def export_punctuality_excel(
         teacher_cell.alignment = Alignment(horizontal='left', vertical='center')
         row += 1
         
-        # Öğrenci verilerini filtrele
+        # Öğrenci verileri (rapor zaten filtrelenmiş)
         students_data = teacher_report['students']
-        if student_id_int:
-            students_data = [s for s in students_data if s['student'].id == student_id_int]
-        if course_id_int:
-            # Course filtresi için lesson bilgisi gerekli, şimdilik tüm öğrencileri göster
-            pass
-        if status:
-            # Status filtresi için attendance bilgisi gerekli, şimdilik tüm öğrencileri göster
-            pass
         
         if not students_data:
             ws.merge_cells(f'A{row}:G{row}')
@@ -4280,7 +4268,7 @@ def staff_panel(
                     if not stu:
                         continue
                     full_name = f"{stu.first_name} {stu.last_name}"
-                    if student_name_matches_prefix(full_name, attendance_student_name):
+                    if crud.student_name_matches_prefix(full_name, attendance_student_name):
                         filtered.append(a)
                 attendances = filtered
             

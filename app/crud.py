@@ -606,6 +606,29 @@ def update_attendance(db: Session, attendance_id: int, status: str | None = None
 	return attendance
 
 
+def student_name_matches_prefix(full_name: str, term: str) -> bool:
+	"""Öğrenci adı filtresi: yazılan metnin ilk 3 harfi ad, soyad veya tam adla eşleşmeli."""
+	term = (term or "").strip().lower()
+	if len(term) < 3:
+		return False
+	prefix = term[:3]
+	normalized = (full_name or "").strip().lower()
+	parts = normalized.split()
+	first = parts[0] if parts else ""
+	last = parts[-1] if len(parts) > 1 else ""
+	return first.startswith(prefix) or last.startswith(prefix) or normalized.startswith(prefix)
+
+
+def attendance_status_filter(status: str):
+	"""Yoklama durumu filtresi (TELAFI/LATE ve ABSENT/UNEXCUSED_ABSENT uyumluluğu)."""
+	normalized = (status or "").strip().upper()
+	if normalized == "TELAFI":
+		return models.Attendance.status.in_(["TELAFI", "LATE"])
+	if normalized == "UNEXCUSED_ABSENT":
+		return models.Attendance.status.in_(["UNEXCUSED_ABSENT", "ABSENT"])
+	return models.Attendance.status == normalized
+
+
 def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, status: str | None = None, start_date: date | None = None, end_date: date | None = None, order_by: str = "marked_at_desc"):
 	needs_join = teacher_id is not None or course_id is not None
 
@@ -621,8 +644,8 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 		stmt = stmt.where(models.Attendance.student_id == student_id)
 	if course_id:
 		stmt = stmt.where(models.Lesson.course_id == course_id)
-	if status:
-		stmt = stmt.where(models.Attendance.status == status.upper())
+	if status and status.strip():
+		stmt = stmt.where(attendance_status_filter(status))
 	# Tarih filtreleri artık yoklama zamanına (marked_at) göre
 	if start_date:
 		from datetime import datetime
@@ -764,7 +787,16 @@ def mark_overdue_invoices(db: Session):
     return updated
 
 
-def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, start_date: date | None = None, end_date: date | None = None):
+def get_attendance_report_by_teacher(
+    db: Session,
+    teacher_id: int | None = None,
+    student_id: int | None = None,
+    course_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    status: str | None = None,
+    student_name: str | None = None,
+):
     """Öğretmenlere göre yoklama raporu oluşturur. Filtreleme parametreleri ile çalışır."""
     from sqlalchemy.orm import joinedload
 
@@ -787,6 +819,8 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
             )
             if student_id:
                 stmt = stmt.where(models.Attendance.student_id == student_id)
+            if status and status.strip():
+                stmt = stmt.where(attendance_status_filter(status))
             attendances = db.scalars(stmt).all()
 
             if course_id or start_date or end_date:
@@ -823,6 +857,13 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                 select(models.Student).where(models.Student.id.in_({a.student_id for a in attendances}))
             ).all()
         } if attendances else {}
+
+        if student_name and student_name.strip() and not student_id:
+            attendances = [
+                att for att in attendances
+                if (stu := student_map.get(att.student_id))
+                and student_name_matches_prefix(f"{stu.first_name} {stu.last_name}", student_name)
+            ]
 
         student_stats = {}
         for att in attendances:
@@ -898,11 +939,12 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                     student_stats[att_student_id]["total"] += lesson_count
                     student_stats[att_student_id]["dates"].append(date_str)
         
-        # Tüm öğretmenler (veya tek öğretmen) görünümünde her öğretmen kartı çıksın; veri yoksa boş tablo mesajı üst yüzeye bırakılır
-        report.append({
-            "teacher": teacher,
-            "students": list(student_stats.values())
-        })
+        students_list = list(student_stats.values())
+        if students_list or teacher_id:
+            report.append({
+                "teacher": teacher,
+                "students": students_list
+            })
     
     return report
 

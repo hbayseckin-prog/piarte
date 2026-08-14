@@ -144,7 +144,7 @@
 </div>
 
 <div class="card" id="odeme-duzelt">
-	<h3 class="h2">Ödeme Düzelt</h3>
+	<h3 class="h2">Ödeme Düzelt / Sil</h3>
 	{% if payments %}
 	<div class="table-wrap">
 		<table>
@@ -165,7 +165,10 @@
 				<td>{{ p.method or '-' }}</td>
 				<td>{{ p.note or '-' }}</td>
 				<td>
-					<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:6px 12px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Düzenle</a>
+					<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:6px 10px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;margin-right:4px;">Düzenle</a>
+					<form method="post" action="/payments/{{ p.id }}/delete?return_to={{ page_return_to | urlencode }}" style="display:inline;margin:0;" onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
+						<button type="submit" style="padding:6px 10px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Sil</button>
+					</form>
 				</td>
 			</tr>
 			{% endfor %}
@@ -193,7 +196,12 @@
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">İşlem</div>
 					<div class="mobile-card-value">
-						<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:8px 14px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;display:inline-block;">Düzenle</a>
+						<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+							<a href="/payments/{{ p.id }}/edit?return_to={{ page_return_to | urlencode }}" style="padding:8px 12px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Düzenle</a>
+							<form method="post" action="/payments/{{ p.id }}/delete?return_to={{ page_return_to | urlencode }}" style="margin:0;" onsubmit="return confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?');">
+								<button type="submit" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Sil</button>
+							</form>
+						</div>
 					</div>
 				</div>
 			</div>

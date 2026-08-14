@@ -22,7 +22,7 @@
 			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#yoklama-ekle" style="padding:6px 10px;background:#e0f2fe;color:#0369a1;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">+ Yoklama Ekle</a>
 			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#yoklama-duzelt" style="padding:6px 10px;background:#fef3c7;color:#b45309;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Yoklama Düzelt</a>
 			<a href="/payments/new?student_id={{ s.id }}&amp;return_to={{ ('/ui/search/student/' ~ s.id ~ '?q=' ~ q) | urlencode }}" style="padding:6px 10px;background:#d1fae5;color:#065f46;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">+ Ödeme Ekle</a>
-			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#odeme-duzelt" style="padding:6px 10px;background:#ffedd5;color:#c2410c;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Ödeme Düzelt</a>
+			<a href="/ui/search/student/{{ s.id }}?q={{ q | urlencode }}&amp;return_to={{ ('/ui/search?q=' ~ q) | urlencode }}#odeme-duzelt" style="padding:6px 10px;background:#ffedd5;color:#c2410c;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Ödeme Düzelt/Sil</a>
 		</div>
 		{% endif %}
 	</div>

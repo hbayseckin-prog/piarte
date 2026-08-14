@@ -827,13 +827,9 @@
             <option value="{{ t.id }}" {% if filters and filters.teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
             {% endfor %}
         </select>
-        <select name="attendance_student_id">
-            <option value="">Tüm Öğrenciler</option>
-            {% for s in students %}
-            <option value="{{ s.id }}" {% if filters and filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
-            {% endfor %}
-        </select>
-        <input type="text" name="attendance_student_name" placeholder="Öğrenci adı" value="{{ filters.student_name if filters else '' }}" />
+        {% with input_id='staff_attendance_student_search', hidden_id='staff_attendance_student_id', suggestions_id='staff_attendance_student_suggestions', name_field='attendance_student_name', id_field='attendance_student_id', initial_name=(filters.student_name if filters else ''), initial_id=(filters.student_id if filters else '') %}
+        {% include "_attendance_student_filter.html" %}
+        {% endwith %}
         <select name="attendance_course_id">
             <option value="">Tüm Kurslar</option>
             {% for c in courses %}
@@ -961,5 +957,16 @@
     <p>Henüz yoklama kaydı bulunmuyor.</p>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+	if (typeof piarteInitAttendanceStudentFilter !== "function") return;
+	piarteInitAttendanceStudentFilter({
+		searchInput: document.getElementById("staff_attendance_student_search"),
+		hiddenInput: document.getElementById("staff_attendance_student_id"),
+		suggestionsPanel: document.getElementById("staff_attendance_student_suggestions")
+	});
+});
+</script>
 
 {% endblock %}

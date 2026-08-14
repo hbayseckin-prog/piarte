@@ -89,6 +89,19 @@ def calculate_next_lesson_date(original_date):
     return next_date
 
 
+def student_name_matches_prefix(full_name: str, term: str) -> bool:
+    """Öğrenci adı filtresi: yazılan metnin ilk 3 harfi ad, soyad veya tam adla eşleşmeli."""
+    term = (term or "").strip().lower()
+    if len(term) < 3:
+        return False
+    prefix = term[:3]
+    normalized = (full_name or "").strip().lower()
+    parts = normalized.split()
+    first = parts[0] if parts else ""
+    last = parts[-1] if len(parts) > 1 else ""
+    return first.startswith(prefix) or last.startswith(prefix) or normalized.startswith(prefix)
+
+
 def filter_students_by_passive_flag(students, show_passive_students: bool):
 	"""Ders programlarında pasif öğrenciler gösterilmez; yoklama/puantaj listeleri için show_passive_students=True kullanılabilir."""
 	if show_passive_students:
@@ -731,15 +744,14 @@ def dashboard(
             order_by=order_by,
             limit=200,
         )
-        if student_name and student_name.strip():
-            term = student_name.strip().lower()
+        if student_name and student_name.strip() and not student_id_int:
             filtered = []
             for a in attendances:
                 stu = db.get(models.Student, a.student_id)
                 if not stu:
                     continue
-                full_name = f"{stu.first_name} {stu.last_name}".lower()
-                if term in full_name:
+                full_name = f"{stu.first_name} {stu.last_name}"
+                if student_name_matches_prefix(full_name, student_name):
                     filtered.append(a)
             attendances = filtered
     
@@ -2864,6 +2876,7 @@ def search_teachers(q: str = None, db: Session = Depends(get_db)):
 		return []
 	search_prefix = f"{q.strip()[:3]}%"
 	teachers = db.query(models.Teacher).filter(
+		models.Teacher.is_active == True,
 		(models.Teacher.first_name.ilike(search_prefix)) | 
 		(models.Teacher.last_name.ilike(search_prefix))
 	).limit(10).all()
@@ -4259,16 +4272,15 @@ def staff_panel(
             if attendance_student_id_int:
                 attendances = [a for a in attendances if a.student_id == attendance_student_id_int]
             
-            # Student name filter (full name contains)
-            if attendance_student_name and attendance_student_name.strip():
-                term = attendance_student_name.strip().lower()
+            # Student name filter (ilk 3 harf eşleşmesi)
+            if attendance_student_name and attendance_student_name.strip() and not attendance_student_id_int:
                 filtered = []
                 for a in attendances:
                     stu = db.get(models.Student, a.student_id)
                     if not stu:
                         continue
-                    full_name = f"{stu.first_name} {stu.last_name}".lower()
-                    if term in full_name:
+                    full_name = f"{stu.first_name} {stu.last_name}"
+                    if student_name_matches_prefix(full_name, attendance_student_name):
                         filtered.append(a)
                 attendances = filtered
             

@@ -1,0 +1,116 @@
+{# Öğrenci adı filtresi: en az 3 harfte /api/students/search ile öneri listesi #}
+<style id="piarte-attendance-student-filter-styles">
+.piarte-attendance-student-filter{position:relative}
+.piarte-attendance-student-suggestions{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;max-height:min(240px,40vh);overflow-y:auto;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:8px;box-shadow:0 8px 24px -6px rgba(15,23,42,.18);z-index:1000}
+.piarte-attendance-student-suggestions.is-open{display:block}
+.piarte-attendance-student-suggestions .item{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a}
+.piarte-attendance-student-suggestions .item:last-child{border-bottom:none}
+.piarte-attendance-student-suggestions .item:hover,.piarte-attendance-student-suggestions .item:focus{background:#f1f5f9;outline:none}
+.piarte-attendance-student-suggestions .hint{padding:8px 12px;font-size:13px;color:#64748b}
+</style>
+<div class="piarte-attendance-student-filter">
+	<input
+		type="text"
+		id="{{ input_id }}"
+		name="{{ name_field }}"
+		placeholder="Öğrenci adı (min 3 harf)"
+		value="{{ initial_name or '' }}"
+		autocomplete="off"
+	/>
+	<input type="hidden" id="{{ hidden_id }}" name="{{ id_field }}" value="{{ initial_id or '' }}" />
+	<div id="{{ suggestions_id }}" class="piarte-attendance-student-suggestions" role="listbox" aria-label="Eşleşen öğrenciler"></div>
+</div>
+<script>
+(function () {
+	if (window.piarteInitAttendanceStudentFilter) return;
+	window.piarteInitAttendanceStudentFilter = function (opts) {
+		var searchInput = opts.searchInput;
+		var hiddenInput = opts.hiddenInput;
+		var suggestionsEl = opts.suggestionsPanel;
+		if (!searchInput || !hiddenInput || !suggestionsEl) return;
+
+		var searchTimeout;
+		var blurTimer;
+
+		function openPanel(open) {
+			suggestionsEl.classList.toggle("is-open", !!open);
+		}
+
+		function clearSuggestions() {
+			suggestionsEl.innerHTML = "";
+			openPanel(false);
+		}
+
+		function chooseStudent(student) {
+			searchInput.value = student.full_name || "";
+			hiddenInput.value = student.id || "";
+			clearSuggestions();
+		}
+
+		searchInput.addEventListener("input", function () {
+			clearTimeout(searchTimeout);
+			var query = (searchInput.value || "").trim();
+			hiddenInput.value = "";
+			if (query.length < 3) {
+				clearSuggestions();
+				return;
+			}
+			searchTimeout = setTimeout(function () {
+				fetch("/api/students/search?q=" + encodeURIComponent(query))
+					.then(function (response) { return response.json(); })
+					.then(function (data) {
+						suggestionsEl.innerHTML = "";
+						if (!data || !data.length) {
+							var empty = document.createElement("div");
+							empty.className = "hint";
+							empty.textContent = "Eşleşen öğrenci yok";
+							suggestionsEl.appendChild(empty);
+							openPanel(true);
+							return;
+						}
+						data.forEach(function (student) {
+							var item = document.createElement("div");
+							item.className = "item";
+							item.setAttribute("role", "option");
+							item.tabIndex = 0;
+							item.textContent = student.full_name || "";
+							item.addEventListener("mousedown", function (e) {
+								e.preventDefault();
+								chooseStudent(student);
+							});
+							item.addEventListener("keydown", function (e) {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									chooseStudent(student);
+								}
+							});
+							suggestionsEl.appendChild(item);
+						});
+						openPanel(true);
+					})
+					.catch(function () {
+						clearSuggestions();
+					});
+			}, 300);
+		});
+
+		searchInput.addEventListener("focus", function () {
+			clearTimeout(blurTimer);
+			if (suggestionsEl.innerHTML.trim() !== "") openPanel(true);
+		});
+
+		searchInput.addEventListener("blur", function () {
+			blurTimer = setTimeout(function () {
+				openPanel(false);
+				if ((searchInput.value || "").trim() === "") hiddenInput.value = "";
+			}, 180);
+		});
+
+		document.addEventListener("click", function (e) {
+			if (!searchInput.contains(e.target) && !suggestionsEl.contains(e.target)) {
+				openPanel(false);
+			}
+		});
+	};
+})();
+</script>

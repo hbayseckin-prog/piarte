@@ -488,13 +488,9 @@ if (quickSearchInput) {
             <option value="{{ t.id }}" {% if filters.teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
             {% endfor %}
         </select>
-        <select name="student_id">
-            <option value="">Tüm Öğrenciler</option>
-            {% for s in students %}
-            <option value="{{ s.id }}" {% if filters.student_id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }}</option>
-            {% endfor %}
-        </select>
-        <input type="text" name="student_name" placeholder="Öğrenci adı" value="{{ filters.student_name }}" />
+        {% with input_id='dashboard_attendance_student_search', hidden_id='dashboard_attendance_student_id', suggestions_id='dashboard_attendance_student_suggestions', name_field='student_name', id_field='student_id', initial_name=filters.student_name, initial_id=filters.student_id %}
+        {% include "_attendance_student_filter.html" %}
+        {% endwith %}
         <select name="course_id">
             <option value="">Tüm Kurslar</option>
             {% for c in courses %}
@@ -981,6 +977,17 @@ if (quickSearchInput) {
 	})();
 </script>
 {% endif %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+	if (typeof piarteInitAttendanceStudentFilter !== "function") return;
+	piarteInitAttendanceStudentFilter({
+		searchInput: document.getElementById("dashboard_attendance_student_search"),
+		hiddenInput: document.getElementById("dashboard_attendance_student_id"),
+		suggestionsPanel: document.getElementById("dashboard_attendance_student_suggestions")
+	});
+});
+</script>
 
 {% endblock %}
 

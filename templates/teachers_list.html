@@ -33,6 +33,37 @@
 	<tr><td colspan="3" style="text-align:center;color:#64748b;">Aktif öğretmen bulunmuyor.</td></tr>
 	{% endfor %}
 	</tbody>
-</table>
+	</table>
+	<div class="mobile-card-view">
+		{% for t in teachers %}
+		<div class="mobile-card">
+			<div class="mobile-card-row">
+				<div class="mobile-card-label">Ad Soyad</div>
+				<div class="mobile-card-value"><strong>{{ t.first_name }} {{ t.last_name }}</strong></div>
+			</div>
+			<div class="mobile-card-row">
+				<div class="mobile-card-label">Telefon</div>
+				<div class="mobile-card-value">{{ t.phone or '-' }}</div>
+			</div>
+			<div class="mobile-card-row">
+				<div class="mobile-card-label">İşlemler</div>
+				<div class="mobile-card-value">
+					<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+						<a href="/ui/teachers/{{ t.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Detay</a>
+						<form method="post" action="/teachers/{{ t.id }}/delete" style="margin:0;" onsubmit="return confirm('{{ t.first_name }} {{ t.last_name }} pasif yapılacak. Geçmiş yoklamalar korunur. Devam?');">
+							<button type="submit" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Sil</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+		{% else %}
+		<div class="mobile-card">
+			<div class="mobile-card-row">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Aktif öğretmen bulunmuyor.</div>
+			</div>
+		</div>
+		{% endfor %}
+	</div>
 </div>
 {% endblock %}

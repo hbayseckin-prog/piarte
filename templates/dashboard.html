@@ -354,7 +354,10 @@ if (quickSearchInput) {
 				<td>{{ t.phone or '-' }}</td>
 				{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 				<td>
-					<a href="/ui/teachers/{{ t.id }}" style="padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;white-space:nowrap;">Detay & Ders Programı</a>
+					<a href="/ui/teachers/{{ t.id }}" style="padding:6px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;white-space:nowrap;">Detay</a>
+					<form method="post" action="/teachers/{{ t.id }}/delete" style="display:inline;margin:0 0 0 6px;" onsubmit="return confirm('{{ t.first_name }} {{ t.last_name }} pasif yapılacak. Geçmiş yoklamalar korunur. Devam?');">
+						<button type="submit" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;">Sil</button>
+					</form>
 				</td>
 				{% endif %}
 			</tr>
@@ -376,10 +379,19 @@ if (quickSearchInput) {
 				<div class="mobile-card-row">
 					<div class="mobile-card-label">İşlemler</div>
 					<div class="mobile-card-value">
-						<a href="/ui/teachers/{{ t.id }}" style="padding:8px 12px; background:#0ea5e9; color:#fff; text-decoration:none; border-radius:8px; font-size:13px;display:block;text-align:center;">Detay & Ders Programı</a>
+						<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+							<a href="/ui/teachers/{{ t.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;">Detay</a>
+							<form method="post" action="/teachers/{{ t.id }}/delete" style="margin:0;" onsubmit="return confirm('{{ t.first_name }} {{ t.last_name }} pasif yapılacak. Geçmiş yoklamalar korunur. Devam?');">
+								<button type="submit" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Sil</button>
+							</form>
+						</div>
 					</div>
 				</div>
 				{% endif %}
+			</div>
+			{% else %}
+			<div class="mobile-card">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Aktif öğretmen bulunmuyor.</div>
 			</div>
 			{% endfor %}
 		</div>

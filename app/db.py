@@ -79,6 +79,39 @@ def ensure_is_active_column():
 		import traceback
 		traceback.print_exc()
 
+
+def ensure_teacher_is_active_column():
+	"""teachers.is_active kolonunun var olduğundan emin ol"""
+	try:
+		from sqlalchemy import text, inspect
+		inspector = inspect(engine)
+		try:
+			columns = inspector.get_columns('teachers')
+			column_names = [col['name'] for col in columns]
+		except Exception:
+			column_names = []
+
+		if 'is_active' not in column_names:
+			print("teachers.is_active kolonu bulunamadi, ekleniyor...")
+			db = SessionLocal()
+			try:
+				if "sqlite" in str(engine.url).lower():
+					db.execute(text("ALTER TABLE teachers ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+				else:
+					db.execute(text("ALTER TABLE teachers ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL"))
+				db.commit()
+				print("teachers.is_active kolonu basariyla eklendi")
+			except Exception as e:
+				error_str = str(e).lower()
+				if "duplicate column" not in error_str and "already exists" not in error_str:
+					print(f"teachers.is_active kolonu eklenirken hata: {e}")
+				db.rollback()
+			finally:
+				db.close()
+	except Exception as e:
+		print(f"teachers.is_active kolonu kontrol edilirken hata: {e}")
+
+
 def ensure_attendance_lesson_fk_restrict():
 	"""PostgreSQL'de attendances.lesson_id FK'yi RESTRICT yap (yoklama kayıtları ders silinirken silinmesin)"""
 	try:
@@ -121,6 +154,11 @@ except Exception as e:
 	print(f"Baslangic migration kontrolu hatasi: {e}")
 	import traceback
 	traceback.print_exc()
+
+try:
+	ensure_teacher_is_active_column()
+except Exception:
+	pass
 
 try:
 	ensure_attendance_lesson_fk_restrict()

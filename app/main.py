@@ -145,8 +145,9 @@ async def startup_event():
 	"""Uygulama başlangıcında hafif migration kontrolü"""
 	import logging
 	try:
-		from app.db import ensure_is_active_column
+		from app.db import ensure_is_active_column, ensure_teacher_is_active_column
 		ensure_is_active_column()
+		ensure_teacher_is_active_column()
 	except Exception as e:
 		logging.error(f"Startup migration hatasi: {e}")
 
@@ -1211,6 +1212,7 @@ def quick_search(request: Request, q: str, db: Session = Depends(get_db)):
         (models.Student.first_name.ilike(term)) | (models.Student.last_name.ilike(term))
     ).limit(20).all()
     teachers = db.query(models.Teacher).filter(
+        models.Teacher.is_active == True,
         (models.Teacher.first_name.ilike(term)) | (models.Teacher.last_name.ilike(term))
     ).limit(20).all()
     courses = db.query(models.Course).filter(models.Course.name.ilike(term)).limit(20).all()
@@ -2919,7 +2921,8 @@ def search_all(q: str = None, db: Session = Depends(get_db)):
 	
 	# Öğretmenler
 	teachers = db.query(models.Teacher).filter(
-		(models.Teacher.first_name.ilike(search_prefix)) | 
+		models.Teacher.is_active == True,
+		(models.Teacher.first_name.ilike(search_prefix)) |
 		(models.Teacher.last_name.ilike(search_prefix))
 	).limit(5).all()
 	for t in teachers:
@@ -4567,10 +4570,23 @@ def delete_teacher(teacher_id: int, request: Request, db: Session = Depends(get_
     user = request.session.get("user")
     if not user or user.get("role") != "admin":
         return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
-    teacher = db.get(models.Teacher, teacher_id)
-    if teacher:
-        db.delete(teacher)
-        db.commit()
+
+    try:
+        teacher = crud.delete_teacher(db, teacher_id)
+        if teacher:
+            name = f"{teacher.first_name} {teacher.last_name}".strip()
+            set_flash_success(
+                request,
+                f"{name} pasif yapıldı. Geçmiş yoklamalar korundu; öğrenciler yeni öğretmene atanabilir.",
+            )
+        else:
+            request.session["flash_error"] = "Öğretmen bulunamadı veya zaten silinmiş."
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.error(f"Öğretmen silme hatası: {e}")
+        request.session["flash_error"] = f"Öğretmen silinirken hata oluştu: {str(e)}"
+
     return RedirectResponse(url="/ui/teachers", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/payments/{payment_id}/edit", response_class=HTMLResponse)

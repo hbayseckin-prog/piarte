@@ -103,8 +103,41 @@ def update_teacher(db: Session, teacher_id: int, data: schemas.TeacherUpdate):
 	return teacher
 
 
-def list_teachers(db: Session):
-	return db.scalars(select(models.Teacher).order_by(models.Teacher.created_at.desc())).all()
+def list_teachers(db: Session, active_only: bool = True):
+	stmt = select(models.Teacher).order_by(models.Teacher.created_at.desc())
+	if active_only:
+		stmt = stmt.where(models.Teacher.is_active == True)
+	return db.scalars(stmt).all()
+
+
+def delete_teacher(db: Session, teacher_id: int):
+	"""Öğretmeni pasifleştirir; yoklama kayıtları korunur, öğrenci atamaları kaldırılır."""
+	teacher = db.get(models.Teacher, teacher_id)
+	if not teacher or not getattr(teacher, "is_active", True):
+		return None
+
+	# Öğrenci–öğretmen atamalarını kaldır (yeni öğretmene atanabilsinler)
+	for link in db.scalars(
+		select(models.TeacherStudent).where(models.TeacherStudent.teacher_id == teacher_id)
+	).all():
+		db.delete(link)
+
+	# Öğretmen giriş hesaplarını sil
+	for user in db.scalars(select(models.User).where(models.User.teacher_id == teacher_id)).all():
+		db.delete(user)
+
+	# Yoklaması olmayan ders programı slotlarını temizle; yoklamalı dersler kalır
+	for lesson in list_lessons_by_teacher(db, teacher_id):
+		attendance_count = db.scalar(
+			select(func.count(models.Attendance.id)).where(models.Attendance.lesson_id == lesson.id)
+		) or 0
+		if int(attendance_count) == 0:
+			db.delete(lesson)
+
+	teacher.is_active = False
+	db.commit()
+	db.refresh(teacher)
+	return teacher
 
 
 def get_teacher(db: Session, teacher_id: int):

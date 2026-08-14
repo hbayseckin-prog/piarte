@@ -753,6 +753,63 @@ def list_students_needing_payment(db: Session):
 	return students_needing_payment
 
 
+ATTENDANCE_STATUS_LABELS = {
+	"PRESENT": "Geldi",
+	"UNEXCUSED_ABSENT": "Habersiz Gelmedi",
+	"EXCUSED_ABSENT": "Haberli Gelmedi",
+	"TELAFI": "Telafi",
+}
+
+ATTENDANCE_STATUS_SUMMARY_STYLES = {
+	"PRESENT": {"bg": "#dcfce7", "color": "#15803d"},
+	"UNEXCUSED_ABSENT": {"bg": "#fee2e2", "color": "#dc2626"},
+	"EXCUSED_ABSENT": {"bg": "#ffedd5", "color": "#c2410c"},
+	"TELAFI": {"bg": "#ede9fe", "color": "#6d28d9"},
+}
+
+ATTENDANCE_STATUS_DATE_BADGE_STYLES = {
+	"PRESENT": {"bg": "#dcfce7", "color": "#15803d", "border": "#86efac"},
+	"UNEXCUSED_ABSENT": {"bg": "#fee2e2", "color": "#dc2626", "border": "#fca5a5"},
+	"EXCUSED_ABSENT": {"bg": "#ffedd5", "color": "#c2410c", "border": "#fdba74"},
+	"TELAFI": {"bg": "#ede9fe", "color": "#6d28d9", "border": "#c4b5fd"},
+}
+
+
+def normalize_attendance_status(status: str | None) -> str:
+	if not status:
+		return ""
+	if status == "LATE":
+		return "TELAFI"
+	if status == "ABSENT":
+		return "UNEXCUSED_ABSENT"
+	return status
+
+
+def summarize_student_attendances(attendances) -> tuple[dict[str, int], list[dict]]:
+	counts = {key: 0 for key in ATTENDANCE_STATUS_LABELS}
+	entries: list[dict] = []
+	for att in attendances:
+		if not att.marked_at:
+			continue
+		status = normalize_attendance_status(att.status)
+		if status in counts:
+			counts[status] += 1
+		badge_style = ATTENDANCE_STATUS_DATE_BADGE_STYLES.get(
+			status,
+			{"bg": "#e0e7ff", "color": "#4338ca", "border": "#c7d2fe"},
+		)
+		entries.append({
+			"date": att.marked_at.date(),
+			"status": status,
+			"label": ATTENDANCE_STATUS_LABELS.get(status, status or "-"),
+			"badge_bg": badge_style["bg"],
+			"badge_color": badge_style["color"],
+			"badge_border": badge_style["border"],
+		})
+	entries.sort(key=lambda item: item["date"])
+	return counts, entries
+
+
 WEEKDAY_MAP_TR = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 VALID_PAYMENT_STATUS_FILTERS = frozenset({"needs_payment", "waiting", "paid"})
 _ATTENDANCE_STATUSES_FOR_PAYMENT = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")

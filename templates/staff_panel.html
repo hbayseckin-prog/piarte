@@ -87,12 +87,33 @@
 		
 		<!-- Toplam Ders Sayısı ve Ders Tarihleri -->
 		<div style="margin-bottom:16px;padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;">
-			<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
-				<div style="flex:1;min-width:200px;">
-					<strong style="color:#0f172a;font-size:14px;">Toplam Ders Sayısı:</strong>
-					<span style="color:#0ea5e9;font-size:16px;font-weight:600;margin-left:8px;">{{ total_lessons_count }}</span>
+			<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+				<div style="flex:1;min-width:220px;">
+					<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+						<strong style="color:#0f172a;font-size:14px;">Toplam Ders Sayısı:</strong>
+						<span style="color:#0ea5e9;font-size:16px;font-weight:600;">{{ total_lessons_count }}</span>
+					</div>
+					{% if attendance_date_entries %}
+					<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+						<span style="padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">Geldi: {{ student_attendance_summary.PRESENT or 0 }}</span>
+						<span style="padding:4px 10px;background:#fee2e2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;">Habersiz Gelmedi: {{ student_attendance_summary.UNEXCUSED_ABSENT or 0 }}</span>
+						<span style="padding:4px 10px;background:#ffedd5;color:#c2410c;border-radius:6px;font-size:12px;font-weight:600;">Haberli Gelmedi: {{ student_attendance_summary.EXCUSED_ABSENT or 0 }}</span>
+						<span style="padding:4px 10px;background:#ede9fe;color:#6d28d9;border-radius:6px;font-size:12px;font-weight:600;">Telafi: {{ student_attendance_summary.TELAFI or 0 }}</span>
+					</div>
+					{% endif %}
 				</div>
-				{% if attendance_dates_sorted %}
+				{% if attendance_date_entries %}
+				<div style="flex:2;min-width:300px;">
+					<strong style="color:#0f172a;font-size:14px;display:block;margin-bottom:4px;">Ders Tarihleri:</strong>
+					<div style="display:flex;flex-wrap:wrap;gap:6px;">
+						{% for entry in attendance_date_entries %}
+							<span title="{{ entry.label }}" style="padding:4px 8px;background:{{ entry.badge_bg }};color:{{ entry.badge_color }};border:1px solid {{ entry.badge_border }};border-radius:6px;font-size:12px;font-weight:500;">
+								{{ entry.date.strftime('%d.%m.%Y') if entry.date else '' }}
+							</span>
+						{% endfor %}
+					</div>
+				</div>
+				{% elif attendance_dates_sorted %}
 				<div style="flex:2;min-width:300px;">
 					<strong style="color:#0f172a;font-size:14px;display:block;margin-bottom:4px;">Ders Tarihleri:</strong>
 					<div style="display:flex;flex-wrap:wrap;gap:6px;">

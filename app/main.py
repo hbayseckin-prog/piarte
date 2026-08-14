@@ -3843,6 +3843,8 @@ def staff_panel(
         student_lessons_formatted = []
         selected_student_payments = []
         all_lesson_dates_sorted = []
+        student_attendance_summary = {key: 0 for key in crud.ATTENDANCE_STATUS_LABELS}
+        attendance_date_entries = []
         
         if search:
             # Öğrenci ara
@@ -3874,6 +3876,9 @@ def staff_panel(
                     .where(models.Attendance.student_id == student_id_int)
                     .order_by(models.Attendance.marked_at.asc())
                 ).all()
+                student_attendance_summary, attendance_date_entries = crud.summarize_student_attendances(
+                    student_attendances
+                )
                 
                 # Dersleri haftalık formata çevir
                 from datetime import time as time_type, date as date_type
@@ -3881,11 +3886,7 @@ def staff_panel(
                 # Geçmiş dersler: student_attendances'tan (yoklama alınmış)
                 # Gelecek dersler: student_lessons'tan (atanmış)
                 
-                # Geçmiş derslerin tarihlerini al (yoklama tarihlerinden) - tekrarları kaldır
-                past_lesson_dates = set()
-                for att in student_attendances:
-                    if att.marked_at:
-                        past_lesson_dates.add(att.marked_at.date())
+                past_lesson_dates = {entry["date"] for entry in attendance_date_entries}
                 
                 # Tüm ders tarihlerini birleştir (geçmiş + gelecek)
                 # ÖNEMLİ: Toplam ders sayısı için sadece yoklama alınmış dersleri say
@@ -3903,11 +3904,10 @@ def staff_panel(
                 all_lesson_dates_sorted = sorted(list(all_lesson_dates))
                 
                 # Sadece yoklama alınmış derslerin tarihlerini sırala (gösterim için)
-                attendance_dates_sorted = sorted(list(past_lesson_dates))
+                attendance_dates_sorted = [entry["date"] for entry in attendance_date_entries]
                 
-                # Öğrencinin toplam ders sayısını hesapla
-                # ÖNEMLİ: Sadece gerçekten yoklama alınmış dersleri say (kayıt yapılmış ama yoklama alınmamış dersler sayılmaz)
-                total_lessons_count = len(past_lesson_dates)
+                # Öğrencinin toplam ders sayısını hesapla (yoklama kayıtları)
+                total_lessons_count = sum(student_attendance_summary.values())
                 
                 # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(
@@ -4141,6 +4141,8 @@ def staff_panel(
             "selected_student_payments": selected_student_payments,
             "total_lessons_count": total_lessons_count if 'total_lessons_count' in locals() else 0,
             "student_attendances": student_attendances if 'student_attendances' in locals() else [],
+            "student_attendance_summary": student_attendance_summary if 'student_attendance_summary' in locals() else {},
+            "attendance_date_entries": attendance_date_entries if 'attendance_date_entries' in locals() else [],
             "all_lesson_dates_sorted": all_lesson_dates_sorted if 'all_lesson_dates_sorted' in locals() else [],
             "attendance_dates_sorted": attendance_dates_sorted if 'attendance_dates_sorted' in locals() else [],
             "payment_status_list": payment_status_list,

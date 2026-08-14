@@ -112,8 +112,9 @@
 	</div>
 
 	<div style="margin-top:16px;">
-		<a href="/dashboard" style="display:inline-block;padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">← Panele Dön</a>
-		<a href="/lessons/{{ lesson.id }}/attendance/new?attendance_date={{ highlight_date.strftime('%Y-%m-%d') if highlight_date else '' }}&amp;focus_student={{ student.id }}" style="display:inline-block;margin-left:8px;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">+ Yoklama Al</a>
+		<a href="{{ return_to or '/dashboard' }}" style="display:inline-block;padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">← Geri Dön</a>
+		{% set correct_list_return = '/lessons/' ~ lesson.id ~ '/attendance/correct?student_id=' ~ student.id %}
+		<a href="/lessons/{{ lesson.id }}/attendance/new?attendance_date={{ highlight_date.strftime('%Y-%m-%d') if highlight_date else '' }}&amp;focus_student={{ student.id }}&amp;return_to={{ (return_to or correct_list_return) | urlencode }}" style="display:inline-block;margin-left:8px;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">+ Yoklama Al</a>
 	</div>
 </div>
 {% endblock %}

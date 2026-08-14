@@ -9,6 +9,11 @@
 {% endif %}
 
 <!-- Başarı/Hata Mesajları -->
+{% if request.session.get('flash_success') %}
+<div style="padding:12px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ request.session.pop('flash_success') }}
+</div>
+{% endif %}
 {% if success %}
 <div style="padding:12px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
 	✅ {{ success }}
@@ -302,7 +307,7 @@
 	</div>
 </div>
 
-<div class="card">
+<div class="card" id="ders-programi">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
@@ -746,7 +751,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/attendances/{{ entry.attendance.id }}/edit" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;">✏️ Düzenle</a>
+                        <a href="/attendances/{{ entry.attendance.id }}/edit?return_to={{ '/ui/staff#yoklama-duzeltme-bolumu' | urlencode }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;">✏️ Düzenle</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -798,7 +803,7 @@
                     <div class="mobile-card-row">
                         <div class="mobile-card-label">İşlem</div>
                         <div class="mobile-card-value">
-                            <a href="/attendances/{{ entry.attendance.id }}/edit" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;display:block;text-align:center;">✏️ Düzenle</a>
+                            <a href="/attendances/{{ entry.attendance.id }}/edit?return_to={{ '/ui/staff#yoklama-duzeltme-bolumu' | urlencode }}" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;display:block;text-align:center;">✏️ Düzenle</a>
                         </div>
                     </div>
                 </div>

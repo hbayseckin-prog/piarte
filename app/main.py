@@ -28,6 +28,39 @@ def redirect_teacher(user):
     return None
 
 
+def default_panel_url(user: dict | None) -> str:
+    if not user:
+        return "/"
+    role = user.get("role")
+    if role == "teacher":
+        return "/ui/teacher"
+    if role == "staff":
+        return "/ui/staff"
+    return "/dashboard"
+
+
+def safe_return_url(url: str | None, default: str) -> str:
+    if not url or not str(url).strip():
+        return default
+    path = str(url).strip()
+    if not path.startswith("/") or path.startswith("//") or "://" in path:
+        return default
+    return path
+
+
+def set_flash_success(request: Request, message: str) -> None:
+    request.session["flash_success"] = message
+
+
+def attendance_new_url(lesson_id: int, return_to: str | None = None, **query) -> str:
+    from urllib.parse import urlencode
+    params = {k: v for k, v in query.items() if v is not None and v != ""}
+    if return_to:
+        params["return_to"] = return_to
+    qs = urlencode(params)
+    return f"/lessons/{lesson_id}/attendance/new" + (f"?{qs}" if qs else "")
+
+
 def calculate_next_lesson_date(original_date):
     """
     Haftalık tekrarlanan dersler için bugünden sonraki ilgili günü hesaplar.
@@ -1495,7 +1528,12 @@ def teacher_update_form(
 
 # UI: Payments - create
 @app.get("/payments/new", response_class=HTMLResponse)
-def payment_form(request: Request, db: Session = Depends(get_db), student_id: str | None = None):
+def payment_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    student_id: str | None = None,
+    return_to: str | None = None,
+):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     redirect = redirect_teacher(request.session.get("user"))
@@ -1511,6 +1549,7 @@ def payment_form(request: Request, db: Session = Depends(get_db), student_id: st
     from datetime import date
     user = request.session.get("user") or {}
     is_staff_user = user.get("role") == "staff"
+    resolved_return_to = safe_return_url(return_to, default_panel_url(user))
     return templates.TemplateResponse(
         "payment_new.html",
         {
@@ -1520,6 +1559,7 @@ def payment_form(request: Request, db: Session = Depends(get_db), student_id: st
             "is_staff_user": is_staff_user,
             "today_iso": date.today().isoformat(),
             "today_display": date.today().strftime("%d.%m.%Y"),
+            "return_to": resolved_return_to,
         },
     )
 
@@ -1532,15 +1572,16 @@ def payment_create(
     payment_date: str | None = Form(None),
     method: str | None = Form(None),
     note: str | None = Form(None),
+    return_to: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
-    redirect = redirect_teacher(request.session.get("user"))
+    user = request.session.get("user") or {}
+    redirect = redirect_teacher(user)
     if redirect:
         return redirect
     from datetime import date
-    user = request.session.get("user") or {}
     is_staff_user = user.get("role") == "staff"
     pd = None
     if is_staff_user:
@@ -1560,7 +1601,8 @@ def payment_create(
         note=note,
     )
     crud.create_payment(db, payload)
-    return RedirectResponse(url="/dashboard", status_code=302)
+    set_flash_success(request, "Ödeme başarıyla kaydedildi.")
+    return RedirectResponse(url=safe_return_url(return_to, default_panel_url(user)), status_code=302)
 
 
 # UI: Lessons - create and attendance
@@ -1794,6 +1836,7 @@ def attendance_form(
     success: str | None = None,
     attendance_date: str | None = None,
     focus_student: str | None = None,
+    return_to: str | None = None,
 ):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
@@ -1914,7 +1957,9 @@ def attendance_form(
                         summary_by_lesson[lesson_key]["counts"][status] += 1
             
             today_attendances_summary = list(summary_by_lesson.values())
-    
+
+    resolved_return_to = safe_return_url(return_to, default_panel_url(user))
+
     return templates.TemplateResponse(
         "attendance_new.html",
         {
@@ -1926,6 +1971,7 @@ def attendance_form(
             "error_message": error_message,
             "success_message": success,
             "today_attendances_summary": today_attendances_summary,
+            "return_to": resolved_return_to,
         },
     )
 
@@ -1936,6 +1982,7 @@ def correct_attendance_from_schedule(
     request: Request,
     student_id: int,
     attendance_date: str | None = None,
+    return_to: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Ders programından yoklama düzeltme: öğrencinin tüm yoklamalarını listeler."""
@@ -1995,8 +2042,9 @@ def correct_attendance_from_schedule(
             "highlight": highlight_date is not None and att_date == highlight_date,
         })
 
-    success = request.session.pop("success", None)
-    error = request.session.pop("error", None)
+    success = request.session.pop("flash_success", None)
+    error = request.session.pop("flash_error", None)
+    resolved_return_to = safe_return_url(return_to, "/dashboard#ders-programi")
 
     return templates.TemplateResponse(
         "attendance_correct_list.html",
@@ -2010,6 +2058,7 @@ def correct_attendance_from_schedule(
             "highlight_date": highlight_date,
             "success": success,
             "error": error,
+            "return_to": resolved_return_to,
         },
     )
 
@@ -2045,6 +2094,8 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
         allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
+    return_to_value = form.get("return_to")
+    default_return_url = default_panel_url(user)
     import logging
     logging.warning(f"🔍 FORM DEBUG: Form alındı, toplam {len(form)} field var")
     logging.warning(f"🔍 FORM DEBUG: Form keys: {list(form.keys())}")
@@ -2241,7 +2292,10 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             # Uyarı mesajı göster
             duplicate_message = f"Daha önce bu öğrenci{'ler' if len(duplicate_students) > 1 else ''} için yoklama almışsınız: {', '.join(duplicate_students)}"
             request.session["attendance_duplicate_warning"] = duplicate_message
-            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?duplicate_warning=true", status_code=302)
+            return RedirectResponse(
+                url=attendance_new_url(lesson_id, return_to_value, duplicate_warning="true"),
+                status_code=302,
+            )
     
     # Eğer to_create boşsa, hata ver
     if len(to_create) == 0:
@@ -2252,13 +2306,18 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         if user.get("role") == "teacher" and passive_attempted_student_names:
             names = ", ".join(dict.fromkeys(passive_attempted_student_names))
             request.session["attendance_errors"] = f"Pasif öğrenciler için yoklama alınamaz: {names}"
-            return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?error=no_data", status_code=302)
+            return RedirectResponse(
+                url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
+                status_code=302,
+            )
         if len(lesson_students) == 0:
             request.session["attendance_errors"] = "Bu derse henüz öğrenci atanmamış. Lütfen önce öğrenci atayın."
         else:
             request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
-        # Hata mesajı ile birlikte form sayfasına geri dön
-        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?error=no_data", status_code=302)
+        return RedirectResponse(
+            url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
+            status_code=302,
+        )
     
     for item in to_create:
         try:
@@ -2386,18 +2445,24 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         logging.error(f"Debug log error: {e}")
     # #endregion
     
-    # Başarılı kayıt sayısını session'a kaydet (isteğe bağlı)
     if success_count > 0:
-        request.session["attendance_success"] = success_count
+        if success_count == 1:
+            success_msg = "Yoklama başarıyla kaydedildi."
+        else:
+            success_msg = f"{success_count} öğrenci için yoklama kaydedildi."
+        if error_count > 0:
+            success_msg += f" ({error_count} kayıt kaydedilemedi.)"
+        set_flash_success(request, success_msg)
+        return RedirectResponse(
+            url=safe_return_url(return_to_value, default_return_url),
+            status_code=302,
+        )
     if error_count > 0:
-        request.session["attendance_errors"] = error_count
-    
-    # Role'e göre yönlendir
-    user = request.session.get("user")
-    if user and user.get("role") == "teacher":
-        # Öğretmen için aynı form sayfasına redirect et (o günün yoklamalarını göstermek için)
-        return RedirectResponse(url=f"/lessons/{lesson_id}/attendance/new?success={success_count}", status_code=302)
-    return RedirectResponse(url="/dashboard", status_code=302)
+        request.session["attendance_errors"] = f"{error_count} kayıt kaydedilemedi."
+    return RedirectResponse(
+        url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
+        status_code=302,
+    )
 
 
 @app.post("/attendances/{attendance_id}/delete")
@@ -2459,6 +2524,7 @@ def edit_attendance_form(
 	request: Request,
 	from_lesson: int | None = None,
 	from_student: int | None = None,
+	return_to: str | None = None,
 	db: Session = Depends(get_db),
 ):
 	"""Yoklama düzenleme formu (staff için)"""
@@ -2478,7 +2544,8 @@ def edit_attendance_form(
 	teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
 	course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
 	courses = crud.list_courses(db)
-	
+	resolved_return_to = safe_return_url(return_to, default_panel_url(user))
+
 	return templates.TemplateResponse("attendance_edit.html", {
 		"request": request,
 		"attendance": attendance,
@@ -2489,6 +2556,7 @@ def edit_attendance_form(
 		"courses": courses,
 		"from_lesson_id": from_lesson,
 		"from_student_id": from_student,
+		"return_to": resolved_return_to,
 	})
 
 
@@ -2503,6 +2571,7 @@ def update_attendance_endpoint(
 	course_id: str | None = Form(None),
 	from_lesson_id: str | None = Form(None),
 	from_student_id: str | None = Form(None),
+	return_to: str | None = Form(None),
 	db: Session = Depends(get_db),
 ):
 	"""Yoklama kaydını güncelle (staff için). Kurs değişirse sadece bu kayıt etkilenir."""
@@ -2574,24 +2643,25 @@ def update_attendance_endpoint(
 		)
 		
 		if updated_attendance:
-			request.session["success"] = "Yoklama kaydı başarıyla güncellendi"
+			set_flash_success(request, "Yoklama kaydı başarıyla güncellendi.")
 		else:
-			request.session["error"] = "Yoklama kaydı bulunamadı"
+			request.session["flash_error"] = "Yoklama kaydı bulunamadı"
 	except Exception as e:
 		import logging
 		import traceback
 		logging.error(f"Yoklama güncellenirken hata: {e}")
 		logging.error(traceback.format_exc())
-		request.session["error"] = f"Yoklama güncellenirken hata oluştu: {str(e)}"
-	
+		request.session["flash_error"] = f"Yoklama güncellenirken hata oluştu: {str(e)}"
+
 	if from_lesson_id and from_lesson_id.strip().isdigit() and from_student_id and from_student_id.strip().isdigit():
 		return RedirectResponse(
 			url=f"/lessons/{from_lesson_id.strip()}/attendance/correct?student_id={from_student_id.strip()}",
 			status_code=302,
 		)
-	if user.get("role") == "admin":
-		return RedirectResponse(url="/dashboard", status_code=302)
-	return RedirectResponse(url="/ui/staff", status_code=302)
+	return RedirectResponse(
+		url=safe_return_url(return_to, default_panel_url(user)),
+		status_code=302,
+	)
 
 
 @app.post("/admin/clear-all-attendances")

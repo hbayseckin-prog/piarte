@@ -2,13 +2,18 @@
 {% block title %}Öğretmen Paneli - Piarte{% endblock %}
 {% block content %}
 <h2 class="h1">Öğretmen Paneli</h2>
+{% if request.session.get('flash_success') %}
+<div style="padding:12px 16px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ request.session.pop('flash_success') }}
+</div>
+{% endif %}
 {% if request.session.get('admin_original_user') %}
 <div style="margin-bottom:12px;">
 	<a href="/session/switch-back-admin" style="display:inline-block;padding:8px 12px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Yönetici Paneline Geri Dön</a>
 </div>
 {% endif %}
 
-<div class="card">
+<div class="card" id="ders-programi">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
@@ -78,7 +83,7 @@
 						</div>
 						{% endif %}
 										{% if schedule.teacher.id == current_teacher_id %}
-										<a href="/lessons/{{ entry.lesson.id }}/attendance/new" style="display:inline-block;margin-top:4px;padding:2px 6px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:10px;">Yoklama</a>
+										<a href="/lessons/{{ entry.lesson.id }}/attendance/new?return_to={{ ('/ui/teacher?selected_teacher_id=' ~ schedule.teacher.id ~ '#ders-programi') | urlencode }}" style="display:inline-block;margin-top:4px;padding:2px 6px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:10px;">Yoklama</a>
 										{% endif %}
 					</div>
 					{% endif %}

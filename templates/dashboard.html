@@ -3,6 +3,11 @@
 {% block content %}
 <h1>Yönetim Paneli</h1>
 
+{% if request.session.get('flash_success') %}
+<div style="padding:12px 16px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ request.session.pop('flash_success') }}
+</div>
+{% endif %}
 {% if request.session.get('delete_attendance_success') %}
 <div style="padding:12px 16px;background:#10b981;color:#fff;border-radius:8px;margin-bottom:16px;">
     {{ request.session.pop('delete_attendance_success') }}
@@ -28,7 +33,7 @@
 	<div class="btn-group">
 		<a href="/ui/students" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Öğrenci Listesi</a>
 		<a href="/students/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Öğrenci Ekle</a>
-		<a href="/payments/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Ödeme Gir</a>
+		<a href="/payments/new?return_to={{ '/dashboard' | urlencode }}" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Ödeme Gir</a>
 		<a href="/lessons/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Ders Oluştur</a>
 		<a href="/ui/lessons" style="padding:10px 16px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Ders Programı Düzenleme</a>
 		<a href="/ui/teachers" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;text-align:center;display:inline-block;">Öğretmenler</a>
@@ -250,7 +255,7 @@ if (quickSearchInput) {
 				</div>
 				<div style="display:flex;gap:8px;flex-wrap:wrap;">
 					<a href="/ui/students/{{ student.id }}" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Detay</a>
-					<a href="/payments/new?student_id={{ student.id }}" style="padding:8px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Ödeme Al</a>
+					<a href="/payments/new?student_id={{ student.id }}&amp;return_to={{ '/dashboard' | urlencode }}" style="padding:8px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Ödeme Al</a>
 				</div>
 			</div>
 		</div>
@@ -772,7 +777,7 @@ if (quickSearchInput) {
 {% endif %}
 
 {% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
-<div class="card">
+<div class="card" id="ders-programi">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>
 	{% if teachers_schedules %}
 	<!-- Sekme Butonları -->
@@ -838,8 +843,8 @@ if (quickSearchInput) {
 													<span style="font-size:9px;color:#dc2626;">(Pasif)</span>
 													{% endif %}
 													{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
-													<a href="/lessons/{{ entry.lesson.id }}/attendance/new?attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}&amp;focus_student={{ s.id }}#student-{{ s.id }}" style="display:inline-block;margin-left:4px;padding:1px 5px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Al</a>
-													<a href="/lessons/{{ entry.lesson.id }}/attendance/correct?student_id={{ s.id }}&amp;attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}" style="display:inline-block;margin-left:2px;padding:1px 5px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Düzelt</a>
+													<a href="/lessons/{{ entry.lesson.id }}/attendance/new?attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}&amp;focus_student={{ s.id }}&amp;return_to={{ '/dashboard#ders-programi' | urlencode }}#student-{{ s.id }}" style="display:inline-block;margin-left:4px;padding:1px 5px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Al</a>
+													<a href="/lessons/{{ entry.lesson.id }}/attendance/correct?student_id={{ s.id }}&amp;attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}&amp;return_to={{ '/dashboard#ders-programi' | urlencode }}" style="display:inline-block;margin-left:2px;padding:1px 5px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Düzelt</a>
 													{% endif %}
 												</div>
 											{% endfor %}

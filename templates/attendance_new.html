@@ -21,6 +21,9 @@
 	</div>
 	{% endif %}
 	<form method="post" action="/lessons/{{ lesson.id }}/attendance/new" id="attendance-form">
+		{% if return_to %}
+		<input type="hidden" name="return_to" value="{{ return_to }}" />
+		{% endif %}
 		<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px;">
 			<label for="attendance_date" style="font-weight:600;color:#0f172a;">Yoklama Tarihi</label>
 			<input
@@ -106,8 +109,11 @@
 				{% endfor %}
 			</div>
 		</div>
-		<div style="margin-top:16px;">
-			<button type="submit" style="width:100%;max-width:100%;margin:0 auto;display:block;min-height:48px;font-size:16px;">Kaydet</button>
+		<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+			<button type="submit" style="flex:1;min-width:140px;max-width:100%;margin:0;min-height:48px;font-size:16px;">Kaydet</button>
+			{% if return_to %}
+			<a href="{{ return_to }}" style="flex:1;min-width:140px;padding:12px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;text-align:center;min-height:48px;display:inline-flex;align-items:center;justify-content:center;">← Geri Dön</a>
+			{% endif %}
 		</div>
 	</form>
 </div>
@@ -124,7 +130,7 @@
 				<p style="margin:4px 0 0 0;color:#64748b;font-size:14px;">Saat: {{ summary.lesson_time }}</p>
 				{% endif %}
 			</div>
-			<a href="/lessons/{{ summary.lesson_id }}/attendance/new" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Yoklama Al</a>
+			<a href="/lessons/{{ summary.lesson_id }}/attendance/new{% if return_to %}?return_to={{ return_to | urlencode }}{% endif %}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;">Yoklama Al</a>
 		</div>
 		
 		<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px;margin-bottom:12px;">

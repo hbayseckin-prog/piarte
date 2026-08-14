@@ -3,6 +3,9 @@
 {% block content %}
 <h2>Ödeme Gir</h2>
 <form method="post" action="/payments/new">
+	{% if return_to %}
+	<input type="hidden" name="return_to" value="{{ return_to }}" />
+	{% endif %}
 	<div class="piarte-student-combo-wrap" style="max-width:100%;">
 		<label for="payment_student_search">Öğrenci</label>
 		<input type="search" id="payment_student_search" autocomplete="off" placeholder="En az 3 harf yazın, listeden seçin…" />

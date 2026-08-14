@@ -192,7 +192,7 @@ if (quickSearchInput) {
 		<input type="hidden" name="end_date" value="{{ filters.end_date or '' }}">
 		<input type="hidden" name="order_by" value="{{ filters.order_by or 'marked_at_desc' }}">
 		<input type="hidden" name="student_name" value="{{ filters.student_name or '' }}">
-		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ filters.payment_status_filter or 'all' }}">
+		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ filters.payment_status_filter or '' }}">
 		<label for="payment_day" style="font-weight:500;color:#475569;">Ders gününe göre filtrele:</label>
 		<select name="payment_day" id="payment_day" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:160px;">
 			<option value="">Tümü</option>
@@ -205,7 +205,6 @@ if (quickSearchInput) {
 			<option value="Pazar" {% if filters.payment_day == 'Pazar' %}selected{% endif %}>Pazar</option>
 		</select>
 		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-			<button type="button" onclick="setPaymentStatusFilter('all')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'all' %}#0ea5e9{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'all' %}#e0f2fe{% else %}#fff{% endif %};color:#0f172a;border-radius:8px;font-size:13px;cursor:pointer;">Tümü</button>
 			<button type="button" onclick="setPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
 			<button type="button" onclick="setPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
 			<button type="button" onclick="setPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
@@ -221,6 +220,7 @@ if (quickSearchInput) {
 			}
 		}
 	</script>
+	{% if filters.payment_status_filter in ['needs_payment', 'waiting', 'paid'] %}
 	{% if payment_status_list and payment_status_list|length > 0 %}
 	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
 		{% for item in payment_status_list %}
@@ -262,7 +262,10 @@ if (quickSearchInput) {
 		{% endfor %}
 	</div>
 	{% else %}
-	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen filtre için öğrenci bulunmuyor.</p>
+	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen durum için öğrenci bulunmuyor.</p>
+	{% endif %}
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Listelemek için yukarıdan bir ödeme durumu seçin.</p>
 	{% endif %}
 </div>
 {% endif %}

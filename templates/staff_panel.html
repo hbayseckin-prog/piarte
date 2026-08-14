@@ -198,7 +198,8 @@
 		İlk ödeme (0-2 ders): Ödeme Yapıldı | 3. ders: Ödeme Bekleniyor | 4. ders: Ödeme Gerekli | 
 		Her 4 derslik set için aynı mantık uygulanır (5-8, 9-12, 13-16...)
 	</p>
-	<form method="get" action="/ui/staff" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+	<form method="get" action="/ui/staff" id="staff-payment-filter-form" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ payment_status_filter or '' }}">
 		<label for="payment_day_filter" style="font-size:14px;font-weight:500;color:#0f172a;">Günler:</label>
 		<select name="payment_day_filter" id="payment_day_filter" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;min-width:140px;">
 			<option value="">Tümü</option>
@@ -206,8 +207,25 @@
 			<option value="{{ day }}" {% if payment_day_filter == day %}selected{% endif %}>{{ day }}</option>
 			{% endfor %}
 		</select>
+		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+			<button type="button" onclick="setStaffPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
+			<button type="button" onclick="setStaffPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
+			<button type="button" onclick="setStaffPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
+		</div>
 		<noscript><button type="submit" style="padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Filtrele</button></noscript>
 	</form>
+	<script>
+	function setStaffPaymentStatusFilter(value) {
+		const input = document.getElementById('payment_status_filter_input');
+		const form = document.getElementById('staff-payment-filter-form');
+		if (input && form) {
+			input.value = value;
+			form.submit();
+		}
+	}
+	</script>
+	{% if payment_status_filter in ['needs_payment', 'waiting', 'paid'] %}
+	{% if payment_status_list %}
 	<div class="table-wrap">
 		<table>
 			<thead>
@@ -304,6 +322,12 @@
 			{% endfor %}
 		</div>
 	</div>
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen durum için öğrenci bulunmuyor.</p>
+	{% endif %}
+	{% else %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Listelemek için yukarıdan bir ödeme durumu seçin.</p>
+	{% endif %}
 </div>
 
 <div class="card" id="ders-programi">

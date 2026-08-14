@@ -765,12 +765,14 @@ def dashboard(
                 "teacher": teacher,
                 "course": course,
             })
-    # Puantaj raporunu getir (yalnızca filtre uygulandığında; tüm filtreler puantaja yansır)
+    # Puantaj / öğretmen özeti (filtre uygulandığında)
     attendance_report = []
     attendance_totals_by_teacher = {}
+    attendance_teacher_summary = []
+    attendance_summary_grand_totals = None
     _show_puantaj = (attendance_view or "yoklama").strip() in ("both", "puantaj")
-    if user.get("role") == "admin" and _show_puantaj and has_filters:
-        attendance_report = crud.get_attendance_report_by_teacher(
+    if user.get("role") == "admin" and has_filters:
+        filtered_report = crud.get_attendance_report_by_teacher(
             db,
             teacher_id=teacher_id_int,
             student_id=student_id_int,
@@ -780,18 +782,30 @@ def dashboard(
             status=status,
             student_name=student_name if not student_id_int else None,
         )
-        
-        # Her öğretmen için toplamları hesapla
-        for teacher_report in attendance_report:
-            if teacher_report.get("students"):
-                totals = {
-                    "total_present": sum(s.get("present", 0) for s in teacher_report["students"]),
-                    "total_excused_absent": sum(s.get("excused_absent", 0) for s in teacher_report["students"]),
-                    "total_telafi": sum(s.get("telafi", 0) for s in teacher_report["students"]),
-                    "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in teacher_report["students"]),
-                    "total_lessons": sum(s.get("total", 0) for s in teacher_report["students"])
-                }
-                attendance_totals_by_teacher[teacher_report["teacher"].id] = totals
+        for teacher_report in filtered_report:
+            students = teacher_report.get("students") or []
+            if not students:
+                continue
+            totals = {
+                "total_present": sum(s.get("present", 0) for s in students),
+                "total_excused_absent": sum(s.get("excused_absent", 0) for s in students),
+                "total_telafi": sum(s.get("telafi", 0) for s in students),
+                "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in students),
+                "total_lessons": sum(s.get("total", 0) for s in students),
+            }
+            teacher = teacher_report["teacher"]
+            attendance_totals_by_teacher[teacher.id] = totals
+            attendance_teacher_summary.append({"teacher": teacher, "totals": totals})
+        if attendance_teacher_summary:
+            attendance_summary_grand_totals = {
+                "total_present": sum(item["totals"]["total_present"] for item in attendance_teacher_summary),
+                "total_excused_absent": sum(item["totals"]["total_excused_absent"] for item in attendance_teacher_summary),
+                "total_telafi": sum(item["totals"]["total_telafi"] for item in attendance_teacher_summary),
+                "total_unexcused_absent": sum(item["totals"]["total_unexcused_absent"] for item in attendance_teacher_summary),
+                "total_lessons": sum(item["totals"]["total_lessons"] for item in attendance_teacher_summary),
+            }
+        if _show_puantaj:
+            attendance_report = filtered_report
     
     # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
     from datetime import datetime
@@ -960,6 +974,8 @@ def dashboard(
         "attendances": attendances_with_details,
         "attendance_report": attendance_report,
         "attendance_totals_by_teacher": attendance_totals_by_teacher,
+        "attendance_teacher_summary": attendance_teacher_summary,
+        "attendance_summary_grand_totals": attendance_summary_grand_totals,
         "has_attendance_filters": has_filters,
         "teachers_schedules": teachers_schedules,
         "students_needing_payment": students_needing_payment,

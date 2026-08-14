@@ -814,6 +814,135 @@ if (quickSearchInput) {
 </div>
 {% endif %}
 
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and has_attendance_filters and attendance_teacher_summary %}
+<div class="card">
+    <h3 class="h2">Öğretmen Özeti</h3>
+    <p style="color:var(--muted);margin:0 0 16px;font-size:14px;">Seçilen filtrelere göre öğretmen bazında sayısal özet.</p>
+    {% set status_filter = filters.status or '' %}
+    {% set col_present = not status_filter or status_filter == 'PRESENT' %}
+    {% set col_excused = not status_filter or status_filter == 'EXCUSED_ABSENT' %}
+    {% set col_telafi = not status_filter or status_filter in ['TELAFI', 'LATE'] %}
+    {% set col_unexcused = not status_filter or status_filter == 'UNEXCUSED_ABSENT' %}
+    {% set col_total = not status_filter %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Öğretmen</th>
+                    {% if col_present %}<th>Geldi</th>{% endif %}
+                    {% if col_excused %}<th>Haberli Gelmedi</th>{% endif %}
+                    {% if col_telafi %}<th>Telafi</th>{% endif %}
+                    {% if col_unexcused %}<th>Habersiz Gelmedi</th>{% endif %}
+                    {% if col_total %}<th>Toplam Ders</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in attendance_teacher_summary %}
+                <tr>
+                    <td><strong>{{ item.teacher.first_name }} {{ item.teacher.last_name }}</strong></td>
+                    {% if col_present %}<td style="text-align:center;color:#10b981;font-weight:600;">{{ item.totals.total_present }}</td>{% endif %}
+                    {% if col_excused %}<td style="text-align:center;color:#f97316;font-weight:600;">{{ item.totals.total_excused_absent }}</td>{% endif %}
+                    {% if col_telafi %}<td style="text-align:center;color:#8b5cf6;font-weight:600;">{{ item.totals.total_telafi }}</td>{% endif %}
+                    {% if col_unexcused %}<td style="text-align:center;color:#ef4444;font-weight:600;">{{ item.totals.total_unexcused_absent }}</td>{% endif %}
+                    {% if col_total %}<td style="text-align:center;font-weight:600;">{{ item.totals.total_lessons }}</td>{% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if attendance_summary_grand_totals %}
+            <tfoot>
+                <tr style="background:#f9fafb;border-top:2px solid var(--border);">
+                    <td style="padding:12px;font-weight:700;color:#0f172a;">GENEL TOPLAM</td>
+                    {% if col_present %}<td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_present }}</td>{% endif %}
+                    {% if col_excused %}<td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_excused_absent }}</td>{% endif %}
+                    {% if col_telafi %}<td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_telafi }}</td>{% endif %}
+                    {% if col_unexcused %}<td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_unexcused_absent }}</td>{% endif %}
+                    {% if col_total %}<td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_summary_grand_totals.total_lessons }}</td>{% endif %}
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+        <div class="mobile-card-view">
+            {% for item in attendance_teacher_summary %}
+            <div class="mobile-card">
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Öğretmen</div>
+                    <div class="mobile-card-value"><strong>{{ item.teacher.first_name }} {{ item.teacher.last_name }}</strong></div>
+                </div>
+                {% if col_present %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Geldi</div>
+                    <div class="mobile-card-value" style="color:#10b981;font-weight:600;">{{ item.totals.total_present }}</div>
+                </div>
+                {% endif %}
+                {% if col_excused %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Haberli Gelmedi</div>
+                    <div class="mobile-card-value" style="color:#f97316;font-weight:600;">{{ item.totals.total_excused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_telafi %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Telafi</div>
+                    <div class="mobile-card-value" style="color:#8b5cf6;font-weight:600;">{{ item.totals.total_telafi }}</div>
+                </div>
+                {% endif %}
+                {% if col_unexcused %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Habersiz Gelmedi</div>
+                    <div class="mobile-card-value" style="color:#ef4444;font-weight:600;">{{ item.totals.total_unexcused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_total %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Toplam Ders</div>
+                    <div class="mobile-card-value" style="font-weight:600;">{{ item.totals.total_lessons }}</div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% if attendance_summary_grand_totals %}
+            <div class="mobile-card" style="background:#f9fafb;border:2px solid var(--border);border-top:3px solid #0f172a;">
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label" style="font-weight:700;color:#0f172a;font-size:16px;">GENEL TOPLAM</div>
+                    <div class="mobile-card-value"></div>
+                </div>
+                {% if col_present %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Geldi</div>
+                    <div class="mobile-card-value" style="color:#10b981;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_present }}</div>
+                </div>
+                {% endif %}
+                {% if col_excused %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Haberli Gelmedi</div>
+                    <div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_excused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_telafi %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Telafi</div>
+                    <div class="mobile-card-value" style="color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_telafi }}</div>
+                </div>
+                {% endif %}
+                {% if col_unexcused %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Habersiz Gelmedi</div>
+                    <div class="mobile-card-value" style="color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_unexcused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_total %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Toplam Ders</div>
+                    <div class="mobile-card-value" style="font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_summary_grand_totals.total_lessons }}</div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
 <div class="card" id="ders-programi">
 	<h3 class="h2">Haftalık Öğretmen Ders Programları</h3>

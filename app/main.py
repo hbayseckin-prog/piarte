@@ -3842,7 +3842,6 @@ def staff_panel(
 	end_date: str | None = None,
 	status: str | None = None,
 	order_by: str = "marked_at_desc",
-	edit_search: str | None = None,
 	payment_day_filter: str | None = None,
 	success: str | None = None,
 	error: str | None = None,
@@ -3851,7 +3850,7 @@ def staff_panel(
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/staff", status_code=302)
-    # Admin ve staff bu paneli kullanabilir (Yoklama Düzeltme vb.)
+    # Admin ve staff bu paneli kullanabilir
     if user.get("role") not in ("admin", "staff"):
         if user.get("role") == "teacher":
             return RedirectResponse(url="/ui/teacher", status_code=302)
@@ -4346,46 +4345,6 @@ def staff_panel(
             "student_name": attendance_student_name or "",
         }
         
-        # Yoklama düzeltme için arama
-        edit_attendances = []
-        if edit_search and edit_search.strip():
-            q = " ".join(edit_search.strip().split()).lower()  # normalize boşluklar
-            # Öğrenci veya öğretmen ismi ile eşleşen yoklamaları bul
-            all_attendances_for_edit = db.scalars(select(models.Attendance)).all()
-            
-            for att in all_attendances_for_edit:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                student = db.get(models.Student, att.student_id)
-                teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
-                
-                # Öğrenci veya öğretmen ismi ile eşleşiyor mu (tam isim veya parça)
-                match = False
-                if student and (student.first_name or student.last_name):
-                    full = " ".join(filter(None, [student.first_name, student.last_name])).strip().lower()
-                    full = " ".join(full.split())
-                    if q in full or full in q or (len(q) >= 2 and q in (student.first_name or "").lower()) or (len(q) >= 2 and q in (student.last_name or "").lower()):
-                        match = True
-                if teacher and (teacher.first_name or teacher.last_name):
-                    full = " ".join(filter(None, [teacher.first_name, teacher.last_name])).strip().lower()
-                    full = " ".join(full.split())
-                    if q in full or full in q or (len(q) >= 2 and q in (teacher.first_name or "").lower()) or (len(q) >= 2 and q in (teacher.last_name or "").lower()):
-                        match = True
-                
-                if match:
-                    course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
-                    edit_attendances.append({
-                        "attendance": att,
-                        "lesson": lesson,
-                        "student": student,
-                        "teacher": teacher,
-                        "course": course,
-                    })
-            
-            # Tarihe göre sırala (en yeni önce)
-            edit_attendances.sort(key=lambda x: x["attendance"].marked_at if x["attendance"].marked_at else datetime.min, reverse=True)
-            # Limit
-            edit_attendances = edit_attendances[:100]
-        
         return templates.TemplateResponse("staff_panel.html", {
             "request": request,
             "teachers": teachers,
@@ -4414,9 +4373,6 @@ def staff_panel(
             "courses": courses,
             "filters": filters,
             "attendances": attendances_with_details,
-            # Yoklama düzeltme için
-            "edit_search": edit_search,
-            "edit_attendances": edit_attendances,
         })
     except Exception as e:
         import logging

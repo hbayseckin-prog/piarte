@@ -459,8 +459,8 @@ if (quickSearchInput) {
     <form method="get" action="/dashboard" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
         <input type="hidden" name="payment_day" value="{{ filters.payment_day or '' }}" />
         <select name="attendance_view" style="min-width:180px;">
-            <option value="both" {% if filters.attendance_view == 'both' or not filters.attendance_view %}selected{% endif %}>Göster: Her ikisi</option>
-            <option value="yoklama" {% if filters.attendance_view == 'yoklama' %}selected{% endif %}>Göster: Sadece yoklamalar</option>
+            <option value="both" {% if filters.attendance_view == 'both' %}selected{% endif %}>Göster: Her ikisi</option>
+            <option value="yoklama" {% if filters.attendance_view == 'yoklama' or not filters.attendance_view %}selected{% endif %}>Göster: Sadece yoklamalar</option>
             <option value="puantaj" {% if filters.attendance_view == 'puantaj' %}selected{% endif %}>Göster: Sadece puantaj</option>
         </select>
         <input type="date" name="start_date" value="{{ filters.start_date }}" placeholder="Başlangıç Tarihi" />
@@ -632,7 +632,7 @@ if (quickSearchInput) {
     {% endif %}
 </div>
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and (filters.attendance_view == 'both' or filters.attendance_view == 'puantaj' or not filters.attendance_view) %}
+{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' and (filters.attendance_view == 'both' or filters.attendance_view == 'puantaj') %}
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>

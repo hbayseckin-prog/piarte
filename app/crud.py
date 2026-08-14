@@ -479,7 +479,6 @@ def list_lessons_by_student(db: Session, student_id: int):
 
 def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 	from sqlalchemy.orm import joinedload
-	# Öğretmene ait tüm dersleri getir (tarih ve saat sırasına göre)
 	lessons = db.query(models.Lesson).options(
 		joinedload(models.Lesson.course),
 		joinedload(models.Lesson.teacher)
@@ -487,15 +486,30 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 		models.Lesson.lesson_date.asc(),
 		models.Lesson.start_time.asc()
 	).all()
-	
+
+	if not lessons:
+		return []
+
+	lesson_ids = [lesson.id for lesson in lessons]
+	lesson_student_rows = db.scalars(
+		select(models.LessonStudent).where(models.LessonStudent.lesson_id.in_(lesson_ids))
+	).all()
+	student_ids = {row.student_id for row in lesson_student_rows}
+	students_map = {
+		s.id: s for s in db.scalars(
+			select(models.Student).where(models.Student.id.in_(student_ids))
+			.order_by(models.Student.first_name.asc(), models.Student.last_name.asc())
+		).all()
+	} if student_ids else {}
+	students_by_lesson: dict[int, list] = {lesson_id: [] for lesson_id in lesson_ids}
+	for row in lesson_student_rows:
+		student = students_map.get(row.student_id)
+		if student:
+			students_by_lesson[row.lesson_id].append(student)
+
 	out = []
 	for lesson in lessons:
-		# Her ders için, o derse atanmış öğrencileri getir.
-		# Program ekranında pasif öğrencilerin de görünmesi gerekir; aksi halde sadece saat/tarih görünüp isimler "kaybolmuş" gibi olur.
-		lesson_students = list_students_by_lesson(db, lesson.id, active_only=False)
-		
-		# Tekil veri tutarsızlığına karşı güvenlik:
-		# LessonStudent boşsa, kalabalık liste oluşturmadan yalnızca son yoklama öğrencisini göster.
+		lesson_students = students_by_lesson.get(lesson.id, [])
 		if not lesson_students:
 			last_attendance = db.scalars(
 				select(models.Attendance)
@@ -503,7 +517,7 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 				.order_by(models.Attendance.marked_at.desc())
 			).first()
 			if last_attendance and last_attendance.student_id:
-				fallback_student = db.get(models.Student, last_attendance.student_id)
+				fallback_student = students_map.get(last_attendance.student_id) or db.get(models.Student, last_attendance.student_id)
 				if fallback_student:
 					lesson_students = [fallback_student]
 		out.append({"lesson": lesson, "students": lesson_students})
@@ -560,29 +574,11 @@ def update_attendance(db: Session, attendance_id: int, status: str | None = None
 
 
 def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, status: str | None = None, start_date: date | None = None, end_date: date | None = None, order_by: str = "marked_at_desc"):
-	# #region agent log
-	import json, os, time
-	log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-	try:
-		os.makedirs(os.path.dirname(log_path), exist_ok=True)
-		with open(log_path, "a", encoding="utf-8") as f:
-			f.write(json.dumps({"id": f"log_{int(time.time())}_list_entry", "timestamp": int(time.time() * 1000), "location": "crud.py:399", "message": "list_all_attendances called", "data": {"teacher_id": teacher_id, "student_id": student_id, "course_id": course_id, "status": status, "limit": limit}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-	except Exception as e:
-		import logging
-		logging.error(f"Debug log error: {e}")
-	# #endregion
-	
-	# Tüm yoklamaları getir
-	# Join gerekip gerekmediğini kontrol et (tarih filtreleri artık marked_at'e göre, lesson_date'e gerek yok)
 	needs_join = teacher_id is not None or course_id is not None
-	
-	# Always use LEFT JOIN to ensure all attendances are included, even if lesson is missing
-	# This prevents filtering out attendances with orphaned lesson references
-	# IMPORTANT: Even if no filters need join, we still join to be able to access lesson data in dashboard
+
 	if needs_join:
 		stmt = select(models.Attendance).outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
 	else:
-		# Even without filters, join to access lesson data (but use outerjoin to not filter out orphaned records)
 		stmt = select(models.Attendance).outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
 	
 	# Filtreleme
@@ -613,32 +609,7 @@ def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None =
 		stmt = stmt.order_by(models.Attendance.marked_at.desc())
 	
 	stmt = stmt.limit(limit)
-	
-	# #region agent log - Log the SQL query
-	import json, os, time
-	log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-	try:
-		os.makedirs(os.path.dirname(log_path), exist_ok=True)
-		with open(log_path, "a", encoding="utf-8") as f:
-			f.write(json.dumps({"id": f"log_{int(time.time())}_list_query", "timestamp": int(time.time() * 1000), "location": "crud.py:447", "message": "list_all_attendances SQL query", "data": {"needs_join": needs_join, "has_teacher_filter": teacher_id is not None, "has_course_filter": course_id is not None, "has_date_filter": start_date is not None or end_date is not None, "limit": limit}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-	except Exception as e:
-		import logging
-		logging.error(f"Debug log error: {e}")
-	# #endregion
-	
-	result = db.scalars(stmt).all()
-	
-	# #region agent log
-	try:
-		os.makedirs(os.path.dirname(log_path), exist_ok=True)
-		with open(log_path, "a", encoding="utf-8") as f:
-			f.write(json.dumps({"id": f"log_{int(time.time())}_list_result", "timestamp": int(time.time() * 1000), "location": "crud.py:456", "message": "list_all_attendances result", "data": {"count": len(result), "attendance_ids": [a.id for a in result], "lesson_ids": list(set([a.lesson_id for a in result])), "student_ids": list(set([a.student_id for a in result]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-	except Exception as e:
-		import logging
-		logging.error(f"Debug log error: {e}")
-	# #endregion
-	
-	return result
+	return db.scalars(stmt).all()
 
 
 # Payments
@@ -762,124 +733,70 @@ def mark_overdue_invoices(db: Session):
 
 def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, start_date: date | None = None, end_date: date | None = None):
     """Öğretmenlere göre yoklama raporu oluşturur. Filtreleme parametreleri ile çalışır."""
-    # #region agent log
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_report_entry", "timestamp": int(time.time() * 1000), "location": "crud.py:541", "message": "get_attendance_report_by_teacher called", "data": {}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
-    
-    # Öğretmen filtresi varsa sadece o öğretmeni al, yoksa tüm öğretmenleri al
+    from sqlalchemy.orm import joinedload
+
     if teacher_id:
         teachers = [db.get(models.Teacher, teacher_id)] if db.get(models.Teacher, teacher_id) else []
     else:
         teachers = list_teachers(db)
     report = []
-    
+
     for teacher in teachers:
         if not teacher:
             continue
-        # Öğretmene ait tüm dersleri getir
         lessons = list_lessons_by_teacher(db, teacher.id)
         lesson_ids = [lesson.id for lesson in lessons]
-        
-        # #region agent log
-        import json, os, time
-        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-        try:
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_report_teacher", "timestamp": int(time.time() * 1000), "location": "crud.py:557", "message": "Teacher lessons fetched", "data": {"teacher_id": teacher.id, "lesson_count": len(lessons), "lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
-        except Exception as e:
-            import logging
-            logging.error(f"Debug log error: {e}")
-        # #endregion
-        
+
         attendances = []
         if lesson_ids:
-            # Bu derslere ait tüm yoklamaları getir
-            # #region agent log - Before query
-            try:
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                # First check all attendances directly
-                all_attendances_all_lessons = db.scalars(select(models.Attendance)).all()
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_report_before_query", "timestamp": int(time.time() * 1000), "location": "crud.py:569", "message": "Before query - all attendances in DB", "data": {"teacher_id": teacher.id, "lesson_ids": lesson_ids, "total_attendances_in_db": len(all_attendances_all_lessons), "all_lesson_ids_in_db": list(set([a.lesson_id for a in all_attendances_all_lessons]))}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
-            except Exception as e:
-                import logging
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-            
-            # Yoklamaları getir
             stmt = select(models.Attendance).where(
                 models.Attendance.lesson_id.in_(lesson_ids)
             )
-            
-            # Öğrenci filtresi
             if student_id:
                 stmt = stmt.where(models.Attendance.student_id == student_id)
-            
             attendances = db.scalars(stmt).all()
-            
-            # Kurs ve tarih filtrelerini uygula (lesson bilgisi gerektiği için Python'da filtrele)
+
             if course_id or start_date or end_date:
+                lesson_map = {
+                    l.id: l for l in db.scalars(
+                        select(models.Lesson).where(models.Lesson.id.in_({a.lesson_id for a in attendances}))
+                    ).all()
+                } if attendances else {}
                 filtered_attendances = []
                 for att in attendances:
-                    lesson = db.get(models.Lesson, att.lesson_id)
+                    lesson = lesson_map.get(att.lesson_id)
                     if not lesson:
                         continue
-                    
-                    # Kurs filtresi
                     if course_id and lesson.course_id != course_id:
                         continue
-                    
-                    # Tarih filtreleri - yoklama zamanına (marked_at) göre
                     if start_date:
-                        if att.marked_at:
-                            attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
-                            if attendance_date < start_date:
-                                continue
-                        else:
-                            continue  # marked_at yoksa atla
+                        if not att.marked_at or att.marked_at.date() < start_date:
+                            continue
                     if end_date:
-                        if att.marked_at:
-                            attendance_date = att.marked_at.date() if hasattr(att.marked_at, 'date') else att.marked_at
-                            if attendance_date > end_date:
-                                continue
-                        else:
-                            continue  # marked_at yoksa atla
-                    
+                        if not att.marked_at or att.marked_at.date() > end_date:
+                            continue
                     filtered_attendances.append(att)
                 attendances = filtered_attendances
-            
-            # #region agent log
-            try:
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_report_attendances", "timestamp": int(time.time() * 1000), "location": "crud.py:585", "message": "Attendances fetched for teacher", "data": {"teacher_id": teacher.id, "attendance_count": len(attendances), "attendance_ids": [a.id for a in attendances], "lesson_ids_in_attendances": list(set([a.lesson_id for a in attendances])), "expected_lesson_ids": lesson_ids}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-            except Exception as e:
-                import logging
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-        
-        # Resim kursu için özel hesaplama: Her yoklama kaydı için 1 ekleme yapılacak
-        # Diğer kurslar için mevcut sistem aynı kalacak (her yoklama = 1 ders)
-        
-        # Öğrenci bazında grupla
+
+        lesson_map = {
+            l.id: l for l in db.scalars(
+                select(models.Lesson)
+                .where(models.Lesson.id.in_({a.lesson_id for a in attendances}))
+                .options(joinedload(models.Lesson.course))
+            ).all()
+        } if attendances else {}
+        student_map = {
+            s.id: s for s in db.scalars(
+                select(models.Student).where(models.Student.id.in_({a.student_id for a in attendances}))
+            ).all()
+        } if attendances else {}
+
         student_stats = {}
         for att in attendances:
-            # Her yoklama için lesson bilgisini al
-            lesson = db.get(models.Lesson, att.lesson_id)
-            
-            # Parametre `student_id` ile çakışma: üst döngüdeki öğretmenler için filtreyi bozmayın
+            lesson = lesson_map.get(att.lesson_id)
             att_student_id = att.student_id
             if att_student_id not in student_stats:
-                student = db.get(models.Student, att_student_id)
+                student = student_map.get(att_student_id)
                 if not student:
                     continue
                 student_stats[att_student_id] = {
@@ -889,7 +806,7 @@ def get_attendance_report_by_teacher(db: Session, teacher_id: int | None = None,
                     "telafi": 0,
                     "unexcused_absent": 0,
                     "total": 0,
-                    "dates": []  # Yoklama tarihlerini saklamak için
+                    "dates": []
                 }
             
             # Yoklama zamanındaki tarihi kullan (marked_at)

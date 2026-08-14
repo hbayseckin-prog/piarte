@@ -109,28 +109,13 @@ app = FastAPI(title="Piarte Kurs Yönetimi", root_path=ROOT_PATH)
 # Uygulama başlangıcında migration kontrolü
 @app.on_event("startup")
 async def startup_event():
-	"""Uygulama başlangıcında migration ve DB bağlantı kontrolü"""
+	"""Uygulama başlangıcında hafif migration kontrolü"""
 	import logging
 	try:
 		from app.db import ensure_is_active_column
 		ensure_is_active_column()
 	except Exception as e:
 		logging.error(f"Startup migration hatasi: {e}")
-	try:
-		Base.metadata.create_all(bind=engine)
-		db = next(get_db())
-		try:
-			from sqlalchemy import text
-			db.execute(text("SELECT 1"))
-			user_count = db.scalar(select(func.count(models.User.id))) or 0
-			db_kind = "postgresql" if str(engine.url).startswith("postgresql") else "sqlite"
-			logging.info(f"Piarte DB hazir ({db_kind}, {user_count} kullanici)")
-			if user_count == 0:
-				logging.warning("Veritabaninda kullanici yok; /setup-database veya admin olusturun")
-		finally:
-			db.close()
-	except Exception as e:
-		logging.error(f"Startup DB baglanti hatasi: {e}")
 
 # CORS ayarları - iframe ve farklı domain'den erişim için
 app.add_middleware(
@@ -686,22 +671,6 @@ def dashboard(
         except Exception:
             pass
     
-    # #region agent log - Direct DB query before list_all_attendances
-    import logging
-    # Direct query to check all attendances in DB
-    all_attendances_direct = db.scalars(select(models.Attendance)).all()
-    logging.warning(f"🔍 DASHBOARD DEBUG: Veritabanında toplam {len(all_attendances_direct)} yoklama kaydı var")
-    if len(all_attendances_direct) > 0:
-        logging.warning(f"🔍 DASHBOARD DEBUG: İlk 5 yoklama ID: {[a.id for a in all_attendances_direct[:5]]}")
-        logging.warning(f"🔍 DASHBOARD DEBUG: Lesson ID'ler: {list(set([a.lesson_id for a in all_attendances_direct[:10]]))}")
-        logging.warning(f"🔍 DASHBOARD DEBUG: Student ID'ler: {list(set([a.student_id for a in all_attendances_direct[:10]]))}")
-    # #endregion
-    
-    # DIRECT QUERY: list_all_attendances fonksiyonunu bypass et, direkt sorgu kullan
-    # Bu, sorunun kaynağını bulmak için geçici bir çözüm
-    import logging
-    logging.warning("🔍 Dashboard: list_all_attendances bypass ediliyor, direkt sorgu kullanılıyor!")
-    
     # Filtrelerin olup olmadığını kontrol et
     has_filters = any([
         teacher_id_int is not None,
@@ -716,30 +685,18 @@ def dashboard(
     # Eğer hiçbir filtre yoksa, boş liste döndür
     if not has_filters:
         attendances = []
-        logging.warning("🔍 Dashboard: Hiçbir filtre yok, boş liste döndürülüyor")
     else:
-        # Direkt sorgu ile tüm yoklamaları al
-        all_attendances_direct = db.scalars(select(models.Attendance)).all()
-        logging.warning(f"🔍 Dashboard: Direkt sorgu sonucu: {len(all_attendances_direct)} yoklama")
-        
-        # Filtreleri manuel uygula
-        attendances = list(all_attendances_direct)
-        logging.warning(f"🔍 Dashboard: Filtre öncesi: {len(attendances)} yoklama")
-        
-        # Teacher filter
-        if teacher_id_int:
-            filtered = []
-            for att in attendances:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                if lesson and lesson.teacher_id == teacher_id_int:
-                    filtered.append(att)
-            attendances = filtered
-        
-        # Student filter (ID)
-        if student_id_int:
-            attendances = [a for a in attendances if a.student_id == student_id_int]
-        
-        # Student name filter (full name contains)
+        attendances = crud.list_all_attendances(
+            db,
+            teacher_id=teacher_id_int,
+            student_id=student_id_int,
+            course_id=course_id_int,
+            status=status,
+            start_date=start_date_obj,
+            end_date=end_date_obj,
+            order_by=order_by,
+            limit=200,
+        )
         if student_name and student_name.strip():
             term = student_name.strip().lower()
             filtered = []
@@ -751,88 +708,34 @@ def dashboard(
                 if term in full_name:
                     filtered.append(a)
             attendances = filtered
-        
-        # Status filter
-        if status:
-            attendances = [a for a in attendances if a.status.upper() == status.upper()]
-        
-        # Course filter
-        if course_id_int:
-            filtered = []
-            for att in attendances:
-                lesson = db.get(models.Lesson, att.lesson_id)
-                if lesson and lesson.course_id == course_id_int:
-                    filtered.append(att)
-            attendances = filtered
-        
-        # Date filters - artık yoklama zamanına (marked_at) göre
-        if start_date_obj:
-            from datetime import datetime
-            start_datetime = datetime.combine(start_date_obj, datetime.min.time())
-            attendances = [a for a in attendances if a.marked_at and a.marked_at >= start_datetime]
-        
-        if end_date_obj:
-            from datetime import datetime
-            end_datetime = datetime.combine(end_date_obj, datetime.max.time())
-            attendances = [a for a in attendances if a.marked_at and a.marked_at <= end_datetime]
-        
-        # Sort - artık sadece marked_at'e göre (lesson_date kaldırıldı)
-        if order_by == "marked_at_desc" or order_by == "lesson_date_desc":
-            attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
-        elif order_by == "marked_at_asc" or order_by == "lesson_date_asc":
-            attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
-        
-        # Limit
-        attendances = attendances[:200]
-        logging.warning(f"🔍 Dashboard: Filtre sonrası: {len(attendances)} yoklama (limit: 200)")
-    if len(attendances) > 0:
-        logging.warning(f"🔍 Dashboard: İlk 5 yoklama ID: {[a.id for a in attendances[:5]]}")
     
     # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
-    # ÖNEMLİ: Tüm yoklamaları göster, lesson/student yoksa bile
     attendances_with_details = []
-    orphaned_count = 0
-    for att in attendances:
-        lesson = db.get(models.Lesson, att.lesson_id)
-        student = db.get(models.Student, att.student_id)
-        # Lesson veya student yoksa bile yoklamayı göster (sadece uyarı ver)
-        if not lesson:
-            import logging
-            logging.warning(f"⚠️ Yoklama {att.id} için lesson {att.lesson_id} bulunamadı!")
-        if not student:
-            import logging
-            logging.warning(f"⚠️ Yoklama {att.id} için student {att.student_id} bulunamadı!")
-        
-        teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
-        course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
-        attendances_with_details.append({
-            "attendance": att,
-            "lesson": lesson,  # None olabilir
-            "student": student,  # None olabilir
-            "teacher": teacher,
-            "course": course,
-        })
-        if not lesson or not student:
-            orphaned_count += 1
-    
-    import logging
-    logging.warning(f"🔍 Dashboard: attendances_with_details hazırlandı: {len(attendances_with_details)} kayıt, {orphaned_count} orphaned")
-    
-    # #region agent log
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_details", "timestamp": int(time.time() * 1000), "location": "main.py:500", "message": "Dashboard attendances with details", "data": {"total_attendances": len(attendances), "with_details": len(attendances_with_details), "orphaned_count": orphaned_count}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
+    if attendances:
+        lesson_ids = {att.lesson_id for att in attendances}
+        student_ids = {att.student_id for att in attendances}
+        lessons_map = {l.id: l for l in db.scalars(select(models.Lesson).where(models.Lesson.id.in_(lesson_ids))).all()} if lesson_ids else {}
+        students_map = {s.id: s for s in db.scalars(select(models.Student).where(models.Student.id.in_(student_ids))).all()} if student_ids else {}
+        teacher_ids = {l.teacher_id for l in lessons_map.values() if l.teacher_id}
+        course_ids = {l.course_id for l in lessons_map.values() if l.course_id}
+        teachers_map = {t.id: t for t in db.scalars(select(models.Teacher).where(models.Teacher.id.in_(teacher_ids))).all()} if teacher_ids else {}
+        courses_map = {c.id: c for c in db.scalars(select(models.Course).where(models.Course.id.in_(course_ids))).all()} if course_ids else {}
+        for att in attendances:
+            lesson = lessons_map.get(att.lesson_id)
+            student = students_map.get(att.student_id)
+            teacher = teachers_map.get(lesson.teacher_id) if lesson and lesson.teacher_id else None
+            course = courses_map.get(lesson.course_id) if lesson and lesson.course_id else None
+            attendances_with_details.append({
+                "attendance": att,
+                "lesson": lesson,
+                "student": student,
+                "teacher": teacher,
+                "course": course,
+            })
     # Puantaj raporunu getir (admin ve puantaj/her ikisi görünümünde; tüm öğretmenler seçiliyse hepsinin puantajı)
     attendance_report = []
     attendance_totals_by_teacher = {}
-    _show_puantaj = (attendance_view or "both").strip() in ("both", "puantaj")
+    _show_puantaj = (attendance_view or "yoklama").strip() in ("both", "puantaj")
     if user.get("role") == "admin" and _show_puantaj:
         attendance_report = crud.get_attendance_report_by_teacher(
             db,
@@ -854,18 +757,6 @@ def dashboard(
                     "total_lessons": sum(s.get("total", 0) for s in teacher_report["students"])
                 }
                 attendance_totals_by_teacher[teacher_report["teacher"].id] = totals
-        
-        # #region agent log
-        import json, os, time
-        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-        try:
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_dashboard_report", "timestamp": int(time.time() * 1000), "location": "main.py:511", "message": "Dashboard attendance report fetched", "data": {"report_count": len(attendance_report), "teachers_in_report": [r["teacher"].id for r in attendance_report]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-        except Exception as e:
-            import logging
-            logging.error(f"Debug log error: {e}")
-        # #endregion
     
     # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
     from datetime import datetime
@@ -902,17 +793,57 @@ def dashboard(
     if user.get("role") == "admin":
         weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
         all_students_for_payment = crud.list_students(db, active_only=True)
+        student_ids_for_payment = [s.id for s in all_students_for_payment]
+
+        attendance_count_rows = db.execute(
+            select(models.Attendance.student_id, func.count(models.Attendance.id))
+            .where(
+                models.Attendance.student_id.in_(student_ids_for_payment),
+                models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"]),
+            )
+            .group_by(models.Attendance.student_id)
+        ).all() if student_ids_for_payment else []
+        attendance_counts = {row[0]: int(row[1]) for row in attendance_count_rows}
+
+        payment_count_rows = db.execute(
+            select(models.Payment.student_id, func.count(models.Payment.id))
+            .where(models.Payment.student_id.in_(student_ids_for_payment))
+            .group_by(models.Payment.student_id)
+        ).all() if student_ids_for_payment else []
+        payment_counts = {row[0]: int(row[1]) for row in payment_count_rows}
+
+        lesson_days_by_student: dict[int, set] = {sid: set() for sid in student_ids_for_payment}
+        lesson_courses_by_student: dict[int, set] = {sid: set() for sid in student_ids_for_payment}
+        if student_ids_for_payment:
+            from sqlalchemy.orm import joinedload
+            lesson_student_rows = db.scalars(
+                select(models.LessonStudent).where(models.LessonStudent.student_id.in_(student_ids_for_payment))
+            ).all()
+            linked_lesson_ids = {row.lesson_id for row in lesson_student_rows}
+            lessons_by_id = {
+                l.id: l for l in db.scalars(
+                    select(models.Lesson)
+                    .where(models.Lesson.id.in_(linked_lesson_ids))
+                    .options(joinedload(models.Lesson.course))
+                ).all()
+            } if linked_lesson_ids else {}
+            for row in lesson_student_rows:
+                lesson = lessons_by_id.get(row.lesson_id)
+                if not lesson:
+                    continue
+                if getattr(lesson, "lesson_date", None):
+                    try:
+                        wd_idx = lesson.lesson_date.weekday()
+                        if 0 <= wd_idx < len(weekday_map):
+                            lesson_days_by_student[row.student_id].add(weekday_map[wd_idx])
+                    except Exception:
+                        pass
+                if lesson.course and lesson.course.name:
+                    lesson_courses_by_student[row.student_id].add(lesson.course.name)
+
         for s in all_students_for_payment:
-            # Toplam ders sayısı (PRESENT/TELAFI/UNEXCUSED_ABSENT)
-            total_lessons = db.scalars(
-                select(func.count(models.Attendance.id)).where(
-                    models.Attendance.student_id == s.id,
-                    models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"]),
-                )
-            ).first() or 0
-            total_lessons = int(total_lessons or 0)
-            payments = crud.list_payments_by_student(db, s.id)
-            total_paid_sets = len(payments)
+            total_lessons = attendance_counts.get(s.id, 0)
+            total_paid_sets = payment_counts.get(s.id, 0)
             position_in_set = total_lessons % 4
             lessons_covered_by_payment = total_paid_sets * 4
             within_paid = total_paid_sets > 0 and total_lessons < lessons_covered_by_payment
@@ -935,24 +866,12 @@ def dashboard(
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             else:
-                # Ödenen setlerin kapsamı doldu: tüm dersler ödeme gerekli (bekleniyor sadece ödenen set içinde 3. derste)
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
                 needs_payment = True
 
-            lesson_days = set()
-            lesson_courses = set()
-            lessons_for_student = crud.list_lessons_by_student(db, s.id)
-            for lesson in lessons_for_student:
-                if getattr(lesson, "lesson_date", None):
-                    try:
-                        wd_idx = lesson.lesson_date.weekday()
-                        if 0 <= wd_idx < len(weekday_map):
-                            lesson_days.add(weekday_map[wd_idx])
-                    except Exception:
-                        pass
-                if lesson.course and lesson.course.name:
-                    lesson_courses.add(lesson.course.name)
+            lesson_days = lesson_days_by_student.get(s.id, set())
+            lesson_courses = lesson_courses_by_student.get(s.id, set())
             students_needing_payment_lessons[s.id] = {
                 "lesson_days": ", ".join(sorted(lesson_days)) if lesson_days else "-",
                 "lesson_courses": ", ".join(sorted(lesson_courses)) if lesson_courses else "-",
@@ -1023,7 +942,7 @@ def dashboard(
             "student_name": student_name or "",
             "payment_day": payment_day or "",
             "payment_status_filter": payment_status_filter_value,
-            "attendance_view": (attendance_view or "both").strip() or "both",
+            "attendance_view": (attendance_view or "yoklama").strip() or "yoklama",
         },
     }
     return templates.TemplateResponse("dashboard.html", context)
@@ -3439,12 +3358,6 @@ def admin_delete_user(user_id: int, request: Request, db: Session = Depends(get_
 
 @app.get("/login/admin", response_class=HTMLResponse)
 def login_admin_form(request: Request):
-    # Database'i ilk kullanımda başlat (bloklamadan)
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception:
-        pass
-    
     # Kullanıcı zaten giriş yapmışsa dashboard'a yönlendir
     user = request.session.get("user")
     if user:

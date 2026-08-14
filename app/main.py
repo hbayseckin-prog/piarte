@@ -2011,6 +2011,71 @@ def attendance_form(
     )
 
 
+@app.get("/lessons/{lesson_id}/attendance/correct")
+def correct_attendance_from_schedule(
+    lesson_id: int,
+    request: Request,
+    student_id: int,
+    attendance_date: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Ders programından yoklama düzeltme: önce seçilen tarih, yoksa son kayıt."""
+    from datetime import datetime, date as date_cls
+    from urllib.parse import urlencode
+
+    user = request.session.get("user")
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login/admin", status_code=302)
+
+    lesson = db.get(models.Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Ders bulunamadı")
+
+    attendance = None
+    if attendance_date and attendance_date.strip():
+        try:
+            y, m, d = map(int, attendance_date.strip().split("-"))
+            target = date_cls(y, m, d)
+            start = datetime.combine(target, datetime.min.time())
+            end = datetime.combine(target, datetime.max.time())
+            attendance = db.scalars(
+                select(models.Attendance)
+                .where(
+                    models.Attendance.lesson_id == lesson_id,
+                    models.Attendance.student_id == student_id,
+                    models.Attendance.marked_at >= start,
+                    models.Attendance.marked_at <= end,
+                )
+                .order_by(models.Attendance.marked_at.desc())
+                .limit(1)
+            ).first()
+        except Exception:
+            attendance = None
+
+    if not attendance:
+        attendance = db.scalars(
+            select(models.Attendance)
+            .where(
+                models.Attendance.lesson_id == lesson_id,
+                models.Attendance.student_id == student_id,
+            )
+            .order_by(models.Attendance.marked_at.desc())
+            .limit(1)
+        ).first()
+
+    if attendance:
+        return RedirectResponse(url=f"/attendances/{attendance.id}/edit", status_code=302)
+
+    params = {"focus_student": student_id}
+    if attendance_date and attendance_date.strip():
+        params["attendance_date"] = attendance_date.strip()
+    request.session["attendance_errors"] = "Bu öğrenci için yoklama kaydı bulunamadı. Önce yoklama alın."
+    return RedirectResponse(
+        url=f"/lessons/{lesson_id}/attendance/new?{urlencode(params)}",
+        status_code=302,
+    )
+
+
 @app.post("/lessons/{lesson_id}/attendance/new")
 async def attendance_create(lesson_id: int, request: Request, db: Session = Depends(get_db)):
     # #region agent log
@@ -2464,6 +2529,8 @@ def edit_attendance_form(
 	attendance = db.get(models.Attendance, attendance_id)
 	if not attendance:
 		request.session["error"] = "Yoklama kaydı bulunamadı"
+		if user.get("role") == "admin":
+			return RedirectResponse(url="/dashboard", status_code=302)
 		return RedirectResponse(url="/ui/staff", status_code=302)
 	
 	lesson = db.get(models.Lesson, attendance.lesson_id)
@@ -2506,6 +2573,8 @@ def update_attendance_endpoint(
 		attendance = db.get(models.Attendance, attendance_id)
 		if not attendance:
 			request.session["error"] = "Yoklama kaydı bulunamadı"
+			if user.get("role") == "admin":
+				return RedirectResponse(url="/dashboard", status_code=302)
 			return RedirectResponse(url="/ui/staff", status_code=302)
 		
 		lesson = db.get(models.Lesson, attendance.lesson_id)
@@ -2571,6 +2640,8 @@ def update_attendance_endpoint(
 		logging.error(traceback.format_exc())
 		request.session["error"] = f"Yoklama güncellenirken hata oluştu: {str(e)}"
 	
+	if user.get("role") == "admin":
+		return RedirectResponse(url="/dashboard", status_code=302)
 	return RedirectResponse(url="/ui/staff", status_code=302)
 
 

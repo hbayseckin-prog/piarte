@@ -4016,50 +4016,79 @@ def staff_panel(
             student_attendances = []
             selected_student_payments = []
         
-        # Ödeme durumu tablosu için sadece aktif öğrencileri getir
+        # Ödeme durumu tablosu için sadece aktif öğrencileri getir (toplu sorgular)
         all_students = crud.list_students(db, active_only=True)
         payment_status_list = []
         from datetime import date
         today = date.today()
-        
-        from datetime import date
-        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-        
+        student_ids_for_payment = [s.id for s in all_students]
+
+        attendance_count_rows = db.execute(
+            select(models.Attendance.student_id, func.count(models.Attendance.id))
+            .where(
+                models.Attendance.student_id.in_(student_ids_for_payment),
+                models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"]),
+            )
+            .group_by(models.Attendance.student_id)
+        ).all() if student_ids_for_payment else []
+        attendance_counts = {row[0]: int(row[1]) for row in attendance_count_rows}
+
+        payment_count_rows = db.execute(
+            select(models.Payment.student_id, func.count(models.Payment.id))
+            .where(models.Payment.student_id.in_(student_ids_for_payment))
+            .group_by(models.Payment.student_id)
+        ).all() if student_ids_for_payment else []
+        payment_counts = {row[0]: int(row[1]) for row in payment_count_rows}
+
+        last_payment_rows = db.execute(
+            select(models.Payment.student_id, func.max(models.Payment.payment_date))
+            .where(models.Payment.student_id.in_(student_ids_for_payment))
+            .group_by(models.Payment.student_id)
+        ).all() if student_ids_for_payment else []
+        last_payment_by_student = {row[0]: row[1] for row in last_payment_rows}
+
+        lesson_days_by_student: dict[int, set] = {sid: set() for sid in student_ids_for_payment}
+        lesson_courses_by_student: dict[int, set] = {sid: set() for sid in student_ids_for_payment}
+        if student_ids_for_payment:
+            from sqlalchemy.orm import joinedload
+            lesson_student_rows = db.scalars(
+                select(models.LessonStudent).where(models.LessonStudent.student_id.in_(student_ids_for_payment))
+            ).all()
+            linked_lesson_ids = {row.lesson_id for row in lesson_student_rows}
+            lessons_by_id = {
+                l.id: l for l in db.scalars(
+                    select(models.Lesson)
+                    .where(models.Lesson.id.in_(linked_lesson_ids))
+                    .options(joinedload(models.Lesson.course))
+                ).all()
+            } if linked_lesson_ids else {}
+            for row in lesson_student_rows:
+                lesson = lessons_by_id.get(row.lesson_id)
+                if not lesson:
+                    continue
+                if getattr(lesson, "lesson_date", None):
+                    try:
+                        wd_idx = lesson.lesson_date.weekday()
+                        if 0 <= wd_idx < len(weekday_map):
+                            lesson_days_by_student[row.student_id].add(weekday_map[wd_idx])
+                    except Exception:
+                        pass
+                if lesson.course and lesson.course.name:
+                    lesson_courses_by_student[row.student_id].add(lesson.course.name)
+
         for student in all_students:
-            # Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
-            total_lessons = db.scalars(
-                select(func.count(models.Attendance.id))
-                .where(
-                    models.Attendance.student_id == student.id,
-                    models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"])  # Habersiz gelmedi de toplam derse dahil
-                )
-            ).first() or 0
-            total_lessons = int(total_lessons or 0)
-            
-            # Öğrencinin ödemelerini getir
-            payments = crud.list_payments_by_student(db, student.id)
-            total_paid_sets = len(payments)
-            
-            # 4 derslik döngü: set = 0-3, 4-7, 8-11, 12-15... (baştan beri toplam ders)
-            current_set = total_lessons // 4   # 12 ders → set 3, 16 ders → set 4
-            position_in_set = total_lessons % 4  # 0=1. ders, 1=2. ders, 2=3. ders, 3=4. ders
-            expected_paid_sets = (total_lessons // 4) + 1  # tablo için (crud ile aynı mantık)
-            
-            # En son ödeme tarihi
-            last_payment_date = None
-            if payments:
-                last_payment_date = payments[0].payment_date  # Zaten tarihe göre sıralı (en yeni önce)
-            
-            # Görsel tabloya göre: Her set ödemesi önümüzdeki 4 dersi kapsıyor
-            # 0 set → Ödeme gerekli | 0-1-2. dersler (set içi) → Yapıldı | 3-7-11... → Bekleniyor | 4-8-12... → Gerekli
+            total_lessons = attendance_counts.get(student.id, 0)
+            total_paid_sets = payment_counts.get(student.id, 0)
+            expected_paid_sets = (total_lessons // 4) + 1
+            position_in_set = total_lessons % 4
+            last_payment_date = last_payment_by_student.get(student.id)
             lessons_covered_by_payment = total_paid_sets * 4
             within_paid = total_paid_sets > 0 and total_lessons < lessons_covered_by_payment
-            in_unpaid_set = total_lessons >= lessons_covered_by_payment
-            
+
             payment_status = ""
             payment_status_class = ""
             needs_payment = False
-            
+
             if total_paid_sets == 0:
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
@@ -4068,7 +4097,6 @@ def staff_panel(
                 payment_status = "✅ Ödendi"
                 payment_status_class = "paid"
             elif within_paid:
-                # Ödenen setlerin kapsadığı derslerde: 0-1-2. ders → Yapıldı, 3. ders (3,7,11...) → Bekleniyor
                 if position_in_set in (0, 1, 2):
                     payment_status = "✅ Ödeme Yapıldı"
                     payment_status_class = "paid"
@@ -4076,36 +4104,20 @@ def staff_panel(
                     payment_status = "⏳ Ödeme Bekleniyor"
                     payment_status_class = "waiting"
             else:
-                # Ödenen setlerin kapsamı doldu: tüm dersler ödeme gerekli (bekleniyor sadece ödenen set içinde 3. derste)
                 payment_status = "⚠️ Ödeme Gerekli"
                 payment_status_class = "needs_payment"
                 needs_payment = True
-            
-            # Öğrencinin ders programı: takvim günleri ve kurs isimleri
-            lesson_days = set()
-            lesson_courses = set()
-            student_lessons_for_payment = crud.list_lessons_by_student(db, student.id)
-            for lesson in student_lessons_for_payment:
-                # Gün adı
-                if getattr(lesson, "lesson_date", None):
-                    try:
-                        wd_idx = lesson.lesson_date.weekday()
-                        if 0 <= wd_idx < len(weekday_map):
-                            lesson_days.add(weekday_map[wd_idx])
-                    except Exception:
-                        pass
-                # Kurs adı
-                if lesson.course and lesson.course.name:
-                    lesson_courses.add(lesson.course.name)
+
+            lesson_days = lesson_days_by_student.get(student.id, set())
+            lesson_courses = lesson_courses_by_student.get(student.id, set())
             lesson_days_str = ", ".join(sorted(lesson_days)) if lesson_days else "-"
             lesson_courses_str = ", ".join(sorted(lesson_courses)) if lesson_courses else "-"
-            
-            # Alınan ders ödenen setin kapsamındaysa (8 ders 3 set) Gerekli gösterme; 3-7-11'de Bekleniyor kalsın
+
             if total_paid_sets > 0 and total_lessons < (total_paid_sets * 4) and position_in_set in (0, 1, 2):
                 payment_status = "✅ Ödeme Yapıldı"
                 payment_status_class = "paid"
                 needs_payment = False
-            
+
             payment_status_list.append({
                 "student": student,
                 "total_lessons": total_lessons,
@@ -4255,27 +4267,19 @@ def staff_panel(
         
         # Yoklama verilerini filtrele
         attendances = []
+        attendances_with_details = []
         if has_filters:
-            # Direkt sorgu ile tüm yoklamaları al
-            all_attendances_direct = db.scalars(select(models.Attendance)).all()
-            
-            # Filtreleri manuel uygula
-            attendances = list(all_attendances_direct)
-            
-            # Teacher filter
-            if attendance_teacher_id_int:
-                filtered = []
-                for att in attendances:
-                    lesson = db.get(models.Lesson, att.lesson_id)
-                    if lesson and lesson.teacher_id == attendance_teacher_id_int:
-                        filtered.append(att)
-                attendances = filtered
-            
-            # Student filter (ID)
-            if attendance_student_id_int:
-                attendances = [a for a in attendances if a.student_id == attendance_student_id_int]
-            
-            # Student name filter (ilk 3 harf eşleşmesi)
+            attendances = crud.list_all_attendances(
+                db,
+                teacher_id=attendance_teacher_id_int,
+                student_id=attendance_student_id_int,
+                course_id=attendance_course_id_int,
+                status=status,
+                start_date=start_date_obj,
+                end_date=end_date_obj,
+                order_by=order_by,
+                limit=200,
+            )
             if attendance_student_name and attendance_student_name.strip() and not attendance_student_id_int:
                 filtered = []
                 for a in attendances:
@@ -4286,52 +4290,28 @@ def staff_panel(
                     if crud.student_name_matches_prefix(full_name, attendance_student_name):
                         filtered.append(a)
                 attendances = filtered
-            
-            # Status filter
-            if status:
-                attendances = [a for a in attendances if a.status.upper() == status.upper()]
-            
-            # Course filter
-            if attendance_course_id_int:
-                filtered = []
+
+            if attendances:
+                lesson_ids = {att.lesson_id for att in attendances}
+                student_ids_att = {att.student_id for att in attendances}
+                lessons_map = {l.id: l for l in db.scalars(select(models.Lesson).where(models.Lesson.id.in_(lesson_ids))).all()}
+                students_map = {s.id: s for s in db.scalars(select(models.Student).where(models.Student.id.in_(student_ids_att))).all()}
+                teacher_ids_att = {l.teacher_id for l in lessons_map.values() if l.teacher_id}
+                course_ids_att = {l.course_id for l in lessons_map.values() if l.course_id}
+                teachers_map = {t.id: t for t in db.scalars(select(models.Teacher).where(models.Teacher.id.in_(teacher_ids_att))).all()} if teacher_ids_att else {}
+                courses_map = {c.id: c for c in db.scalars(select(models.Course).where(models.Course.id.in_(course_ids_att))).all()} if course_ids_att else {}
                 for att in attendances:
-                    lesson = db.get(models.Lesson, att.lesson_id)
-                    if lesson and lesson.course_id == attendance_course_id_int:
-                        filtered.append(att)
-                attendances = filtered
-            
-            # Date filters
-            if start_date_obj:
-                start_datetime = datetime.combine(start_date_obj, datetime.min.time())
-                attendances = [a for a in attendances if a.marked_at and a.marked_at >= start_datetime]
-            
-            if end_date_obj:
-                end_datetime = datetime.combine(end_date_obj, datetime.max.time())
-                attendances = [a for a in attendances if a.marked_at and a.marked_at <= end_datetime]
-            
-            # Sort
-            if order_by == "marked_at_desc" or order_by == "lesson_date_desc":
-                attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=True)
-            elif order_by == "marked_at_asc" or order_by == "lesson_date_asc":
-                attendances.sort(key=lambda x: x.marked_at if x.marked_at else datetime.min, reverse=False)
-            
-            # Limit
-            attendances = attendances[:200]
-        
-        # Yoklamaları ders ve öğrenci bilgileriyle birlikte hazırla
-        attendances_with_details = []
-        for att in attendances:
-            lesson = db.get(models.Lesson, att.lesson_id)
-            student = db.get(models.Student, att.student_id)
-            teacher = db.get(models.Teacher, lesson.teacher_id) if lesson and lesson.teacher_id else None
-            course = db.get(models.Course, lesson.course_id) if lesson and lesson.course_id else None
-            attendances_with_details.append({
-                "attendance": att,
-                "lesson": lesson,
-                "student": student,
-                "teacher": teacher,
-                "course": course,
-            })
+                    lesson = lessons_map.get(att.lesson_id)
+                    student = students_map.get(att.student_id)
+                    teacher = teachers_map.get(lesson.teacher_id) if lesson and lesson.teacher_id else None
+                    course = courses_map.get(lesson.course_id) if lesson and lesson.course_id else None
+                    attendances_with_details.append({
+                        "attendance": att,
+                        "lesson": lesson,
+                        "student": student,
+                        "teacher": teacher,
+                        "course": course,
+                    })
         
         # Filtre dict'i oluştur
         filters = {

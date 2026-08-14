@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Yoklama Düzelt - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Yoklama Düzelt</h2>
+
+{% if success %}
+<div style="padding:12px 16px;background:#d1fae5;color:#065f46;border:1px solid #10b981;border-radius:8px;margin-bottom:16px;">
+	✅ {{ success }}
+</div>
+{% endif %}
+{% if error %}
+<div style="padding:12px 16px;background:#fee2e2;color:#991b1b;border:1px solid #ef4444;border-radius:8px;margin-bottom:16px;">
+	❌ {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+	<h3 class="h2">Öğrenci Bilgisi</h3>
+	<div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">
+		<div style="margin-bottom:8px;"><strong>Öğrenci:</strong> {{ student.first_name }} {{ student.last_name }}</div>
+		<div style="margin-bottom:8px;"><strong>Program Dersi:</strong> {{ course.name if course else '-' }}{% if teacher %} — {{ teacher.first_name }} {{ teacher.last_name }}{% endif %}</div>
+		{% if highlight_date %}
+		<div style="color:#92400e;font-size:14px;">Seçilen tarih: <strong>{{ highlight_date.strftime('%d.%m.%Y') }}</strong> (vurgulu satır)</div>
+		{% endif %}
+	</div>
+
+	<p style="color:#64748b;font-size:14px;margin-bottom:12px;">Aşağıda öğrencinin tüm yoklama kayıtları en yeniden eskiye sıralıdır. Düzeltmek istediğiniz kaydın yanındaki <strong>Düzenle</strong> butonuna tıklayın.</p>
+
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Yoklama Tarihi</th>
+					<th>Saat</th>
+					<th>Kurs</th>
+					<th>Öğretmen</th>
+					<th>Durum</th>
+					<th>İşlem</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for row in attendance_rows %}
+			<tr style="{% if row.highlight %}background-color:#fffbeb;border-left:4px solid #f59e0b;{% endif %}">
+				<td>{{ row.attendance.marked_at.strftime('%d.%m.%Y') if row.attendance.marked_at else '-' }}</td>
+				<td>{{ row.attendance.marked_at.strftime('%H:%M') if row.attendance.marked_at else '-' }}</td>
+				<td><strong>{{ row.course.name if row.course else '-' }}</strong></td>
+				<td>{% if row.teacher %}{{ row.teacher.first_name }} {{ row.teacher.last_name }}{% else %}-{% endif %}</td>
+				<td>
+					{% if row.attendance.status == 'PRESENT' %}
+						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
+					{% elif row.attendance.status == 'UNEXCUSED_ABSENT' %}
+						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
+					{% elif row.attendance.status == 'EXCUSED_ABSENT' %}
+						<span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+					{% elif row.attendance.status == 'TELAFI' or row.attendance.status == 'LATE' %}
+						<span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
+					{% else %}
+						{{ row.attendance.status }}
+					{% endif %}
+				</td>
+				<td>
+					<a href="/attendances/{{ row.attendance.id }}/edit?from_lesson={{ lesson.id }}&amp;from_student={{ student.id }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;">✏️ Düzenle</a>
+				</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+
+	<div style="margin-top:16px;">
+		<a href="/dashboard" style="display:inline-block;padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">← Panele Dön</a>
+		<a href="/lessons/{{ lesson.id }}/attendance/new?attendance_date={{ highlight_date.strftime('%Y-%m-%d') if highlight_date else '' }}&amp;focus_student={{ student.id }}" style="display:inline-block;margin-left:8px;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">+ Yoklama Al</a>
+	</div>
+</div>
+{% endblock %}

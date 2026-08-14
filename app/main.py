@@ -2011,7 +2011,7 @@ def attendance_form(
     )
 
 
-@app.get("/lessons/{lesson_id}/attendance/correct")
+@app.get("/lessons/{lesson_id}/attendance/correct", response_class=HTMLResponse)
 def correct_attendance_from_schedule(
     lesson_id: int,
     request: Request,
@@ -2019,7 +2019,7 @@ def correct_attendance_from_schedule(
     attendance_date: str | None = None,
     db: Session = Depends(get_db),
 ):
-    """Ders programından yoklama düzeltme: önce seçilen tarih, yoksa son kayıt."""
+    """Ders programından yoklama düzeltme: öğrencinin tüm yoklamalarını listeler."""
     from datetime import datetime, date as date_cls
     from urllib.parse import urlencode
 
@@ -2031,48 +2031,67 @@ def correct_attendance_from_schedule(
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
 
-    attendance = None
+    student = db.get(models.Student, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+
+    teacher = db.get(models.Teacher, lesson.teacher_id) if lesson.teacher_id else None
+    course = db.get(models.Course, lesson.course_id) if lesson.course_id else None
+
+    attendances = db.scalars(
+        select(models.Attendance)
+        .where(models.Attendance.student_id == student_id)
+        .order_by(models.Attendance.marked_at.desc())
+    ).all()
+
+    if not attendances:
+        params = {"focus_student": student_id}
+        if attendance_date and attendance_date.strip():
+            params["attendance_date"] = attendance_date.strip()
+        request.session["attendance_errors"] = "Bu öğrenci için yoklama kaydı bulunamadı. Önce yoklama alın."
+        return RedirectResponse(
+            url=f"/lessons/{lesson_id}/attendance/new?{urlencode(params)}",
+            status_code=302,
+        )
+
+    highlight_date = None
     if attendance_date and attendance_date.strip():
         try:
             y, m, d = map(int, attendance_date.strip().split("-"))
-            target = date_cls(y, m, d)
-            start = datetime.combine(target, datetime.min.time())
-            end = datetime.combine(target, datetime.max.time())
-            attendance = db.scalars(
-                select(models.Attendance)
-                .where(
-                    models.Attendance.lesson_id == lesson_id,
-                    models.Attendance.student_id == student_id,
-                    models.Attendance.marked_at >= start,
-                    models.Attendance.marked_at <= end,
-                )
-                .order_by(models.Attendance.marked_at.desc())
-                .limit(1)
-            ).first()
+            highlight_date = date_cls(y, m, d)
         except Exception:
-            attendance = None
+            highlight_date = None
 
-    if not attendance:
-        attendance = db.scalars(
-            select(models.Attendance)
-            .where(
-                models.Attendance.lesson_id == lesson_id,
-                models.Attendance.student_id == student_id,
-            )
-            .order_by(models.Attendance.marked_at.desc())
-            .limit(1)
-        ).first()
+    attendance_rows = []
+    for att in attendances:
+        att_lesson = db.get(models.Lesson, att.lesson_id)
+        att_teacher = db.get(models.Teacher, att_lesson.teacher_id) if att_lesson and att_lesson.teacher_id else None
+        att_course = db.get(models.Course, att_lesson.course_id) if att_lesson and att_lesson.course_id else None
+        att_date = att.marked_at.date() if att.marked_at else None
+        attendance_rows.append({
+            "attendance": att,
+            "lesson": att_lesson,
+            "teacher": att_teacher,
+            "course": att_course,
+            "highlight": highlight_date is not None and att_date == highlight_date,
+        })
 
-    if attendance:
-        return RedirectResponse(url=f"/attendances/{attendance.id}/edit", status_code=302)
+    success = request.session.pop("success", None)
+    error = request.session.pop("error", None)
 
-    params = {"focus_student": student_id}
-    if attendance_date and attendance_date.strip():
-        params["attendance_date"] = attendance_date.strip()
-    request.session["attendance_errors"] = "Bu öğrenci için yoklama kaydı bulunamadı. Önce yoklama alın."
-    return RedirectResponse(
-        url=f"/lessons/{lesson_id}/attendance/new?{urlencode(params)}",
-        status_code=302,
+    return templates.TemplateResponse(
+        "attendance_correct_list.html",
+        {
+            "request": request,
+            "lesson": lesson,
+            "student": student,
+            "teacher": teacher,
+            "course": course,
+            "attendance_rows": attendance_rows,
+            "highlight_date": highlight_date,
+            "success": success,
+            "error": error,
+        },
     )
 
 
@@ -2519,6 +2538,8 @@ def delete_attendance_endpoint(
 def edit_attendance_form(
 	attendance_id: int,
 	request: Request,
+	from_lesson: int | None = None,
+	from_student: int | None = None,
 	db: Session = Depends(get_db),
 ):
 	"""Yoklama düzenleme formu (staff için)"""
@@ -2547,6 +2568,8 @@ def edit_attendance_form(
 		"teacher": teacher,
 		"course": course,
 		"courses": courses,
+		"from_lesson_id": from_lesson,
+		"from_student_id": from_student,
 	})
 
 
@@ -2559,6 +2582,8 @@ def update_attendance_endpoint(
 	marked_at_time: str | None = Form(None),
 	note: str | None = Form(None),
 	course_id: str | None = Form(None),
+	from_lesson_id: str | None = Form(None),
+	from_student_id: str | None = Form(None),
 	db: Session = Depends(get_db),
 ):
 	"""Yoklama kaydını güncelle (staff için). Kurs değişirse sadece bu kayıt etkilenir."""
@@ -2640,6 +2665,11 @@ def update_attendance_endpoint(
 		logging.error(traceback.format_exc())
 		request.session["error"] = f"Yoklama güncellenirken hata oluştu: {str(e)}"
 	
+	if from_lesson_id and from_lesson_id.strip().isdigit() and from_student_id and from_student_id.strip().isdigit():
+		return RedirectResponse(
+			url=f"/lessons/{from_lesson_id.strip()}/attendance/correct?student_id={from_student_id.strip()}",
+			status_code=302,
+		)
 	if user.get("role") == "admin":
 		return RedirectResponse(url="/dashboard", status_code=302)
 	return RedirectResponse(url="/ui/staff", status_code=302)

@@ -19,6 +19,10 @@
     </div>
     
     <form method="post" action="/attendances/{{ attendance.id }}/edit">
+        {% if from_lesson_id and from_student_id %}
+        <input type="hidden" name="from_lesson_id" value="{{ from_lesson_id }}" />
+        <input type="hidden" name="from_student_id" value="{{ from_student_id }}" />
+        {% endif %}
         <div style="display:flex;flex-direction:column;gap:16px;">
             {% if courses %}
             <div>
@@ -80,7 +84,13 @@
             
             <div style="display:flex;gap:8px;">
                 <button type="submit" style="padding:10px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;flex:1;">💾 Kaydet</button>
+                {% if from_lesson_id and from_student_id %}
+                <a href="/lessons/{{ from_lesson_id }}/attendance/correct?student_id={{ from_student_id }}" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">← Listeye Dön</a>
+                {% elif request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+                <a href="/dashboard" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">İptal</a>
+                {% else %}
                 <a href="/ui/staff" style="padding:10px 20px;background:#64748b;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex:1;">İptal</a>
+                {% endif %}
             </div>
         </div>
     </form>
@@ -88,7 +98,7 @@
 {% else %}
 <div class="card">
     <p style="color:#64748b;text-align:center;padding:20px;">Yoklama kaydı bulunamadı.</p>
-    <a href="/ui/staff" style="display:inline-block;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">Geri Dön</a>
+    <a href="/dashboard" style="display:inline-block;padding:10px 20px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;">Geri Dön</a>
 </div>
 {% endif %}
 

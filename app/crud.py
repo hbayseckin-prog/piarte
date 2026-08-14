@@ -753,6 +753,210 @@ def list_students_needing_payment(db: Session):
 	return students_needing_payment
 
 
+WEEKDAY_MAP_TR = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+VALID_PAYMENT_STATUS_FILTERS = frozenset({"needs_payment", "waiting", "paid"})
+_ATTENDANCE_STATUSES_FOR_PAYMENT = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+
+
+def classify_payment_status(total_lessons: int, total_paid_sets: int) -> dict:
+	position_in_set = total_lessons % 4
+	lessons_covered_by_payment = total_paid_sets * 4
+	within_paid = total_paid_sets > 0 and total_lessons < lessons_covered_by_payment
+
+	if total_paid_sets == 0:
+		return {
+			"payment_status": "⚠️ Ödeme Gerekli",
+			"payment_status_class": "needs_payment",
+			"needs_payment": True,
+		}
+	if total_lessons == 0:
+		return {
+			"payment_status": "✅ Ödendi",
+			"payment_status_class": "paid",
+			"needs_payment": False,
+		}
+	if within_paid:
+		if position_in_set in (0, 1, 2):
+			return {
+				"payment_status": "✅ Ödeme Yapıldı",
+				"payment_status_class": "paid",
+				"needs_payment": False,
+			}
+		return {
+			"payment_status": "⏳ Ödeme Bekleniyor",
+			"payment_status_class": "waiting",
+			"needs_payment": False,
+		}
+	return {
+		"payment_status": "⚠️ Ödeme Gerekli",
+		"payment_status_class": "needs_payment",
+		"needs_payment": True,
+	}
+
+
+def _batch_attendance_counts(db: Session, student_ids: list[int]) -> dict[int, int]:
+	if not student_ids:
+		return {}
+	rows = db.execute(
+		select(models.Attendance.student_id, func.count(models.Attendance.id))
+		.where(
+			models.Attendance.student_id.in_(student_ids),
+			models.Attendance.status.in_(_ATTENDANCE_STATUSES_FOR_PAYMENT),
+		)
+		.group_by(models.Attendance.student_id)
+	).all()
+	return {row[0]: int(row[1]) for row in rows}
+
+
+def _batch_payment_counts(db: Session, student_ids: list[int]) -> dict[int, int]:
+	if not student_ids:
+		return {}
+	rows = db.execute(
+		select(models.Payment.student_id, func.count(models.Payment.id))
+		.where(models.Payment.student_id.in_(student_ids))
+		.group_by(models.Payment.student_id)
+	).all()
+	return {row[0]: int(row[1]) for row in rows}
+
+
+def _batch_last_payment_dates(db: Session, student_ids: list[int]) -> dict[int, date]:
+	if not student_ids:
+		return {}
+	rows = db.execute(
+		select(models.Payment.student_id, func.max(models.Payment.payment_date))
+		.where(models.Payment.student_id.in_(student_ids))
+		.group_by(models.Payment.student_id)
+	).all()
+	return {row[0]: row[1] for row in rows}
+
+
+def _load_lesson_days_courses_for_students(
+	db: Session,
+	student_ids: list[int],
+	weekday_map: list[str] | None = None,
+) -> tuple[dict[int, set], dict[int, set]]:
+	if not student_ids:
+		return {}, {}
+
+	from sqlalchemy.orm import joinedload
+
+	weekday_map = weekday_map or WEEKDAY_MAP_TR
+	lesson_days_by_student: dict[int, set] = {sid: set() for sid in student_ids}
+	lesson_courses_by_student: dict[int, set] = {sid: set() for sid in student_ids}
+
+	lesson_student_rows = db.scalars(
+		select(models.LessonStudent).where(models.LessonStudent.student_id.in_(student_ids))
+	).all()
+	linked_lesson_ids = {row.lesson_id for row in lesson_student_rows}
+	lessons_by_id = {
+		l.id: l for l in db.scalars(
+			select(models.Lesson)
+			.where(models.Lesson.id.in_(linked_lesson_ids))
+			.options(joinedload(models.Lesson.course))
+		).all()
+	} if linked_lesson_ids else {}
+
+	for row in lesson_student_rows:
+		lesson = lessons_by_id.get(row.lesson_id)
+		if not lesson:
+			continue
+		if getattr(lesson, "lesson_date", None):
+			try:
+				wd_idx = lesson.lesson_date.weekday()
+				if 0 <= wd_idx < len(weekday_map):
+					lesson_days_by_student[row.student_id].add(weekday_map[wd_idx])
+			except Exception:
+				pass
+		if lesson.course and lesson.course.name:
+			lesson_courses_by_student[row.student_id].add(lesson.course.name)
+
+	return lesson_days_by_student, lesson_courses_by_student
+
+
+def build_payment_status_list(
+	db: Session,
+	*,
+	status_filter: str,
+	payment_day: str | None = None,
+	include_staff_fields: bool = False,
+) -> tuple[list[dict], dict[int, dict]]:
+	status_filter = (status_filter or "").strip().lower()
+	if status_filter not in VALID_PAYMENT_STATUS_FILTERS:
+		return [], {}
+
+	all_students = list_students(db, active_only=True)
+	if not all_students:
+		return [], {}
+
+	student_ids = [s.id for s in all_students]
+	attendance_counts = _batch_attendance_counts(db, student_ids)
+	payment_counts = _batch_payment_counts(db, student_ids)
+	last_payment_by_student = _batch_last_payment_dates(db, student_ids) if include_staff_fields else {}
+
+	candidates: list[dict] = []
+	for student in all_students:
+		total_lessons = attendance_counts.get(student.id, 0)
+		total_paid_sets = payment_counts.get(student.id, 0)
+		info = classify_payment_status(total_lessons, total_paid_sets)
+		if info["payment_status_class"] != status_filter:
+			continue
+
+		item = {
+			"student": student,
+			"needs_payment": info["needs_payment"],
+			"payment_status": info["payment_status"],
+			"payment_status_class": info["payment_status_class"],
+		}
+		if include_staff_fields:
+			item.update({
+				"total_lessons": total_lessons,
+				"expected_paid_sets": (total_lessons // 4) + 1,
+				"total_paid_sets": total_paid_sets,
+				"last_payment_date": last_payment_by_student.get(student.id),
+			})
+		candidates.append(item)
+
+	if not candidates:
+		return [], {}
+
+	candidate_ids = [item["student"].id for item in candidates]
+	lesson_days_by_student, lesson_courses_by_student = _load_lesson_days_courses_for_students(
+		db, candidate_ids
+	)
+
+	payment_day_clean = (payment_day or "").strip()
+	students_needing_payment_lessons: dict[int, dict] = {}
+	payment_status_list: list[dict] = []
+
+	for item in candidates:
+		student = item["student"]
+		lesson_days = lesson_days_by_student.get(student.id, set())
+		lesson_courses = lesson_courses_by_student.get(student.id, set())
+
+		if payment_day_clean and payment_day_clean not in lesson_days:
+			continue
+
+		lesson_days_str = ", ".join(sorted(lesson_days)) if lesson_days else "-"
+		lesson_courses_str = ", ".join(sorted(lesson_courses)) if lesson_courses else "-"
+		students_needing_payment_lessons[student.id] = {
+			"lesson_days": lesson_days_str,
+			"lesson_courses": lesson_courses_str,
+			"lesson_days_set": lesson_days,
+		}
+		item["lesson_days"] = lesson_days_str
+		item["lesson_days_set"] = lesson_days
+		item["lesson_courses"] = lesson_courses_str
+		payment_status_list.append(item)
+
+	payment_status_list.sort(
+		key=lambda x: (
+			(x["student"].first_name or "").lower(),
+			(x["student"].last_name or "").lower(),
+		)
+	)
+	return payment_status_list, students_needing_payment_lessons
+
+
 # Invoices
 def create_invoice(db: Session, data: schemas.InvoiceCreate):
     invoice = models.Invoice(**data.model_dump())

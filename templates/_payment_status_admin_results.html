@@ -1,0 +1,42 @@
+{% if payment_status_list and payment_status_list|length > 0 %}
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+	{% for item in payment_status_list %}
+	{% set student = item.student %}
+	{% set status_class = item.payment_status_class %}
+	<div 
+		style="display:block;padding:12px;background:{% if status_class == 'needs_payment' %}#fee2e2{% elif status_class == 'waiting' %}#fffbeb{% else %}#dcfce7{% endif %};border:1px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};border-radius:8px;color:#0f172a;transition:all 0.2s;border-left:4px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};"
+		onmouseover="this.style.borderColor='#0ea5e9';"
+		onmouseout="this.style.borderColor='{% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %}';"
+	>
+		<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+			<div style="flex:1;min-width:200px;">
+				<strong style="color:#0f172a;font-size:15px;">
+					{{ student.first_name }} {{ student.last_name }}
+					<span style="font-size:12px;margin-left:8px;color:{% if status_class == 'needs_payment' %}#dc2626{% elif status_class == 'waiting' %}#b45309{% else %}#15803d{% endif %};">{{ item.payment_status }}</span>
+				</strong>
+				{% if item.lesson_days or item.lesson_courses %}
+				<div style="color:#4b5563;font-size:13px;margin-top:6px;">
+					<strong>Ders Günleri:</strong> {{ item.lesson_days or '-' }}
+				</div>
+				<div style="color:#4b5563;font-size:13px;margin-top:2px;">
+					<strong>Kurslar:</strong> {{ item.lesson_courses or '-' }}
+				</div>
+				{% endif %}
+				{% if student.phone %}
+				<div style="color:#64748b;font-size:13px;margin-top:4px;">📞 {{ student.phone }}</div>
+				{% endif %}
+				{% if student.email %}
+				<div style="color:#64748b;font-size:13px;margin-top:2px;">✉️ {{ student.email }}</div>
+				{% endif %}
+			</div>
+			<div style="display:flex;gap:8px;flex-wrap:wrap;">
+				<a href="/ui/students/{{ student.id }}" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Detay</a>
+				<a href="/payments/new?student_id={{ student.id }}&amp;return_to={{ '/dashboard' | urlencode }}" style="padding:8px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Ödeme Al</a>
+			</div>
+		</div>
+	</div>
+	{% endfor %}
+</div>
+{% else %}
+<p style="color:#64748b;text-align:center;padding:20px;">Seçilen durum için öğrenci bulunmuyor.</p>
+{% endif %}

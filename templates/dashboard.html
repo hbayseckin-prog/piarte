@@ -194,7 +194,7 @@ if (quickSearchInput) {
 		<input type="hidden" name="student_name" value="{{ filters.student_name or '' }}">
 		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ filters.payment_status_filter or '' }}">
 		<label for="payment_day" style="font-weight:500;color:#475569;">Ders gününe göre filtrele:</label>
-		<select name="payment_day" id="payment_day" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:160px;">
+		<select name="payment_day" id="payment_day" onchange="onAdminPaymentDayChange()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;min-width:160px;">
 			<option value="">Tümü</option>
 			<option value="Pazartesi" {% if filters.payment_day == 'Pazartesi' %}selected{% endif %}>Pazartesi</option>
 			<option value="Salı" {% if filters.payment_day == 'Salı' %}selected{% endif %}>Salı</option>
@@ -205,68 +205,86 @@ if (quickSearchInput) {
 			<option value="Pazar" {% if filters.payment_day == 'Pazar' %}selected{% endif %}>Pazar</option>
 		</select>
 		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-			<button type="button" onclick="setPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
-			<button type="button" onclick="setPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
-			<button type="button" onclick="setPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
+			<button type="button" data-payment-status="needs_payment" class="admin-payment-status-btn" onclick="setPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
+			<button type="button" data-payment-status="waiting" class="admin-payment-status-btn" onclick="setPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
+			<button type="button" data-payment-status="paid" class="admin-payment-status-btn" onclick="setPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if filters.payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if filters.payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
 		</div>
 	</form>
 	<script>
+		const ADMIN_PAYMENT_STATUS_STYLES = {
+			needs_payment: { border: '#ef4444', bg: '#fee2e2', color: '#991b1b' },
+			waiting: { border: '#f59e0b', bg: '#fffbeb', color: '#92400e' },
+			paid: { border: '#10b981', bg: '#dcfce7', color: '#065f46' },
+		};
+
+		function updateAdminPaymentStatusButtons(activeStatus) {
+			document.querySelectorAll('.admin-payment-status-btn').forEach(function(btn) {
+				const status = btn.getAttribute('data-payment-status');
+				const styles = ADMIN_PAYMENT_STATUS_STYLES[status];
+				const isActive = status === activeStatus;
+				btn.style.borderColor = isActive ? styles.border : '#cbd5e1';
+				btn.style.background = isActive ? styles.bg : '#fff';
+				btn.style.color = isActive ? styles.color : '#0f172a';
+			});
+		}
+
+		async function loadAdminPaymentStatusResults(statusFilter) {
+			const container = document.getElementById('payment-status-results');
+			const daySelect = document.getElementById('payment_day');
+			const hiddenInput = document.getElementById('payment_status_filter_input');
+			if (!container || !hiddenInput) return;
+
+			const paymentDay = daySelect ? daySelect.value : '';
+			hiddenInput.value = statusFilter;
+			updateAdminPaymentStatusButtons(statusFilter);
+			container.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px;">Yükleniyor...</p>';
+
+			const params = new URLSearchParams({
+				payment_status_filter: statusFilter,
+				payment_day: paymentDay,
+				variant: 'admin',
+			});
+
+			try {
+				const response = await fetch('/ui/payment-status/partial?' + params.toString());
+				if (!response.ok) throw new Error('load failed');
+				container.innerHTML = await response.text();
+				const url = new URL(window.location.href);
+				url.searchParams.set('payment_status_filter', statusFilter);
+				if (paymentDay) {
+					url.searchParams.set('payment_day', paymentDay);
+				} else {
+					url.searchParams.delete('payment_day');
+				}
+				history.replaceState({}, '', url.toString());
+			} catch (err) {
+				container.innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Liste yüklenemedi. Lütfen tekrar deneyin.</p>';
+			}
+		}
+
 		function setPaymentStatusFilter(value) {
-			const input = document.getElementById('payment_status_filter_input');
-			const form = document.getElementById('payment-day-form');
-			if (input && form) {
-				input.value = value;
-				form.submit();
+			loadAdminPaymentStatusResults(value);
+		}
+
+		function onAdminPaymentDayChange() {
+			const status = document.getElementById('payment_status_filter_input')?.value || '';
+			if (status) {
+				loadAdminPaymentStatusResults(status);
 			}
 		}
 	</script>
+	<div id="payment-status-results">
 	{% if filters.payment_status_filter in ['needs_payment', 'waiting', 'paid'] %}
-	{% if payment_status_list and payment_status_list|length > 0 %}
-	<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
-		{% for item in payment_status_list %}
-		{% set student = item.student %}
-		{% set status_class = item.payment_status_class %}
-		<div 
-			style="display:block;padding:12px;background:{% if status_class == 'needs_payment' %}#fee2e2{% elif status_class == 'waiting' %}#fffbeb{% else %}#dcfce7{% endif %};border:1px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};border-radius:8px;color:#0f172a;transition:all 0.2s;border-left:4px solid {% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %};"
-			onmouseover="this.style.borderColor='#0ea5e9';"
-			onmouseout="this.style.borderColor='{% if status_class == 'needs_payment' %}#ef4444{% elif status_class == 'waiting' %}#f59e0b{% else %}#10b981{% endif %}';"
-		>
-			<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-				<div style="flex:1;min-width:200px;">
-					<strong style="color:#0f172a;font-size:15px;">
-						{{ student.first_name }} {{ student.last_name }}
-						<span style="font-size:12px;margin-left:8px;color:{% if status_class == 'needs_payment' %}#dc2626{% elif status_class == 'waiting' %}#b45309{% else %}#15803d{% endif %};">{{ item.payment_status }}</span>
-					</strong>
-					{% set lesson_info = students_needing_payment_lessons.get(student.id) if students_needing_payment_lessons else None %}
-					{% if lesson_info %}
-					<div style="color:#4b5563;font-size:13px;margin-top:6px;">
-						<strong>Ders Günleri:</strong> {{ lesson_info.lesson_days }}
-					</div>
-					<div style="color:#4b5563;font-size:13px;margin-top:2px;">
-						<strong>Kurslar:</strong> {{ lesson_info.lesson_courses }}
-					</div>
-					{% endif %}
-					{% if student.phone %}
-					<div style="color:#64748b;font-size:13px;margin-top:4px;">📞 {{ student.phone }}</div>
-					{% endif %}
-					{% if student.email %}
-					<div style="color:#64748b;font-size:13px;margin-top:2px;">✉️ {{ student.email }}</div>
-					{% endif %}
-				</div>
-				<div style="display:flex;gap:8px;flex-wrap:wrap;">
-					<a href="/ui/students/{{ student.id }}" style="padding:8px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Detay</a>
-					<a href="/payments/new?student_id={{ student.id }}&amp;return_to={{ '/dashboard' | urlencode }}" style="padding:8px 16px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;">Ödeme Al</a>
-				</div>
-			</div>
-		</div>
-		{% endfor %}
-	</div>
-	{% else %}
-	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen durum için öğrenci bulunmuyor.</p>
-	{% endif %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Yükleniyor...</p>
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		loadAdminPaymentStatusResults('{{ filters.payment_status_filter }}');
+	});
+	</script>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Listelemek için yukarıdan bir ödeme durumu seçin.</p>
 	{% endif %}
+	</div>
 </div>
 {% endif %}
 

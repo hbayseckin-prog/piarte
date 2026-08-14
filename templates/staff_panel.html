@@ -201,133 +201,94 @@
 	<form method="get" action="/ui/staff" id="staff-payment-filter-form" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 		<input type="hidden" id="payment_status_filter_input" name="payment_status_filter" value="{{ payment_status_filter or '' }}">
 		<label for="payment_day_filter" style="font-size:14px;font-weight:500;color:#0f172a;">Günler:</label>
-		<select name="payment_day_filter" id="payment_day_filter" onchange="this.form.submit()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;min-width:140px;">
+		<select name="payment_day_filter" id="payment_day_filter" onchange="onStaffPaymentDayChange()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;min-width:140px;">
 			<option value="">Tümü</option>
 			{% for day in payment_day_options %}
 			<option value="{{ day }}" {% if payment_day_filter == day %}selected{% endif %}>{{ day }}</option>
 			{% endfor %}
 		</select>
 		<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-			<button type="button" onclick="setStaffPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
-			<button type="button" onclick="setStaffPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
-			<button type="button" onclick="setStaffPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
+			<button type="button" data-payment-status="needs_payment" class="staff-payment-status-btn" onclick="setStaffPaymentStatusFilter('needs_payment')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'needs_payment' %}#ef4444{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'needs_payment' %}#fee2e2{% else %}#fff{% endif %};color:#991b1b;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Gerekli</button>
+			<button type="button" data-payment-status="waiting" class="staff-payment-status-btn" onclick="setStaffPaymentStatusFilter('waiting')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'waiting' %}#f59e0b{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'waiting' %}#fffbeb{% else %}#fff{% endif %};color:#92400e;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Bekleniyor</button>
+			<button type="button" data-payment-status="paid" class="staff-payment-status-btn" onclick="setStaffPaymentStatusFilter('paid')" style="padding:8px 12px;border:1px solid {% if payment_status_filter == 'paid' %}#10b981{% else %}#cbd5e1{% endif %};background:{% if payment_status_filter == 'paid' %}#dcfce7{% else %}#fff{% endif %};color:#065f46;border-radius:8px;font-size:13px;cursor:pointer;">Ödeme Yapıldı</button>
 		</div>
 		<noscript><button type="submit" style="padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-weight:500;cursor:pointer;">Filtrele</button></noscript>
 	</form>
 	<script>
+	const STAFF_PAYMENT_STATUS_STYLES = {
+		needs_payment: { border: '#ef4444', bg: '#fee2e2', color: '#991b1b' },
+		waiting: { border: '#f59e0b', bg: '#fffbeb', color: '#92400e' },
+		paid: { border: '#10b981', bg: '#dcfce7', color: '#065f46' },
+	};
+
+	function updateStaffPaymentStatusButtons(activeStatus) {
+		document.querySelectorAll('.staff-payment-status-btn').forEach(function(btn) {
+			const status = btn.getAttribute('data-payment-status');
+			const styles = STAFF_PAYMENT_STATUS_STYLES[status];
+			const isActive = status === activeStatus;
+			btn.style.borderColor = isActive ? styles.border : '#cbd5e1';
+			btn.style.background = isActive ? styles.bg : '#fff';
+			btn.style.color = isActive ? styles.color : '#0f172a';
+		});
+	}
+
+	async function loadStaffPaymentStatusResults(statusFilter) {
+		const container = document.getElementById('payment-status-results');
+		const daySelect = document.getElementById('payment_day_filter');
+		const hiddenInput = document.getElementById('payment_status_filter_input');
+		if (!container || !hiddenInput) return;
+
+		const paymentDay = daySelect ? daySelect.value : '';
+		hiddenInput.value = statusFilter;
+		updateStaffPaymentStatusButtons(statusFilter);
+		container.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px;">Yükleniyor...</p>';
+
+		const params = new URLSearchParams({
+			payment_status_filter: statusFilter,
+			payment_day_filter: paymentDay,
+			variant: 'staff',
+		});
+
+		try {
+			const response = await fetch('/ui/payment-status/partial?' + params.toString());
+			if (!response.ok) throw new Error('load failed');
+			container.innerHTML = await response.text();
+			const url = new URL(window.location.href);
+			url.searchParams.set('payment_status_filter', statusFilter);
+			if (paymentDay) {
+				url.searchParams.set('payment_day_filter', paymentDay);
+			} else {
+				url.searchParams.delete('payment_day_filter');
+			}
+			history.replaceState({}, '', url.toString());
+		} catch (err) {
+			container.innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Liste yüklenemedi. Lütfen tekrar deneyin.</p>';
+		}
+	}
+
 	function setStaffPaymentStatusFilter(value) {
-		const input = document.getElementById('payment_status_filter_input');
-		const form = document.getElementById('staff-payment-filter-form');
-		if (input && form) {
-			input.value = value;
-			form.submit();
+		loadStaffPaymentStatusResults(value);
+	}
+
+	function onStaffPaymentDayChange() {
+		const status = document.getElementById('payment_status_filter_input')?.value || '';
+		if (status) {
+			loadStaffPaymentStatusResults(status);
 		}
 	}
 	</script>
+	<div id="payment-status-results">
 	{% if payment_status_filter in ['needs_payment', 'waiting', 'paid'] %}
-	{% if payment_status_list %}
-	<div class="table-wrap">
-		<table>
-			<thead>
-				<tr>
-					<th>Öğrenci Adı</th>
-					<th>Ders Günleri</th>
-					<th>Kurslar</th>
-					<th>Toplam Ders</th>
-					<th>Yapılan Ödeme</th>
-					<th>Durum</th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for item in payment_status_list %}
-				<tr style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
-					<td>
-						<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
-							{{ item.student.first_name }} {{ item.student.last_name }}
-						</strong>
-					</td>
-					<td>{{ item.lesson_days }}</td>
-					<td>{{ item.lesson_courses }}</td>
-					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{{ item.total_lessons }}
-					</td>
-					<td style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.total_paid_sets > 0 %}
-							{{ item.total_paid_sets }} set — {% if item.last_payment_date %}{{ item.last_payment_date.strftime('%d.%m.%Y') }}{% else %}-{% endif %}
-						{% else %}
-							-
-						{% endif %}
-					</td>
-					<td>
-						{% if item.needs_payment or item.payment_status_class == 'needs_payment' %}
-						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status or '⚠️ Ödeme Gerekli' }}</span>
-						{% elif item.payment_status_class == 'paid' %}
-						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status or '✅ Ödeme Yapıldı' }}</span>
-						{% else %}
-						<span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;">{{ item.payment_status or '⏳ Ödeme Bekleniyor' }}</span>
-						{% endif %}
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-		<div class="mobile-card-view">
-			{% for item in payment_status_list %}
-			<div class="mobile-card" style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
-					<div class="mobile-card-row">
-						<div class="mobile-card-label">Öğrenci Adı</div>
-						<div class="mobile-card-value">
-							<strong style="{% if item.needs_payment %}color:#dc2626;{% endif %}">
-								{{ item.student.first_name }} {{ item.student.last_name }}
-							</strong>
-						</div>
-					</div>
-					<div class="mobile-card-row">
-						<div class="mobile-card-label">Ders Günleri</div>
-						<div class="mobile-card-value">{{ item.lesson_days }}</div>
-					</div>
-					<div class="mobile-card-row">
-						<div class="mobile-card-label">Kurslar</div>
-						<div class="mobile-card-value">{{ item.lesson_courses }}</div>
-					</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Toplam Ders</div>
-					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{{ item.total_lessons }}
-					</div>
-				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Yapılan Ödeme</div>
-					<div class="mobile-card-value" style="{% if item.needs_payment %}color:#dc2626;font-weight:600;{% endif %}">
-						{% if item.total_paid_sets > 0 %}
-							{{ item.total_paid_sets }} set — {% if item.last_payment_date %}{{ item.last_payment_date.strftime('%d.%m.%Y') }}{% else %}-{% endif %}
-						{% else %}
-							-
-						{% endif %}
-					</div>
-				</div>
-				<div class="mobile-card-row">
-					<div class="mobile-card-label">Durum</div>
-					<div class="mobile-card-value">
-						{% if item.needs_payment or item.payment_status_class == 'needs_payment' %}
-						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status or '⚠️ Ödeme Gerekli' }}</span>
-						{% elif item.payment_status_class == 'paid' %}
-						<span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status or '✅ Ödeme Yapıldı' }}</span>
-						{% else %}
-						<span style="padding:4px 8px;background:#f59e0b;color:#fff;border-radius:6px;font-size:12px;font-weight:600;display:inline-block;">{{ item.payment_status or '⏳ Ödeme Bekleniyor' }}</span>
-						{% endif %}
-					</div>
-				</div>
-			</div>
-			{% endfor %}
-		</div>
-	</div>
-	{% else %}
-	<p style="color:#64748b;text-align:center;padding:20px;">Seçilen durum için öğrenci bulunmuyor.</p>
-	{% endif %}
+	<p style="color:#64748b;text-align:center;padding:20px;">Yükleniyor...</p>
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		loadStaffPaymentStatusResults('{{ payment_status_filter }}');
+	});
+	</script>
 	{% else %}
 	<p style="color:#64748b;text-align:center;padding:20px;">Listelemek için yukarıdan bir ödeme durumu seçin.</p>
 	{% endif %}
+	</div>
 </div>
 
 <div class="card" id="ders-programi">

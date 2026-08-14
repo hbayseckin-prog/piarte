@@ -1866,7 +1866,16 @@ def lesson_create(
 
 
 @app.get("/lessons/{lesson_id}/attendance/new", response_class=HTMLResponse)
-def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_db), error: str | None = None, duplicate_warning: str | None = None, success: str | None = None):
+def attendance_form(
+    lesson_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    error: str | None = None,
+    duplicate_warning: str | None = None,
+    success: str | None = None,
+    attendance_date: str | None = None,
+    focus_student: str | None = None,
+):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     from datetime import date as date_cls
@@ -1902,6 +1911,19 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
         default_attendance_date = date_cls.today()
     else:
         default_attendance_date = lesson.lesson_date or date_cls.today()
+        if attendance_date and attendance_date.strip():
+            try:
+                y, m, d = map(int, attendance_date.strip().split("-"))
+                default_attendance_date = date_cls(y, m, d)
+            except Exception:
+                pass
+
+    focus_student_id = None
+    if focus_student and focus_student.strip():
+        try:
+            focus_student_id = int(focus_student.strip())
+        except (ValueError, TypeError):
+            focus_student_id = None
     
     # Hata mesajını al
     error_message = None
@@ -1981,6 +2003,7 @@ def attendance_form(lesson_id: int, request: Request, db: Session = Depends(get_
             "lesson": lesson,
             "students_with_status": students_with_payment_status,
             "attendance_date": default_attendance_date.isoformat(),
+            "focus_student_id": focus_student_id,
             "error_message": error_message,
             "success_message": success,
             "today_attendances_summary": today_attendances_summary,

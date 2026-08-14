@@ -40,7 +40,7 @@
 			<input type="hidden" id="attendance_date_hidden" name="attendance_date" value="" />
 			<small style="color:#64748b;">Normal yoklama için bugünün tarihi kullanılır. Telafi dersi için tarih seçebilirsiniz.</small>
 			{% else %}
-			<small style="color:#64748b;">Öğrenciler farklı günde geldiğinde tarihi değiştirerek yoklama alabilirsiniz.</small>
+			<small style="color:#64748b;">Geçmişe dönük yoklama için tarihi değiştirebilirsiniz.</small>
 			{% endif %}
 		</div>
 		<div class="table-wrap">
@@ -48,7 +48,7 @@
 				<thead><tr><th>Öğrenci</th><th>Durum</th></tr></thead>
 				<tbody>
 				{% for item in students_with_status %}
-				<tr style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% endif %}">
+				<tr id="student-{{ item.student.id }}" style="{% if item.needs_payment %}background-color:#fee2e2;border-left:4px solid #ef4444;{% elif focus_student_id == item.student.id %}background-color:#eff6ff;border-left:4px solid #0ea5e9;{% endif %}">
 					<td>
 						<strong style="{% if item.needs_payment %}color:#dc2626;{% elif not item.student.is_active %}color:#991b1b;{% endif %}">
 							{{ item.student.first_name }} {{ item.student.last_name }}
@@ -253,6 +253,15 @@
 		// Sayfa yüklendiğinde kontrol et
 		checkTelafiStatus();
 	})();
+</script>
+{% endif %}
+
+{% if focus_student_id %}
+<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		var row = document.getElementById('student-{{ focus_student_id }}');
+		if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	});
 </script>
 {% endif %}
 

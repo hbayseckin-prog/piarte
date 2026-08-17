@@ -166,4 +166,18 @@ except Exception as e:
 	pass
 
 
+def ensure_push_subscriptions_table():
+	"""push_subscriptions tablosunu olustur."""
+	try:
+		from . import models
+		models.PushSubscription.__table__.create(bind=engine, checkfirst=True)
+	except Exception as e:
+		print(f"push_subscriptions tablosu olusturulurken hata: {e}")
+
+
+try:
+	ensure_push_subscriptions_table()
+except Exception:
+	pass
+
 

@@ -715,6 +715,73 @@ def delete_payment(db: Session, payment_id: int):
 	return False
 
 
+def upsert_push_subscription(
+	db: Session,
+	*,
+	user_id: int,
+	endpoint: str,
+	p256dh_key: str,
+	auth_key: str,
+) -> models.PushSubscription:
+	from datetime import datetime
+
+	existing = db.scalars(
+		select(models.PushSubscription).where(models.PushSubscription.endpoint == endpoint)
+	).first()
+	if existing:
+		existing.user_id = user_id
+		existing.p256dh_key = p256dh_key
+		existing.auth_key = auth_key
+		existing.updated_at = datetime.utcnow()
+		db.commit()
+		db.refresh(existing)
+		return existing
+
+	sub = models.PushSubscription(
+		user_id=user_id,
+		endpoint=endpoint,
+		p256dh_key=p256dh_key,
+		auth_key=auth_key,
+	)
+	db.add(sub)
+	db.commit()
+	db.refresh(sub)
+	return sub
+
+
+def delete_push_subscription_by_endpoint(db: Session, endpoint: str) -> bool:
+	sub = db.scalars(
+		select(models.PushSubscription).where(models.PushSubscription.endpoint == endpoint)
+	).first()
+	if not sub:
+		return False
+	db.delete(sub)
+	db.commit()
+	return True
+
+
+def delete_push_subscriptions_by_ids(db: Session, subscription_ids: list[int]) -> int:
+	if not subscription_ids:
+		return 0
+	rows = db.scalars(
+		select(models.PushSubscription).where(models.PushSubscription.id.in_(subscription_ids))
+	).all()
+	count = len(rows)
+	for row in rows:
+		db.delete(row)
+	if count:
+		db.commit()
+	return count
+
+
+def list_push_subscriptions_for_admins(db: Session):
+	return db.scalars(
+		select(models.PushSubscription)
+		.join(models.User, models.User.id == models.PushSubscription.user_id)
+		.where(models.User.role.in_(["admin", None]))
+	).all()
+
+
 def check_student_payment_status(db: Session, student_id: int):
 	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
 	from datetime import date

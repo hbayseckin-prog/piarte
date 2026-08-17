@@ -11,7 +11,6 @@ import os
 
 from .db import Base, engine, get_db
 from . import crud, schemas, models
-from . import push_notifications
 try:
     from . import excel_sync
 except ImportError:
@@ -253,73 +252,6 @@ def web_manifest():
         media_type="application/manifest+json",
         headers={"Cache-Control": "public, max-age=3600"},
     )
-
-
-@app.get("/sw.js", include_in_schema=False)
-def service_worker():
-    sw_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sw.js")
-    if not os.path.exists(sw_path):
-        raise HTTPException(status_code=404)
-    return FileResponse(
-        sw_path,
-        media_type="application/javascript",
-        headers={
-            "Cache-Control": "public, max-age=3600",
-            "Service-Worker-Allowed": "/",
-        },
-    )
-
-
-@app.get("/api/push/vapid-public-key")
-def push_vapid_public_key(request: Request):
-    user = request.session.get("user")
-    if not user or user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Yetki yok")
-    if not push_notifications.push_enabled():
-        return JSONResponse({"enabled": False, "publicKey": ""})
-    return JSONResponse({
-        "enabled": True,
-        "publicKey": push_notifications.get_vapid_public_key(),
-    })
-
-
-@app.post("/api/push/subscribe")
-async def push_subscribe(request: Request, db: Session = Depends(get_db)):
-    user = request.session.get("user")
-    if not user or user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Yetki yok")
-    if not user.get("id"):
-        raise HTTPException(status_code=400, detail="Kullanici oturumu gecersiz")
-
-    body = await request.json()
-    endpoint = (body.get("endpoint") or "").strip()
-    keys = body.get("keys") or {}
-    p256dh_key = (keys.get("p256dh") or "").strip()
-    auth_key = (keys.get("auth") or "").strip()
-    if not endpoint or not p256dh_key or not auth_key:
-        raise HTTPException(status_code=400, detail="Gecersiz abonelik")
-
-    crud.upsert_push_subscription(
-        db,
-        user_id=int(user["id"]),
-        endpoint=endpoint,
-        p256dh_key=p256dh_key,
-        auth_key=auth_key,
-    )
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/push/unsubscribe")
-async def push_unsubscribe(request: Request, db: Session = Depends(get_db)):
-    user = request.session.get("user")
-    if not user or user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Yetki yok")
-
-    body = await request.json()
-    endpoint = (body.get("endpoint") or "").strip()
-    if endpoint:
-        crud.delete_push_subscription_by_endpoint(db, endpoint)
-    return JSONResponse({"ok": True})
 
 
 # iframe güvenlik header'ları için middleware
@@ -1781,8 +1713,7 @@ def payment_create(
         method=method,
         note=note,
     )
-    payment = crud.create_payment(db, payload)
-    push_notifications.maybe_notify_admins_for_staff_cash_payment(db, payment, user)
+    crud.create_payment(db, payload)
     set_flash_success(request, "Ödeme başarıyla kaydedildi.")
     return RedirectResponse(url=safe_return_url(return_to, default_panel_url(user)), status_code=302)
 
@@ -4324,13 +4255,11 @@ async def staff_retrospective_payment(
         payment_date_obj = date.today()
         payment_data = schemas.PaymentCreate(
             student_id=student_id,
-            amount_try=amount,
+            amount=amount,
             payment_date=payment_date_obj,
-            method="Nakit",
             note=note or f"Staff paneli - {payment_date_obj.isoformat()}"
         )
-        payment = crud.create_payment(db, payment_data)
-        push_notifications.maybe_notify_admins_for_staff_cash_payment(db, payment, user)
+        crud.create_payment(db, payment_data)
         
         return RedirectResponse(
             url=f"/ui/staff?success=Ödeme kaydı başarıyla oluşturuldu",

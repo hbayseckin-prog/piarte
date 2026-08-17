@@ -17,18 +17,6 @@ class User(Base):
 	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
-class PushSubscription(Base):
-	__tablename__ = "push_subscriptions"
-
-	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-	endpoint: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-	p256dh_key: Mapped[str] = mapped_column(String(255), nullable=False)
-	auth_key: Mapped[str] = mapped_column(String(255), nullable=False)
-	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-	updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
 class Student(Base):
 	__tablename__ = "students"
 

@@ -186,9 +186,20 @@ if os.path.exists(base_dir):
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
+    icon_path = os.path.join(base_dir, "icons", "piarte-icon-192.png")
+    if os.path.exists(icon_path):
+        return FileResponse(icon_path, media_type="image/png")
     logo_path = os.path.join(base_dir, "piarte_logo.jpg")
     if os.path.exists(logo_path):
         return FileResponse(logo_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def web_manifest():
+    manifest_path = os.path.join(base_dir, "manifest.webmanifest")
+    if os.path.exists(manifest_path):
+        return FileResponse(manifest_path, media_type="application/manifest+json")
     raise HTTPException(status_code=404)
 
 

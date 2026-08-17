@@ -510,16 +510,7 @@ def list_lessons_by_student(db: Session, student_id: int):
 	return db.scalars(stmt).all()
 
 
-def lessons_with_students_by_teacher(db: Session, teacher_id: int):
-	from sqlalchemy.orm import joinedload
-	lessons = db.query(models.Lesson).options(
-		joinedload(models.Lesson.course),
-		joinedload(models.Lesson.teacher)
-	).filter(models.Lesson.teacher_id == teacher_id).order_by(
-		models.Lesson.lesson_date.asc(),
-		models.Lesson.start_time.asc()
-	).all()
-
+def _lessons_with_students_from_lesson_rows(db: Session, lessons: list) -> list[dict]:
 	if not lessons:
 		return []
 
@@ -540,24 +531,116 @@ def lessons_with_students_by_teacher(db: Session, teacher_id: int):
 		if student:
 			students_by_lesson[row.lesson_id].append(student)
 
+	empty_lesson_ids = [lesson_id for lesson_id in lesson_ids if not students_by_lesson[lesson_id]]
+	if empty_lesson_ids:
+		attendance_rows = db.scalars(
+			select(models.Attendance)
+			.where(models.Attendance.lesson_id.in_(empty_lesson_ids))
+			.order_by(models.Attendance.lesson_id, models.Attendance.marked_at.desc())
+		).all()
+		latest_by_lesson: dict[int, models.Attendance] = {}
+		for attendance in attendance_rows:
+			if attendance.lesson_id not in latest_by_lesson:
+				latest_by_lesson[attendance.lesson_id] = attendance
+		missing_student_ids = {
+			attendance.student_id
+			for attendance in latest_by_lesson.values()
+			if attendance.student_id and attendance.student_id not in students_map
+		}
+		if missing_student_ids:
+			for student in db.scalars(
+				select(models.Student).where(models.Student.id.in_(missing_student_ids))
+			).all():
+				students_map[student.id] = student
+		for lesson_id, attendance in latest_by_lesson.items():
+			if attendance.student_id:
+				fallback_student = students_map.get(attendance.student_id)
+				if fallback_student:
+					students_by_lesson[lesson_id] = [fallback_student]
+
 	out = []
 	for lesson in lessons:
-		lesson_students = students_by_lesson.get(lesson.id, [])
-		if not lesson_students:
-			last_attendance = db.scalars(
-				select(models.Attendance)
-				.where(models.Attendance.lesson_id == lesson.id)
-				.order_by(models.Attendance.marked_at.desc())
-			).first()
-			if last_attendance and last_attendance.student_id:
-				fallback_student = students_map.get(last_attendance.student_id) or db.get(models.Student, last_attendance.student_id)
-				if fallback_student:
-					lesson_students = [fallback_student]
-		out.append({"lesson": lesson, "students": lesson_students})
+		out.append({"lesson": lesson, "students": students_by_lesson.get(lesson.id, [])})
 	return out
 
 
+def lessons_with_students_by_teacher(db: Session, teacher_id: int):
+	from sqlalchemy.orm import joinedload
+	lessons = db.query(models.Lesson).options(
+		joinedload(models.Lesson.course),
+		joinedload(models.Lesson.teacher)
+	).filter(models.Lesson.teacher_id == teacher_id).order_by(
+		models.Lesson.lesson_date.asc(),
+		models.Lesson.start_time.asc()
+	).all()
+	return _lessons_with_students_from_lesson_rows(db, lessons)
+
+
+def lessons_with_students_by_teacher_ids(db: Session, teacher_ids: list[int]) -> dict[int, list[dict]]:
+	from sqlalchemy.orm import joinedload
+	if not teacher_ids:
+		return {}
+
+	lessons = db.query(models.Lesson).options(
+		joinedload(models.Lesson.course),
+		joinedload(models.Lesson.teacher)
+	).filter(models.Lesson.teacher_id.in_(teacher_ids)).order_by(
+		models.Lesson.teacher_id.asc(),
+		models.Lesson.lesson_date.asc(),
+		models.Lesson.start_time.asc(),
+	).all()
+
+	lessons_by_teacher: dict[int, list] = {teacher_id: [] for teacher_id in teacher_ids}
+	for lesson in lessons:
+		lessons_by_teacher.setdefault(lesson.teacher_id, []).append(lesson)
+
+	return {
+		teacher_id: _lessons_with_students_from_lesson_rows(db, teacher_lessons)
+		for teacher_id, teacher_lessons in lessons_by_teacher.items()
+		if teacher_lessons
+	}
+
+
 # Attendance
+def find_attendance_duplicate_student_ids(
+	db: Session,
+	*,
+	lesson_id: int,
+	student_ids: list[int],
+	attendance_date,
+) -> set[int]:
+	if not student_ids:
+		return set()
+	from sqlalchemy import func
+	rows = db.scalars(
+		select(models.Attendance.student_id)
+		.where(
+			models.Attendance.lesson_id == lesson_id,
+			models.Attendance.student_id.in_(student_ids),
+			func.date(models.Attendance.marked_at) == attendance_date,
+		)
+	).all()
+	return set(rows)
+
+
+def create_attendances_bulk(db: Session, items: list[schemas.AttendanceCreate]) -> int:
+	if not items:
+		return 0
+	from datetime import datetime
+	for item in items:
+		db.add(
+			models.Attendance(
+				lesson_id=item.lesson_id,
+				student_id=item.student_id,
+				status=str(item.status).strip().upper(),
+				marked_at=item.marked_at or datetime.utcnow(),
+				note=item.note if hasattr(item, "note") and item.note else None,
+			)
+		)
+	db.commit()
+	return len(items)
+
+
 def mark_attendance(db: Session, data: schemas.AttendanceCreate, commit: bool = True):
 	# Her yoklama ayrı bir kayıt olarak oluşturulur - mevcut kayıt kontrolü yok
 	import logging

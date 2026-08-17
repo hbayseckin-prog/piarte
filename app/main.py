@@ -133,6 +133,37 @@ def dedupe_daily_students_in_schedule(entries: list[dict]) -> list[dict]:
     return filtered_entries
 
 
+def format_lessons_for_schedule(entries: list[dict]) -> list[dict]:
+    weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    formatted_lessons = []
+    for entry in entries:
+        lesson = entry["lesson"]
+        students_for_view = filter_students_by_passive_flag(entry["students"], False)
+        if not students_for_view:
+            continue
+        weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+        current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
+        formatted_lessons.append({
+            "weekday": weekday,
+            "lesson": lesson,
+            "current_lesson_date": current_lesson_date,
+            "students": students_for_view,
+        })
+    return dedupe_daily_students_in_schedule(formatted_lessons)
+
+
+def build_teachers_schedules(db: Session, teachers: list) -> list[dict]:
+    lessons_by_teacher = crud.lessons_with_students_by_teacher_ids(db, [teacher.id for teacher in teachers])
+    teachers_schedules = []
+    for teacher in teachers:
+        formatted_lessons = format_lessons_for_schedule(lessons_by_teacher.get(teacher.id, []))
+        teachers_schedules.append({
+            "teacher": teacher,
+            "lessons": formatted_lessons,
+        })
+    return teachers_schedules
+
+
 # Alt klasör desteği için root_path (eğer /piarte altında çalışıyorsa)
 # Production'da environment variable veya Nginx yapılandırması ile ayarlanabilir
 ROOT_PATH = os.getenv("ROOT_PATH", "")  # Varsayılan: boş (root'ta çalışır)
@@ -878,32 +909,7 @@ def dashboard(
             attendance_report = filtered_report
     
     # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
-    from datetime import datetime
-    weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-    teachers_schedules = []
-    for teacher in teachers:
-        lessons_with_students = crud.lessons_with_students_by_teacher(db, teacher.id)
-        formatted_lessons = []
-        for entry in lessons_with_students:
-            lesson = entry["lesson"]
-            students_for_view = filter_students_by_passive_flag(entry["students"], False)
-            if not students_for_view:
-                # Öğrencisi olmayan dersleri program grid'inde gizle
-                continue
-            weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-            # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
-            current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
-            formatted_lessons.append({
-                "weekday": weekday,
-                "lesson": lesson,
-                "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": students_for_view,
-            })
-        formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
-        teachers_schedules.append({
-            "teacher": teacher,
-            "lessons": formatted_lessons
-        })
+    teachers_schedules = build_teachers_schedules(db, teachers)
     
     # Ödeme durumu listesi ve ders bilgileri (sadece admin için)
     students_needing_payment = []
@@ -1377,25 +1383,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
         
         # Seçilen öğretmenin derslerini getir
         lessons_with_students = crud.lessons_with_students_by_teacher(db, display_teacher_id)
-        from datetime import datetime
-        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-        formatted_lessons = []
-        for entry in lessons_with_students:
-            lesson = entry["lesson"]
-            students_for_view = filter_students_by_passive_flag(entry["students"], False)
-            if not students_for_view:
-                # Öğrencisi olmayan dersleri program grid'inde gizle
-                continue
-            weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-            # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
-            current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
-            formatted_lessons.append({
-                "weekday": weekday,
-                "lesson": lesson,
-                "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                "students": students_for_view,
-            })
-        formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
+        formatted_lessons = format_lessons_for_schedule(lessons_with_students)
         # Öğretmene atanmış öğrencileri getir
         teacher_students = []
         if current_teacher_id:
@@ -1423,30 +1411,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 teacher_students = []
         
         # Tüm öğretmenler için haftalık ders programını hazırla (saat bazlı grid için)
-        teachers_schedules = []
-        for teacher in all_teachers:
-            teacher_lessons = crud.lessons_with_students_by_teacher(db, teacher.id)
-            teacher_formatted_lessons = []
-            for entry in teacher_lessons:
-                lesson = entry["lesson"]
-                students_for_view = filter_students_by_passive_flag(entry["students"], False)
-                if not students_for_view:
-                    # Öğrencisi olmayan dersleri program grid'inde gizle
-                    continue
-                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-                # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
-                current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
-                teacher_formatted_lessons.append({
-                    "weekday": weekday,
-                    "lesson": lesson,
-                    "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": students_for_view,
-                })
-            teacher_formatted_lessons = dedupe_daily_students_in_schedule(teacher_formatted_lessons)
-            teachers_schedules.append({
-                "teacher": teacher,
-                "lessons": teacher_formatted_lessons
-            })
+        teachers_schedules = build_teachers_schedules(db, all_teachers)
         
         # Puantaj raporunu hesapla (sadece kendi öğretmeni için)
         attendance_report = []
@@ -2178,87 +2143,58 @@ def correct_attendance_from_schedule(
 
 @app.post("/lessons/{lesson_id}/attendance/new")
 async def attendance_create(lesson_id: int, request: Request, db: Session = Depends(get_db)):
-    # #region agent log
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_entry", "timestamp": int(time.time() * 1000), "location": "main.py:1009", "message": "attendance_create endpoint called", "data": {"lesson_id": lesson_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
-    
+    import logging
+    from datetime import date as date_cls, datetime, time as time_cls
+
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     user = request.session.get("user")
     lesson = db.get(models.Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Ders bulunamadı")
-    allowed_student_ids = None
-    if user.get("role") == "teacher":
-        if lesson.teacher_id != user.get("teacher_id"):
-            return RedirectResponse(url="/ui/teacher", status_code=302)
-        # Pasif öğrenciler de derse bağlıysa yoklamaya dahil sayılır (kayıtlar saklı kalır)
-        lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
-        allowed_student_ids = {s.id for s in lesson_students}
-    else:
-        lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
-        allowed_student_ids = {s.id for s in lesson_students}
+    if user.get("role") == "teacher" and lesson.teacher_id != user.get("teacher_id"):
+        return RedirectResponse(url="/ui/teacher", status_code=302)
+
+    lesson_students = crud.list_students_by_lesson(db, lesson_id, active_only=False)
+    allowed_student_ids = {s.id for s in lesson_students}
     form = await request.form()
     return_to_value = form.get("return_to")
     default_return_url = default_panel_url(user)
-    import logging
-    logging.warning(f"🔍 FORM DEBUG: Form alındı, toplam {len(form)} field var")
-    logging.warning(f"🔍 FORM DEBUG: Form keys: {list(form.keys())}")
-    
     attendance_date_raw = form.get("attendance_date")
     marked_at_dt = None
-    from datetime import date as date_cls, datetime, time as time_cls
-    
-    # Öğretmen için tarih kontrolü
+
     if user.get("role") == "teacher":
-        # Önce telafi durumu var mı kontrol et
-        has_telafi = False
-        for key, value in form.items():
-            if key.startswith("status_") and value.strip().upper() == "TELAFI":
-                has_telafi = True
-                break
-        
-        # Telafi yoksa bugünün tarihini kullan
+        has_telafi = any(
+            key.startswith("status_") and (value or "").strip().upper() == "TELAFI"
+            for key, value in form.items()
+        )
         if not has_telafi:
             today = date_cls.today()
             base_time = lesson.start_time or time_cls(hour=12, minute=0)
             if not isinstance(base_time, time_cls):
                 base_time = time_cls(hour=12, minute=0)
             marked_at_dt = datetime.combine(today, base_time)
-        else:
-            # Telafi varsa seçilen tarihi kullan, yoksa bugünün tarihini kullan
-            if attendance_date_raw and attendance_date_raw.strip():
-                try:
-                    year, month, day = map(int, attendance_date_raw.split("-"))
-                    chosen_date = date_cls(year, month, day)
-                    base_time = lesson.start_time or time_cls(hour=12, minute=0)
-                    if not isinstance(base_time, time_cls):
-                        base_time = time_cls(hour=12, minute=0)
-                    marked_at_dt = datetime.combine(chosen_date, base_time)
-                except Exception:
-                    # Hata durumunda bugünün tarihini kullan
-                    today = date_cls.today()
-                    base_time = lesson.start_time or time_cls(hour=12, minute=0)
-                    if not isinstance(base_time, time_cls):
-                        base_time = time_cls(hour=12, minute=0)
-                    marked_at_dt = datetime.combine(today, base_time)
-            else:
-                # Tarih gönderilmemişse (disabled input) bugünün tarihini kullan
+        elif attendance_date_raw and attendance_date_raw.strip():
+            try:
+                year, month, day = map(int, attendance_date_raw.split("-"))
+                chosen_date = date_cls(year, month, day)
+                base_time = lesson.start_time or time_cls(hour=12, minute=0)
+                if not isinstance(base_time, time_cls):
+                    base_time = time_cls(hour=12, minute=0)
+                marked_at_dt = datetime.combine(chosen_date, base_time)
+            except Exception:
                 today = date_cls.today()
                 base_time = lesson.start_time or time_cls(hour=12, minute=0)
                 if not isinstance(base_time, time_cls):
                     base_time = time_cls(hour=12, minute=0)
                 marked_at_dt = datetime.combine(today, base_time)
+        else:
+            today = date_cls.today()
+            base_time = lesson.start_time or time_cls(hour=12, minute=0)
+            if not isinstance(base_time, time_cls):
+                base_time = time_cls(hour=12, minute=0)
+            marked_at_dt = datetime.combine(today, base_time)
     elif attendance_date_raw:
-        # Admin/staff için normal tarih seçimi
         try:
             year, month, day = map(int, attendance_date_raw.split("-"))
             chosen_date = date_cls(year, month, day)
@@ -2268,312 +2204,106 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = datetime.combine(chosen_date, base_time)
         except Exception:
             marked_at_dt = None
-    
-    # Expect fields like status_<student_id> = PRESENT|UNEXCUSED_ABSENT|EXCUSED_ABSENT|TELAFI
-    # ÖNEMLİ: Her öğrenci için ayrı ayrı status değeri alınmalı
-    to_create = []
-    
-    # Önce tüm form değerlerini logla
-    logging.warning(f"🔍 FORM DEBUG: === FORM VERİLERİ ===")
-    logging.warning(f"🔍 FORM DEBUG: Ders ID: {lesson_id}")
-    logging.warning(f"🔍 FORM DEBUG: Allowed student IDs: {allowed_student_ids}")
-    status_fields = []
-    for key, value in form.items():
-        if key.startswith("status_"):
-            status_fields.append(f"{key}={value}")
-            logging.warning(f"🔍 FORM DEBUG:   {key} = '{value}'")
-    logging.warning(f"🔍 FORM DEBUG: Toplam {len(status_fields)} status field bulundu: {status_fields}")
-    
-    passive_attempted_student_names = []
-    # Her öğrenci için status değerini al
+
+    valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
+    to_create: list[schemas.AttendanceCreate] = []
+    passive_attempted_student_names: list[str] = []
+
     for key, value in form.items():
         if not key.startswith("status_"):
             continue
         try:
             sid = int(key.split("_", 1)[1])
         except Exception:
-            logging.warning(f"Geçersiz status key: {key}")
             continue
-        if allowed_student_ids is not None and sid not in allowed_student_ids:
-            logging.warning(f"🔍 FORM DEBUG: Öğrenci {sid} bu derse atanmamış (allowed: {allowed_student_ids}), atlanıyor")
-            # Öğretmen tarafında pasif öğrenciye yoklama giriş denemesini ayrı mesajla bildir.
+        if sid not in allowed_student_ids:
             if user.get("role") == "teacher":
                 blocked_student = db.get(models.Student, sid)
-                if blocked_student and blocked_student.is_active == False:
-                    passive_attempted_student_names.append(f"{blocked_student.first_name} {blocked_student.last_name}")
+                if blocked_student and blocked_student.is_active is False:
+                    passive_attempted_student_names.append(
+                        f"{blocked_student.first_name} {blocked_student.last_name}"
+                    )
             continue
-        
-        # Form'dan gelen değeri al - DEĞİŞTİRME, OLDUĞU GİBİ KULLAN
+
         status_raw = (value or "").strip()
-        
-        # Boş değerleri atla
         if not status_raw:
-            logging.warning(f"🔍 FORM DEBUG: Öğrenci {sid}: Boş değer, atlanıyor")
             continue
-        
-        # Status değerini büyük harfe çevir
         status = status_raw.upper()
-        
-        # Eski ABSENT değerlerini UNEXCUSED_ABSENT'e çevir (geriye dönük uyumluluk)
         if status == "ABSENT":
             status = "UNEXCUSED_ABSENT"
-        
-        # Eski LATE değerlerini TELAFI'ye çevir (geriye dönük uyumluluk)
         if status == "LATE":
             status = "TELAFI"
-        
-        # Geçerli status değerlerini kontrol et
-        valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
         if status not in valid_statuses:
-            logging.error(f"❌ Öğrenci {sid}: Geçersiz durum '{status}' (ham: '{value}')")
             continue
-        
-        # Status değerini doğrulayarak ekle
-        status_map = {
-            "PRESENT": "Geldi",
-            "EXCUSED_ABSENT": "Haberli Gelmedi",
-            "TELAFI": "Telafi",
-            "UNEXCUSED_ABSENT": "Habersiz Gelmedi"
-        }
-        import logging
-        logging.warning(f"✅ YOKLAMA KAYDI: Öğrenci {sid}, Ders {lesson_id}, Durum: {status} ({status_map.get(status, 'Bilinmeyen')})")
-        
+
         to_create.append(
             schemas.AttendanceCreate(
                 lesson_id=lesson_id,
                 student_id=sid,
-                status=status,  # DOĞRUDAN status değerini kullan
+                status=status,
                 marked_at=marked_at_dt,
             )
         )
-    success_count = 0
-    error_count = 0
-    errors = []
-    
-    # Debug: Gönderilen yoklama verilerini logla
-    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ ===")
-    logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
-    for item in to_create:
-        logging.info(f"  Öğrenci {item.student_id} -> Durum: {item.status}")
-    
-    # #region agent log - to_create listesi kontrolü
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-    try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_to_create", "timestamp": int(time.time() * 1000), "location": "main.py:1195", "message": "to_create list before processing", "data": {"count": len(to_create), "items": [{"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status} for item in to_create]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
-    
-    # ÖNEMLİ: Her kaydı ayrı ayrı commit et - daha güvenli
-    # Böylece bir kayıt başarısız olsa bile diğerleri kaydedilir
-    import logging
-    import traceback
-    from sqlalchemy import select
-    
-    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ BAŞLADI ===")
-    logging.info(f"Toplam {len(to_create)} kayıt işlenecek")
-    
-    # Aynı gün içinde aynı öğrenciye tekrar yoklama girilip girilmediğini kontrol et
-    # Hem öğretmen hem staff panelinden yoklama alırken uyarı ver
-    if marked_at_dt and user.get("role") in ["teacher", "staff"]:
-        from datetime import date as date_cls
-        from sqlalchemy import func
-        attendance_date = marked_at_dt.date()
-        duplicate_students = []
-        
-        for item in to_create:
-            # Aynı gün içinde bu öğrenci için yoklama kaydı var mı kontrol et
-            existing_attendance = db.scalars(
-                select(models.Attendance)
-                .where(
-                    models.Attendance.student_id == item.student_id,
-                    models.Attendance.lesson_id == item.lesson_id,
-                    func.date(models.Attendance.marked_at) == attendance_date
+
+    if marked_at_dt and user.get("role") in ("teacher", "staff") and to_create:
+        duplicate_ids = crud.find_attendance_duplicate_student_ids(
+            db,
+            lesson_id=lesson_id,
+            student_ids=[item.student_id for item in to_create],
+            attendance_date=marked_at_dt.date(),
+        )
+        if duplicate_ids:
+            duplicate_students = []
+            for item in to_create:
+                if item.student_id in duplicate_ids:
+                    student = db.get(models.Student, item.student_id)
+                    if student:
+                        duplicate_students.append(f"{student.first_name} {student.last_name}")
+            if duplicate_students:
+                duplicate_message = (
+                    f"Daha önce bu öğrenci{'ler' if len(duplicate_students) > 1 else ''} "
+                    f"için yoklama almışsınız: {', '.join(duplicate_students)}"
                 )
-            ).first()
-            
-            if existing_attendance:
-                student = db.get(models.Student, item.student_id)
-                if student:
-                    duplicate_students.append(f"{student.first_name} {student.last_name}")
-        
-        if duplicate_students:
-            # Uyarı mesajı göster
-            duplicate_message = f"Daha önce bu öğrenci{'ler' if len(duplicate_students) > 1 else ''} için yoklama almışsınız: {', '.join(duplicate_students)}"
-            request.session["attendance_duplicate_warning"] = duplicate_message
-            return RedirectResponse(
-                url=attendance_new_url(lesson_id, return_to_value, duplicate_warning="true"),
-                status_code=302,
-            )
-    
-    # Eğer to_create boşsa, hata ver
-    if len(to_create) == 0:
-        logging.error("❌ HATA: to_create listesi boş! Form verileri parse edilemedi!")
-        logging.error(f"❌ HATA: Form'da {len(status_fields)} status field var ama hepsi boş!")
-        logging.error(f"❌ HATA: Derse atanmış öğrenci sayısı: {len(lesson_students) if 'lesson_students' in locals() else 0}")
-        # Eğer hiç öğrenci yoksa farklı mesaj göster
+                request.session["attendance_duplicate_warning"] = duplicate_message
+                return RedirectResponse(
+                    url=attendance_new_url(lesson_id, return_to_value, duplicate_warning="true"),
+                    status_code=302,
+                )
+
+    if not to_create:
         if user.get("role") == "teacher" and passive_attempted_student_names:
             names = ", ".join(dict.fromkeys(passive_attempted_student_names))
             request.session["attendance_errors"] = f"Pasif öğrenciler için yoklama alınamaz: {names}"
-            return RedirectResponse(
-                url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
-                status_code=302,
-            )
-        if len(lesson_students) == 0:
+        elif len(lesson_students) == 0:
             request.session["attendance_errors"] = "Bu derse henüz öğrenci atanmamış. Lütfen önce öğrenci atayın."
         else:
-            request.session["attendance_errors"] = "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin (Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
+            request.session["attendance_errors"] = (
+                "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin "
+                "(Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
+            )
         return RedirectResponse(
             url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
             status_code=302,
         )
-    
-    for item in to_create:
-        try:
-            logging.info(f"[{item.student_id}] Kaydediliyor: Durum='{item.status}', Ders={item.lesson_id}")
-            
-            # #region agent log
-            import json, os, time
-            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-            try:
-                lesson_check = db.get(models.Lesson, item.lesson_id)
-                student_check = db.get(models.Student, item.student_id)
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_precheck", "timestamp": int(time.time() * 1000), "location": "main.py:1158", "message": "Pre-check before saving attendance", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "lesson_exists": lesson_check is not None, "student_exists": student_check is not None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
-            except Exception as e:
-                import logging
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-            
-            # Her yoklama ayrı bir kayıt olarak oluşturulur - mevcut kayıt kontrolü yok
-            from datetime import datetime
-            import logging
-            
-            attendance = models.Attendance(
-                lesson_id=item.lesson_id,
-                student_id=item.student_id,
-                status=str(item.status).strip().upper(),
-                marked_at=item.marked_at or datetime.utcnow()
-            )
-            db.add(attendance)
-            logging.warning(f"➕ [{item.student_id}] YENİ yoklama kaydı oluşturuluyor: Ders={item.lesson_id}, Durum='{attendance.status}'")
-            
-            # NOT: Yoklama alındığında LessonStudent ilişkisi oluşturulmaz
-            # LessonStudent ilişkisi sadece öğrenci derse kayıt yapıldığında oluşturulur
-            # Yoklama almak için öğrencinin derse kayıtlı olması gerekir
-            
-            # #region agent log
-            import json, os, time
-            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-            try:
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_create", "timestamp": int(time.time() * 1000), "location": "main.py:attendance_create", "message": "New attendance record created", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": attendance.status}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            except Exception as e:
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-            
-            # Hemen commit et - exception handling ile
-            try:
-                db.commit()
-                # Refresh yap
-                db.refresh(attendance)
-                logging.info(f"[{item.student_id}] ✅ COMMIT BAŞARILI")
-            except Exception as commit_error:
-                db.rollback()
-                error_count += 1
-                errors.append(f"Commit hatası (öğrenci {item.student_id}): {commit_error}")
-                logging.error(f"[{item.student_id}] ❌ COMMIT HATASI: {commit_error}")
-                logging.error(traceback.format_exc())
-                continue
-            
-            # #region agent log
-            import json, os, time
-            log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
-            try:
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                attendance_id = attendance.id if 'attendance' in locals() else None
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_commit", "timestamp": int(time.time() * 1000), "location": "main.py:1322", "message": "Attendance commit successful", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "status": item.status, "attendance_id": attendance_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            except Exception as e:
-                import logging
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-            
-            # Doğrula - YENİ SESSION ile (commit sonrası)
-            db.flush()  # Önce flush yap
-            saved = db.scalars(
-                select(models.Attendance).where(
-                    models.Attendance.lesson_id == item.lesson_id,
-                    models.Attendance.student_id == item.student_id
-                )
-            ).first()
-            
-            # #region agent log
-            try:
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"id": f"log_{int(time.time())}_{item.student_id}_verify", "timestamp": int(time.time() * 1000), "location": "main.py:1348", "message": "Attendance verification query", "data": {"student_id": item.student_id, "lesson_id": item.lesson_id, "found": saved is not None, "saved_id": saved.id if saved else None, "saved_status": saved.status if saved else None}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            except Exception as e:
-                import logging
-                logging.error(f"Debug log error: {e}")
-            # #endregion
-            
-            if saved:
-                success_count += 1
-                logging.info(f"[{item.student_id}] ✅ DOĞRULAMA BAŞARILI - ID: {saved.id}, Durum: {saved.status}")
-            else:
-                error_count += 1
-                logging.error(f"[{item.student_id}] ❌ DOĞRULAMA BAŞARISIZ - VERİTABANINDA BULUNAMADI!")
-                errors.append(f"Yoklama doğrulanamadı: {item.student_id}")
-                
-        except Exception as e:
-            error_count += 1
-            errors.append(f"Yoklama kayıt hatası (öğrenci {item.student_id}): {e}")
-            logging.error(f"[{item.student_id}] ❌ HATA: {e}")
-            logging.error(traceback.format_exc())
-            try:
-                db.rollback()
-            except:
-                pass
-            continue
-    
-    logging.info(f"=== YOKLAMA KAYIT İŞLEMİ TAMAMLANDI ===")
-    logging.info(f"Başarılı: {success_count}, Hatalı: {error_count}")
-    
-    # #region agent log - Final verification: Check all attendances in DB
-    import json, os, time
-    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cursor", "debug.log")
+
     try:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        # Final check: Get all attendances from DB to verify they were saved
-        all_attendances_final = db.scalars(select(models.Attendance)).all()
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_final_check", "timestamp": int(time.time() * 1000), "location": "main.py:1321", "message": "Final check - all attendances in DB after save", "data": {"total_count": len(all_attendances_final), "attendance_ids": [a.id for a in all_attendances_final], "lesson_ids": list(set([a.lesson_id for a in all_attendances_final])), "success_count": success_count, "error_count": error_count}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-    except Exception as e:
-        import logging
-        logging.error(f"Debug log error: {e}")
-    # #endregion
-    
-    if success_count > 0:
-        if success_count == 1:
-            success_msg = "Yoklama başarıyla kaydedildi."
-        else:
-            success_msg = f"{success_count} öğrenci için yoklama kaydedildi."
-        if error_count > 0:
-            success_msg += f" ({error_count} kayıt kaydedilemedi.)"
-        set_flash_success(request, success_msg)
+        success_count = crud.create_attendances_bulk(db, to_create)
+    except Exception as exc:
+        db.rollback()
+        logging.error("Yoklama kaydedilemedi: %s", exc)
+        request.session["attendance_errors"] = "Yoklama kaydedilirken bir hata oluştu."
         return RedirectResponse(
-            url=safe_return_url(return_to_value, default_return_url),
+            url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
             status_code=302,
         )
-    if error_count > 0:
-        request.session["attendance_errors"] = f"{error_count} kayıt kaydedilemedi."
+
+    if success_count == 1:
+        success_msg = "Yoklama başarıyla kaydedildi."
+    else:
+        success_msg = f"{success_count} öğrenci için yoklama kaydedildi."
+    set_flash_success(request, success_msg)
     return RedirectResponse(
-        url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
+        url=safe_return_url(return_to_value, default_return_url),
         status_code=302,
     )
 
@@ -3784,33 +3514,7 @@ def staff_panel(
         teachers = crud.list_teachers(db)
         
         # Her öğretmen için haftalık ders programını hazırla
-        from datetime import datetime
-        weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-        teachers_schedules = []
-        
-        for teacher in teachers:
-            lessons_with_students = crud.lessons_with_students_by_teacher(db, teacher.id)
-            formatted_lessons = []
-            for entry in lessons_with_students:
-                lesson = entry["lesson"]
-                students_for_view = filter_students_by_passive_flag(entry["students"], False)
-                if not students_for_view:
-                    # Öğrencisi olmayan dersleri program grid'inde gizle
-                    continue
-                weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
-                # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
-                current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
-                formatted_lessons.append({
-                    "weekday": weekday,
-                    "lesson": lesson,
-                    "current_lesson_date": current_lesson_date,  # Dinamik hesaplanan tarih
-                    "students": students_for_view,
-                })
-            formatted_lessons = dedupe_daily_students_in_schedule(formatted_lessons)
-            teachers_schedules.append({
-                "teacher": teacher,
-                "lessons": formatted_lessons
-            })
+        teachers_schedules = build_teachers_schedules(db, teachers)
         
         # Öğrenci arama ve ders programı
         search_results = []

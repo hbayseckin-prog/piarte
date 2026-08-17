@@ -3565,44 +3565,12 @@ def login_admin_form(request: Request):
     login_error = request.session.get("login_error", "")
     if login_error:
         request.session.pop("login_error", None)
-    
-    # Direkt HTML döndür - template'e bağımlı olmadan
-    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
-    
-    html_content = f"""<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Giriş - Piarte</title>
-    <style>
-        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
-        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        h2 {{ margin-top: 0; color: #111827; }}
-        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
-        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
-        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
-        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
-        button:hover {{ background: #1f2937; }}
-        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>Piarte - Admin Girişi</h2>
-        {error_html}
-        <form method="post" action="/login/admin">
-            <label>Kullanıcı adı</label>
-            <input type="text" name="username" required autocomplete="username" />
-            <label>Şifre</label>
-            <input type="password" name="password" required autocomplete="current-password" />
-            <button type="submit">Giriş Yap</button>
-        </form>
-        <p class="info">Sadece yönetici girişi içindir.</p>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content)
+
+    return templates.TemplateResponse(
+        "login_admin.html",
+        {"request": request, "login_error": login_error},
+    )
+
 
 @app.post("/login/admin")
 def login_admin(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
@@ -3669,42 +3637,11 @@ def login_teacher_form(request: Request):
     login_error = request.session.get("login_error", "")
     if login_error:
         request.session.pop("login_error", None)
-    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
-    
-    html_content = f"""<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Öğretmen Giriş - Piarte</title>
-    <style>
-        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
-        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        h2 {{ margin-top: 0; color: #111827; }}
-        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
-        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
-        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
-        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
-        button:hover {{ background: #1f2937; }}
-        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>Piarte - Öğretmen Girişi</h2>
-        {error_html}
-        <form method="post" action="/login/teacher">
-            <label>Kullanıcı adı</label>
-            <input type="text" name="username" required autocomplete="username" />
-            <label>Şifre</label>
-            <input type="password" name="password" required autocomplete="current-password" />
-            <button type="submit">Giriş Yap</button>
-        </form>
-        <p class="info">Sadece öğretmen girişi içindir.</p>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content)
+
+    return templates.TemplateResponse(
+        "login_teacher.html",
+        {"request": request, "login_error": login_error},
+    )
 
 @app.post("/login/teacher")
 def login_teacher(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
@@ -3757,42 +3694,11 @@ def login_staff_form(request: Request):
     login_error = request.session.get("login_error", "")
     if login_error:
         request.session.pop("login_error", None)
-    error_html = f'<div style="padding:12px;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;margin-bottom:16px;color:#dc2626;font-size:14px;">{login_error}</div>' if login_error else ""
-    
-    html_content = f"""<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Personel Giriş - Piarte</title>
-    <style>
-        body {{ font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 420px; margin: auto; background: #f9fafb; }}
-        .card {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 48px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        h2 {{ margin-top: 0; color: #111827; }}
-        label {{ display: block; margin-top: 12px; margin-bottom: 4px; color: #374151; font-weight: 500; }}
-        input {{ padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }}
-        input:focus {{ outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }}
-        button {{ padding: 12px 24px; margin-top: 16px; width: 100%; background: #111827; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }}
-        button:hover {{ background: #1f2937; }}
-        .info {{ color: #6b7280; font-size: 13px; margin-top: 16px; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>Piarte - Personel Girişi</h2>
-        {error_html}
-        <form method="post" action="/login/staff">
-            <label>Kullanıcı adı</label>
-            <input type="text" name="username" required autocomplete="username" />
-            <label>Şifre</label>
-            <input type="password" name="password" required autocomplete="current-password" />
-            <button type="submit">Giriş Yap</button>
-        </form>
-        <p class="info">Sadece personel girişi içindir.</p>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content)
+
+    return templates.TemplateResponse(
+        "login_staff.html",
+        {"request": request, "login_error": login_error},
+    )
 
 @app.post("/login/staff")
 def login_staff(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):

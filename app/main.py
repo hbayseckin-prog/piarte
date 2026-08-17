@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi import Response
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -180,8 +180,28 @@ templates = Jinja2Templates(directory="templates")
 # Static files için - logo ve diğer statik dosyalar (proje root dizini)
 # Logo dosyası root dizininde olduğu için root'u mount ediyoruz
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PWA_ICON_FILES = frozenset({
+    "apple-touch-icon.png",
+    "piarte-icon-192.png",
+    "piarte-icon-512.png",
+    "piarte-icon-512-maskable.png",
+})
 if os.path.exists(base_dir):
     app.mount("/static", StaticFiles(directory=base_dir), name="static")
+
+
+@app.get("/icons/{filename}", name="pwa_icon", include_in_schema=False)
+def pwa_icon(filename: str):
+    if filename not in PWA_ICON_FILES:
+        raise HTTPException(status_code=404)
+    icon_path = os.path.join(base_dir, "icons", filename)
+    if not os.path.exists(icon_path):
+        raise HTTPException(status_code=404)
+    return FileResponse(
+        icon_path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -197,10 +217,41 @@ def favicon():
 
 @app.get("/manifest.webmanifest", include_in_schema=False)
 def web_manifest():
-    manifest_path = os.path.join(base_dir, "manifest.webmanifest")
-    if os.path.exists(manifest_path):
-        return FileResponse(manifest_path, media_type="application/manifest+json")
-    raise HTTPException(status_code=404)
+    return JSONResponse(
+        {
+            "id": "/",
+            "name": "Piarte",
+            "short_name": "Piarte",
+            "description": "Piarte okul yonetim paneli",
+            "start_url": "/dashboard",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#0ea5e9",
+            "icons": [
+                {
+                    "src": "/icons/piarte-icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png",
+                    "purpose": "any",
+                },
+                {
+                    "src": "/icons/piarte-icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any",
+                },
+                {
+                    "src": "/icons/piarte-icon-512-maskable.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "maskable",
+                },
+            ],
+        },
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 # iframe güvenlik header'ları için middleware

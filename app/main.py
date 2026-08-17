@@ -96,6 +96,9 @@ def filter_students_by_passive_flag(students, show_passive_students: bool):
 	return [s for s in students if getattr(s, "is_active", True)]
 
 
+WEEKDAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+
+
 def dedupe_daily_students_in_schedule(entries: list[dict]) -> list[dict]:
     """
     Aynı öğrenci aynı gün birden fazla ders slotunda görünüyorsa tek slotta bırakır.
@@ -134,14 +137,13 @@ def dedupe_daily_students_in_schedule(entries: list[dict]) -> list[dict]:
 
 
 def format_lessons_for_schedule(entries: list[dict]) -> list[dict]:
-    weekday_map = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
     formatted_lessons = []
     for entry in entries:
         lesson = entry["lesson"]
         students_for_view = filter_students_by_passive_flag(entry["students"], False)
         if not students_for_view:
             continue
-        weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+        weekday = WEEKDAY_NAMES[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
         current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
         formatted_lessons.append({
             "weekday": weekday,
@@ -3596,7 +3598,7 @@ def staff_panel(
                 )
                 
                 for lesson in student_lessons:
-                    weekday = weekday_map[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
+                    weekday = WEEKDAY_NAMES[lesson.lesson_date.weekday()] if hasattr(lesson.lesson_date, "weekday") else ""
                     # Dinamik tarih hesapla (bugünden sonraki ilgili gün)
                     current_lesson_date = calculate_next_lesson_date(lesson.lesson_date)
                     
@@ -3828,7 +3830,7 @@ def staff_panel(
             "payment_status_list": payment_status_list,
             "payment_day_filter": payment_day_filter or "",
             "payment_status_filter": payment_status_filter_value,
-            "payment_day_options": weekday_map,
+            "payment_day_options": WEEKDAY_NAMES,
             "today": today,
             "selected_teacher": selected_teacher,
             "selected_teacher_id": teacher_id_int,

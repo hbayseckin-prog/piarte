@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi import Response
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -182,6 +182,14 @@ templates = Jinja2Templates(directory="templates")
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if os.path.exists(base_dir):
     app.mount("/static", StaticFiles(directory=base_dir), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    logo_path = os.path.join(base_dir, "piarte_logo.jpg")
+    if os.path.exists(logo_path):
+        return FileResponse(logo_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404)
 
 
 # iframe güvenlik header'ları için middleware

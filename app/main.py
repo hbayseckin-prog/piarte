@@ -3693,8 +3693,8 @@ def _finance_payment_detail_analysis(
     start_date, end_date, start_s, end_s = _default_finance_range(start, end)
     cov_start = _parse_optional_date(coverage_start)
     cov_end = _parse_optional_date(coverage_end)
-    student_id_int = _finance_parse_teacher_id(student_id)  # same int parse
-    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    student_id_int = _finance_parse_int(student_id)
+    teacher_id_int = _finance_parse_int(teacher_id)
     analysis = crud.build_payment_package_details(
         db,
         payment_start=start_date,
@@ -3832,7 +3832,7 @@ def finance_export_income(
         raise HTTPException(status_code=404)
     start_date, end_date, start_s, end_s = _default_finance_range(start, end)
     db_method = _finance_db_method(method)
-    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    teacher_id_int = _finance_parse_int(teacher_id)
     q = db.query(models.Payment).join(models.Student)
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
@@ -3998,7 +3998,7 @@ def finance_export_teacher_pay(
     if fmt not in ("xlsx", "pdf"):
         raise HTTPException(status_code=404)
     start_date, end_date, start_s, end_s = _default_finance_range(start, end)
-    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    teacher_id_int = _finance_parse_int(teacher_id)
     report = crud.build_teacher_pay_report(
         db, start_date=start_date, end_date=end_date, teacher_id=teacher_id_int
     )

@@ -3360,7 +3360,7 @@ def ui_finance_teacher_pay(
         end_date=end_date,
         teacher_id=teacher_id_int,
     )
-    teachers = crud.list_teachers(db, active_only=False)
+    teachers = crud.list_teachers(db, active_only=True)
     return templates.TemplateResponse(
         "finance_teacher_pay.html",
         {

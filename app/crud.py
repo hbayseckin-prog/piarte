@@ -1046,7 +1046,7 @@ def build_teacher_pay_report(
 	Öğretmen ders saat ücreti × işlenen ders saati.
 	İşlenen ders: öğretmenin slotlarında, sayılan yoklama alınmış benzersiz (ders, gün) oturumları.
 	"""
-	teachers = list_teachers(db, active_only=False)
+	teachers = list_teachers(db, active_only=True)
 	if teacher_id:
 		teachers = [t for t in teachers if t.id == teacher_id]
 

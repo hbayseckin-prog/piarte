@@ -41,7 +41,7 @@
 		<select name="teacher_id">
 			<option value="">Tümü</option>
 			{% for t in teachers %}
-			<option value="{{ t.id }}" {% if teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}{% if not t.is_active %} (pasif){% endif %}</option>
+			<option value="{{ t.id }}" {% if teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
 			{% endfor %}
 		</select>
 	</label>
@@ -81,10 +81,9 @@
 			</thead>
 			<tbody>
 			{% for row in report.rows %}
-			<tr {% if not row.is_active %}style="opacity:0.65;"{% endif %}>
+			<tr>
 				<td>
 					<strong>{{ row.teacher_name }}</strong>
-					{% if not row.is_active %}<span style="color:#dc2626;font-size:12px;"> (pasif)</span>{% endif %}
 				</td>
 				<td>
 					<input type="number" name="rate_{{ row.teacher_id }}" step="0.01" min="0"

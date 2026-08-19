@@ -1,4 +1,4 @@
-"""Web Push bildirimleri — staff nakit tahsilatı → admin cihazları.
+"""Web Push bildirimleri — nakit tahsilat → admin cihazları.
 
 Ödeme kaydını bozmaz: gönderim hataları yutulur, abonelik 410 ise silinir.
 """
@@ -8,9 +8,10 @@ import base64
 import json
 import logging
 import os
+import threading
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from . import models
@@ -72,7 +73,7 @@ def ensure_push_subscriptions_table() -> None:
 
 
 def ensure_vapid_meta_table() -> None:
-	"""VAPID anahtarları için TEXT değerli meta tablosu (app_meta 255 sınırına sığmaz)."""
+	"""VAPID anahtarları için TEXT değerli meta tablosu."""
 	try:
 		db = SessionLocal()
 		try:
@@ -152,10 +153,30 @@ def get_vapid_public_key() -> str | None:
 
 
 def vapid_claims() -> dict[str, str]:
-	email = (os.getenv("VAPID_CLAIM_EMAIL") or "mailto:admin@piarte.local").strip()
-	if not email.startswith("mailto:"):
-		email = f"mailto:{email}"
-	return {"sub": email}
+	"""Apple, @localhost / @*.local VAPID subject'lerini reddeder (403 BadJwtToken)."""
+	configured = (os.getenv("VAPID_CLAIM_EMAIL") or os.getenv("VAPID_SUBJECT") or "").strip()
+	if configured:
+		if configured.startswith("mailto:") or configured.startswith("https://"):
+			return {"sub": configured.rstrip("/")}
+		if "@" in configured:
+			return {"sub": f"mailto:{configured}"}
+		return {"sub": f"https://{configured.rstrip('/')}"}
+
+	domain = (
+		os.getenv("PUBLIC_BASE_URL")
+		or os.getenv("VAPID_SUBJECT_URL")
+		or os.getenv("RAILWAY_PUBLIC_DOMAIN")
+		or os.getenv("RAILWAY_STATIC_URL")
+		or ""
+	).strip()
+	if domain:
+		if domain.startswith("http://"):
+			domain = "https://" + domain[len("http://") :]
+		if domain.startswith("https://"):
+			return {"sub": domain.rstrip("/")}
+		return {"sub": f"https://{domain.rstrip('/')}"}
+
+	return {"sub": "mailto:noreply@piarte.app"}
 
 
 def upsert_subscription(
@@ -206,8 +227,6 @@ def delete_subscription_by_endpoint(db: Session, endpoint: str) -> None:
 
 
 def list_admin_subscriptions(db: Session) -> list[models.PushSubscription]:
-	from sqlalchemy import or_
-
 	return (
 		db.query(models.PushSubscription)
 		.join(models.User, models.User.id == models.PushSubscription.user_id)
@@ -222,15 +241,25 @@ def list_admin_subscriptions(db: Session) -> list[models.PushSubscription]:
 	)
 
 
+def count_admin_subscriptions(db: Session) -> int:
+	return len(list_admin_subscriptions(db))
+
+
+def is_nakit_method(method: str | None) -> bool:
+	return (method or "").strip().casefold() == "nakit"
+
+
 def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], private_key: str) -> bool:
 	"""True = ok veya geçici hata; False = abonelik silinmeli."""
 	try:
-		from pywebpush import webpush, WebPushException
+		from pywebpush import webpush
 	except ImportError:
 		logger.error("pywebpush yüklü değil; push atlandı")
+		print("PUSH_ERROR: pywebpush yüklü değil")
 		return True
 
 	try:
+		claims = vapid_claims()
 		webpush(
 			subscription_info={
 				"endpoint": subscription.endpoint,
@@ -238,17 +267,24 @@ def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], pr
 			},
 			data=json.dumps(payload, ensure_ascii=False),
 			vapid_private_key=private_key,
-			vapid_claims=vapid_claims(),
+			vapid_claims=claims,
 			ttl=86400,
 		)
+		print(f"PUSH_OK endpoint={subscription.endpoint[:48]}… sub={claims.get('sub')}")
 		return True
 	except Exception as e:
 		status = getattr(getattr(e, "response", None), "status_code", None)
+		body = ""
+		try:
+			resp = getattr(e, "response", None)
+			if resp is not None and getattr(resp, "text", None):
+				body = (resp.text or "")[:300]
+		except Exception:
+			pass
+		print(f"PUSH_FAIL status={status} err={e} body={body}")
+		logger.warning("Push gönderilemedi status=%s: %s %s", status, e, body)
 		if status in (404, 410):
-			logger.info("Push aboneliği geçersiz (%s), silinecek", status)
 			return False
-		# WebPushException veya ağ hatası — ödeme akışını bozma
-		logger.warning("Push gönderilemedi: %s", e)
 		return True
 
 
@@ -259,9 +295,10 @@ def notify_admins_staff_cash(
 	staff_name: str,
 	payment_id: int | None = None,
 ) -> None:
-	"""Background task: admin aboneliklerine nakit tahsilat bildirimi."""
+	"""Admin aboneliklerine nakit tahsilat bildirimi."""
 	keys = get_vapid_keys()
 	if not keys:
+		print("PUSH_SKIP: VAPID anahtarı yok")
 		return
 	_, private_key = keys
 	payload = {
@@ -273,6 +310,10 @@ def notify_admins_staff_cash(
 	db = SessionLocal()
 	try:
 		subs = list_admin_subscriptions(db)
+		print(f"PUSH_SEND count={len(subs)} student={student_name!r} by={staff_name!r}")
+		if not subs:
+			print("PUSH_SKIP: admin aboneliği yok")
+			return
 		stale_ids: list[int] = []
 		for sub in subs:
 			ok = _send_one(sub, payload, private_key)
@@ -283,11 +324,33 @@ def notify_admins_staff_cash(
 				models.PushSubscription.id.in_(stale_ids)
 			).delete(synchronize_session=False)
 			db.commit()
+			print(f"PUSH_CLEANED stale={len(stale_ids)}")
 	except Exception as e:
 		logger.error("Admin push bildirimi hatası: %s", e)
+		print(f"PUSH_ERROR: {e}")
 		try:
 			db.rollback()
 		except Exception:
 			pass
 	finally:
 		db.close()
+
+
+def schedule_admin_cash_notify(
+	*,
+	student_name: str,
+	amount_try: float,
+	staff_name: str,
+	payment_id: int | None = None,
+) -> None:
+	"""Ödeme yanıtından bağımsız thread."""
+	threading.Thread(
+		target=notify_admins_staff_cash,
+		kwargs={
+			"student_name": student_name,
+			"amount_try": amount_try,
+			"staff_name": staff_name,
+			"payment_id": payment_id,
+		},
+		daemon=True,
+	).start()

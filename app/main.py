@@ -377,6 +377,47 @@ async def api_push_unsubscribe(request: Request, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@app.get("/api/push/status")
+def api_push_status(request: Request, db: Session = Depends(get_db)):
+    require_admin(request)
+    if not push_notify:
+        return {"ok": False, "subscriptions": 0, "vapid_sub": None}
+    claims = push_notify.vapid_claims()
+    return {
+        "ok": True,
+        "subscriptions": push_notify.count_admin_subscriptions(db),
+        "vapid_sub": claims.get("sub"),
+        "has_vapid": bool(push_notify.get_vapid_public_key()),
+    }
+
+
+@app.post("/api/push/test")
+def api_push_test(request: Request, db: Session = Depends(get_db)):
+    """Admin: anında test bildirimi gönder."""
+    user = require_admin(request)
+    if not push_notify:
+        raise HTTPException(status_code=503, detail="Push desteklenmiyor")
+    count = push_notify.count_admin_subscriptions(db)
+    if count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Kayıtlı cihaz yok. Ana Ekran PWA'dan Bildirimleri açın.",
+        )
+    name = (user.get("full_name") or user.get("username") or "Admin").strip()
+    push_notify.notify_admins_staff_cash(
+        student_name="Test bildirimi",
+        amount_try=0.0,
+        staff_name=name,
+        payment_id=None,
+    )
+    return {
+        "ok": True,
+        "subscriptions": count,
+        "vapid_sub": push_notify.vapid_claims().get("sub"),
+        "message": f"{count} cihaza test gönderildi",
+    }
+
+
 # iframe güvenlik header'ları için middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -1745,7 +1786,6 @@ def payment_form(
 @app.post("/payments/new")
 def payment_create(
     request: Request,
-    background_tasks: BackgroundTasks,
     student_id: int = Form(...),
     amount_try: float = Form(...),
     payment_date: str | None = Form(None),
@@ -1780,24 +1820,24 @@ def payment_create(
         note=note,
     )
     payment = crud.create_payment(db, payload)
-    # Staff nakit tahsilatı → admin mobil bildirimi (başarısız olsa ödeme yine kayıtlı kalır)
-    if (
-        push_notify
-        and is_staff_user
-        and (method or "").strip() == "Nakit"
-    ):
+    # Nakit tahsilat → admin mobil bildirimi (başarısız olsa ödeme yine kayıtlı kalır)
+    if push_notify and push_notify.is_nakit_method(method):
         student = crud.get_student(db, student_id)
         student_name = (
             f"{student.first_name} {student.last_name}".strip()
             if student
             else f"Öğrenci #{student_id}"
         )
-        staff_name = (user.get("full_name") or user.get("username") or "Personel").strip()
-        background_tasks.add_task(
-            push_notify.notify_admins_staff_cash,
+        actor_name = (user.get("full_name") or user.get("username") or "Kullanıcı").strip()
+        role = (user.get("role") or "admin").strip()
+        if role == "staff":
+            actor_label = actor_name
+        else:
+            actor_label = f"{actor_name} ({role})"
+        push_notify.schedule_admin_cash_notify(
             student_name=student_name,
             amount_try=float(amount_try),
-            staff_name=staff_name,
+            staff_name=actor_label,
             payment_id=getattr(payment, "id", None),
         )
     set_flash_success(request, "Ödeme başarıyla kaydedildi.")

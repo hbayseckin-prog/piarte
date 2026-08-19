@@ -165,6 +165,7 @@
 		<div id="piarte-push-msg" style="opacity:.9;margin-bottom:10px;line-height:1.4;"></div>
 		<div style="display:flex;gap:8px;flex-wrap:wrap;">
 			<button type="button" id="piarte-push-enable" style="flex:1;min-width:120px;margin:0;background:#0ea5e9;display:none;">Bildirimleri aç</button>
+			<button type="button" id="piarte-push-test" style="flex:1;min-width:120px;margin:0;background:#059669;display:none;">Test bildirimi</button>
 			<button type="button" id="piarte-push-dismiss" class="secondary" style="flex:0;min-width:80px;margin:0;padding:12px 10px;">Kapat</button>
 		</div>
 	</div>
@@ -173,6 +174,7 @@
 		const bar = document.getElementById("piarte-push-bar");
 		const msg = document.getElementById("piarte-push-msg");
 		const enableBtn = document.getElementById("piarte-push-enable");
+		const testBtn = document.getElementById("piarte-push-test");
 		const dismissBtn = document.getElementById("piarte-push-dismiss");
 		if (!bar || !msg || !enableBtn) return;
 
@@ -196,10 +198,14 @@
 			for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
 			return out;
 		}
-		function showBar(text, showEnable) {
+		function showBar(text, showEnable, showTest) {
 			msg.textContent = text;
 			enableBtn.style.display = showEnable ? "inline-block" : "none";
 			enableBtn.disabled = false;
+			if (testBtn) {
+				testBtn.style.display = showTest ? "inline-block" : "none";
+				testBtn.disabled = false;
+			}
 			bar.style.display = "block";
 		}
 		function hideBar() {
@@ -246,28 +252,28 @@
 						hideBar();
 						return;
 					}
-					showBar("Bildirimler açık. Staff nakit tahsilatında bildirim gelir.", false);
+					showBar("Bildirimler açık. Test ile kontrol edin; nakit tahsilatta da gelir.", false, true);
 					return;
 				}
 				if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-					showBar("Bildirim izni kapalı. iPhone Ayarlar → Bildirimler → Piarte üzerinden açın.", false);
+					showBar("Bildirim izni kapalı. iPhone Ayarlar → Bildirimler → Piarte üzerinden açın.", false, false);
 					return;
 				}
 				if (isIOS() && !isStandalone()) {
-					showBar("iPhone’da bildirim için: Ana Ekran’daki Piarte ikonundan açın (Safari’den değil). Açtıktan sonra tekrar ‘Bildirimleri aç’a basın.", false);
+					showBar("iPhone’da bildirim için: Ana Ekran’daki Piarte ikonundan açın (Safari’den değil). Açtıktan sonra tekrar ‘Bildirimleri aç’a basın.", false, false);
 					return;
 				}
 				if (!("serviceWorker" in navigator)) {
-					showBar("Bu cihaz web bildirimlerini desteklemiyor.", false);
+					showBar("Bu cihaz web bildirimlerini desteklemiyor.", false, false);
 					return;
 				}
 				if (!forced && localStorage.getItem(DISMISS_KEY) === "1") {
 					hideBar();
 					return;
 				}
-				showBar("Staff nakit tahsilatında telefona bildirim almak için açın. İzin verdikten sonra Ayarlar → Bildirimler’de Piarte görünür.", true);
+				showBar("Nakit tahsilatta telefona bildirim almak için açın. İzin verdikten sonra Ayarlar → Bildirimler’de Piarte görünür.", true, false);
 			} catch (e) {
-				showBar("Kurulum: " + (e && e.message ? e.message : e), isStandalone() || !isIOS());
+				showBar("Kurulum: " + (e && e.message ? e.message : e), isStandalone() || !isIOS(), false);
 			}
 		}
 
@@ -286,14 +292,34 @@
 				}
 				await ensureSubscription();
 				localStorage.removeItem(DISMISS_KEY);
-				msg.textContent = "Bildirimler açıldı. Ayarlar → Bildirimler’de Piarte artık görünmeli.";
-				enableBtn.style.display = "none";
-				setTimeout(hideBar, 3500);
+				showBar("Bildirimler açıldı. Şimdi Test bildirimi ile kontrol edin.", false, true);
 			} catch (e) {
 				msg.textContent = "Kurulum başarısız: " + (e && e.message ? e.message : e);
 				enableBtn.disabled = false;
 			}
 		});
+
+		if (testBtn) {
+			testBtn.addEventListener("click", async function () {
+				testBtn.disabled = true;
+				msg.textContent = "Test gönderiliyor…";
+				try {
+					await ensureSubscription();
+					const res = await fetch("/api/push/test", {
+						method: "POST",
+						credentials: "same-origin",
+					});
+					const data = await res.json().catch(function () { return {}; });
+					if (!res.ok) {
+						throw new Error(data.detail || ("HTTP " + res.status));
+					}
+					msg.textContent = "Test gönderildi (" + (data.subscriptions || "?") + " cihaz). Birkaç saniye içinde gelmeli.";
+				} catch (e) {
+					msg.textContent = "Test başarısız: " + (e && e.message ? e.message : e);
+				}
+				testBtn.disabled = false;
+			});
+		}
 
 		dismissBtn.addEventListener("click", function () {
 			localStorage.setItem(DISMISS_KEY, "1");

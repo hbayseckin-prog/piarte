@@ -2930,6 +2930,32 @@ def lesson_add_student(lesson_id: int, request: Request, student_id: int = Form(
     return RedirectResponse(url=f"/ui/teachers/{lesson.teacher_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+# UI: Lessons - remove student from slot (attendance history preserved)
+@app.post("/lessons/{lesson_id}/remove-student")
+def lesson_remove_student(
+    lesson_id: int,
+    request: Request,
+    student_id: int = Form(...),
+    return_to: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user or user.get("role") not in ["admin", "staff"]:
+        return RedirectResponse(url="/login/admin", status_code=302)
+    lesson = crud.get_lesson(db, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Ders bulunamadı")
+    removed = crud.remove_student_from_lesson(db, lesson_id, student_id)
+    if removed:
+        db.commit()
+        set_flash_success(request, "Öğrenci dersten çıkarıldı. Geçmiş yoklama kayıtları korundu.")
+    default_url = f"/ui/teachers/{lesson.teacher_id}" if lesson.teacher_id else "/ui/lessons"
+    return RedirectResponse(
+        url=safe_return_url(return_to, default_url),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 # UI: Lessons - delete
 @app.post("/lessons/{lesson_id}/delete")
 def lesson_delete(lesson_id: int, request: Request, db: Session = Depends(get_db)):

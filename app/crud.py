@@ -428,6 +428,22 @@ def assign_student_to_lesson(db: Session, lesson_id: int, student_id: int):
 	return link
 
 
+def remove_student_from_lesson(db: Session, lesson_id: int, student_id: int) -> bool:
+	"""
+	Öğrenciyi ders slotundan çıkarır (LessonStudent silinir).
+	Geçmiş yoklama (Attendance), kurs kaydı ve öğretmen bağlantısına dokunulmaz.
+	"""
+	link = db.scalars(
+		select(models.LessonStudent)
+		.where(models.LessonStudent.lesson_id == lesson_id, models.LessonStudent.student_id == student_id)
+	).first()
+	if not link:
+		return False
+	db.delete(link)
+	# commit yapma, çağıran fonksiyon commit yapacak
+	return True
+
+
 def list_students_by_lesson(db: Session, lesson_id: int, active_only: bool = True):
 	stmt = (
 		select(models.Student)

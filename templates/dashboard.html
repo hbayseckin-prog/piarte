@@ -1033,6 +1033,11 @@ if (quickSearchInput) {
 													{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 													<a href="/lessons/{{ entry.lesson.id }}/attendance/new?attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}&amp;focus_student={{ s.id }}&amp;return_to={{ '/dashboard#ders-programi' | urlencode }}#student-{{ s.id }}" style="display:inline-block;margin-left:4px;padding:1px 5px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Al</a>
 													<a href="/lessons/{{ entry.lesson.id }}/attendance/correct?student_id={{ s.id }}&amp;attendance_date={{ entry.current_lesson_date.strftime('%Y-%m-%d') if entry.current_lesson_date else '' }}&amp;return_to={{ '/dashboard#ders-programi' | urlencode }}" style="display:inline-block;margin-left:2px;padding:1px 5px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:4px;font-size:9px;font-weight:600;">Yoklama Düzelt</a>
+													<form method="post" action="/lessons/{{ entry.lesson.id }}/remove-student" style="display:inline;margin:0;" onsubmit="return confirm('Bu öğrenciyi dersten çıkarmak istediğinize emin misiniz? Geçmiş yoklama kayıtları silinmez.');">
+														<input type="hidden" name="student_id" value="{{ s.id }}" />
+														<input type="hidden" name="return_to" value="/dashboard#ders-programi" />
+														<button type="submit" style="display:inline-block;margin-left:2px;padding:1px 5px;background:#f97316;color:#fff;border:none;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;">Dersten çıkar</button>
+													</form>
 													{% endif %}
 												</div>
 											{% endfor %}

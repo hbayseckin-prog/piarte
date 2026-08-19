@@ -377,6 +377,13 @@
 													{% if not s.is_active %}
 													<span style="font-size:9px;color:#dc2626;">(Pasif)</span>
 													{% endif %}
+													{% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}
+													<form method="post" action="/lessons/{{ entry.lesson.id }}/remove-student" style="display:inline;margin:0;" onsubmit="return confirm('Bu öğrenciyi dersten çıkarmak istediğinize emin misiniz? Geçmiş yoklama kayıtları silinmez.');">
+														<input type="hidden" name="student_id" value="{{ s.id }}" />
+														<input type="hidden" name="return_to" value="/ui/staff#ders-programi" />
+														<button type="submit" style="display:inline-block;margin-left:4px;padding:1px 5px;background:#f97316;color:#fff;border:none;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;">Dersten çıkar</button>
+													</form>
+													{% endif %}
 												</div>
 											{% endfor %}
 										</div>

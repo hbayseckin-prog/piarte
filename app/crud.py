@@ -547,33 +547,9 @@ def _lessons_with_students_from_lesson_rows(db: Session, lessons: list) -> list[
 		if student:
 			students_by_lesson[row.lesson_id].append(student)
 
-	empty_lesson_ids = [lesson_id for lesson_id in lesson_ids if not students_by_lesson[lesson_id]]
-	if empty_lesson_ids:
-		attendance_rows = db.scalars(
-			select(models.Attendance)
-			.where(models.Attendance.lesson_id.in_(empty_lesson_ids))
-			.order_by(models.Attendance.lesson_id, models.Attendance.marked_at.desc())
-		).all()
-		latest_by_lesson: dict[int, models.Attendance] = {}
-		for attendance in attendance_rows:
-			if attendance.lesson_id not in latest_by_lesson:
-				latest_by_lesson[attendance.lesson_id] = attendance
-		missing_student_ids = {
-			attendance.student_id
-			for attendance in latest_by_lesson.values()
-			if attendance.student_id and attendance.student_id not in students_map
-		}
-		if missing_student_ids:
-			for student in db.scalars(
-				select(models.Student).where(models.Student.id.in_(missing_student_ids))
-			).all():
-				students_map[student.id] = student
-		for lesson_id, attendance in latest_by_lesson.items():
-			if attendance.student_id:
-				fallback_student = students_map.get(attendance.student_id)
-				if fallback_student:
-					students_by_lesson[lesson_id] = [fallback_student]
-
+	# Program yalnızca LessonStudent atamalarını gösterir.
+	# Eski yoklama fallback'i kaldırıldı: aksi halde dersten çıkarılan öğrenci
+	# programda görünmeye devam eder, listede ise tek kayıt çıkar.
 	out = []
 	for lesson in lessons:
 		out.append({"lesson": lesson, "students": students_by_lesson.get(lesson.id, [])})

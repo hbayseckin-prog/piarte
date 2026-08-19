@@ -147,6 +147,87 @@ def ensure_attendance_lesson_fk_restrict():
 		pass
 
 
+def ensure_lesson_students_backfill_from_attendance():
+	"""
+	Tek seferlik onarım: LessonStudent'ı boş olan ama yoklaması bulunan derslere
+	son yoklama öğrencisini gerçek atama olarak yazar.
+
+	Eski program görünümü yoklamadan isim gösteriyordu; Dersten çıkar ise yalnızca
+	LessonStudent'a bakıyordu. Bu backfill ikisini hizalar. Bayrak sayesinde
+	Dersten çıkar sonrası yeniden ekleme yapmaz.
+	"""
+	try:
+		from sqlalchemy import text, inspect
+		inspector = inspect(engine)
+		table_names = set(inspector.get_table_names())
+		if "lessons" not in table_names or "attendances" not in table_names or "lesson_students" not in table_names:
+			return
+
+		db = SessionLocal()
+		try:
+			db.execute(text("""
+				CREATE TABLE IF NOT EXISTS app_meta (
+					key VARCHAR(100) PRIMARY KEY,
+					value VARCHAR(255),
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				)
+			"""))
+			db.commit()
+
+			flag = db.execute(
+				text("SELECT value FROM app_meta WHERE key = :k"),
+				{"k": "lesson_student_att_backfill_v1"},
+			).fetchone()
+			if flag:
+				return
+
+			# LessonStudent'ı olmayan dersler
+			empty_lessons = db.execute(text("""
+				SELECT l.id
+				FROM lessons l
+				WHERE NOT EXISTS (
+					SELECT 1 FROM lesson_students ls WHERE ls.lesson_id = l.id
+				)
+			""")).fetchall()
+			created = 0
+			for (lesson_id,) in empty_lessons:
+				row = db.execute(text("""
+					SELECT student_id
+					FROM attendances
+					WHERE lesson_id = :lid AND student_id IS NOT NULL
+					ORDER BY marked_at DESC
+					LIMIT 1
+				"""), {"lid": lesson_id}).fetchone()
+				if not row:
+					continue
+				student_id = row[0]
+				exists = db.execute(text("""
+					SELECT 1 FROM lesson_students
+					WHERE lesson_id = :lid AND student_id = :sid
+					LIMIT 1
+				"""), {"lid": lesson_id, "sid": student_id}).fetchone()
+				if exists:
+					continue
+				db.execute(text("""
+					INSERT INTO lesson_students (lesson_id, student_id, created_at)
+					VALUES (:lid, :sid, CURRENT_TIMESTAMP)
+				"""), {"lid": lesson_id, "sid": student_id})
+				created += 1
+
+			db.execute(text("""
+				INSERT INTO app_meta (key, value) VALUES (:k, :v)
+			"""), {"k": "lesson_student_att_backfill_v1", "v": str(created)})
+			db.commit()
+			print(f"lesson_students yoklama backfill tamamlandi: {created} kayit")
+		except Exception as e:
+			db.rollback()
+			print(f"lesson_students backfill hatasi: {e}")
+		finally:
+			db.close()
+	except Exception as e:
+		print(f"lesson_students backfill kontrol hatasi: {e}")
+
+
 # Uygulama başlangıcında kolonu kontrol et
 try:
 	ensure_is_active_column()
@@ -163,6 +244,11 @@ except Exception:
 try:
 	ensure_attendance_lesson_fk_restrict()
 except Exception as e:
+	pass
+
+try:
+	ensure_lesson_students_backfill_from_attendance()
+except Exception:
 	pass
 
 

@@ -178,9 +178,14 @@ async def startup_event():
 	"""Uygulama başlangıcında hafif migration kontrolü"""
 	import logging
 	try:
-		from app.db import ensure_is_active_column, ensure_teacher_is_active_column
+		from app.db import (
+			ensure_is_active_column,
+			ensure_teacher_is_active_column,
+			ensure_lesson_students_backfill_from_attendance,
+		)
 		ensure_is_active_column()
 		ensure_teacher_is_active_column()
+		ensure_lesson_students_backfill_from_attendance()
 	except Exception as e:
 		logging.error(f"Startup migration hatasi: {e}")
 

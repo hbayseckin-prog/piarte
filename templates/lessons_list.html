@@ -53,6 +53,7 @@
       <thead>
         <tr>
           <th>Tarih</th>
+          <th>Gün</th>
           <th>Kurs</th>
           <th>Öğretmen</th>
           <th>Öğrenci</th>
@@ -68,6 +69,7 @@
         {% for l in lessons %}
         <tr>
           <td>{{ l.lesson_date }}</td>
+          <td>{% if l.lesson_date %}{{ ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'][l.lesson_date.weekday()] }}{% else %}-{% endif %}</td>
           <td>{{ l.course.name }}</td>
           <td>{{ l.teacher.first_name }} {{ l.teacher.last_name }}</td>
           <td>
@@ -109,7 +111,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="{% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}8{% else %}7{% endif %}">
+          <td colspan="{% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}9{% else %}8{% endif %}">
             Kayıtlı ders bulunmuyor.
           </td>
         </tr>

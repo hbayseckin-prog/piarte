@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Ödeme Detayı - Finans - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Ödeme Detayı</h2>
+<p style="color:#64748b;margin-top:-8px;margin-bottom:12px;">
+	Her tahsilat <strong>4 derslik paket</strong> olarak işlenir. Tahsilat ayı ile kapsanan ders ayları farklı olabilir
+	(ör. Ağustos sonunda ödenen paket Eylül derslerini de kapsar).
+</p>
+
+<nav style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+	<a href="/ui/finance" style="padding:8px 14px;background:#e2e8f0;color:#334155;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Özet</a>
+	<a href="/ui/finance/income" style="padding:8px 14px;background:#e0f2fe;color:#0369a1;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Gelirler / Tahsilatlar</a>
+	<a href="/ui/finance/payment-detail" style="padding:8px 14px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Ödeme Detayı</a>
+	<a href="/ui/finance/expenses" style="padding:8px 14px;background:#fef3c7;color:#92400e;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Giderler</a>
+</nav>
+
+<div class="card" style="margin-bottom:16px;background:#f8fafc;">
+	<strong>Nasıl okunur?</strong>
+	<ul style="margin:8px 0 0 18px;color:#475569;font-size:14px;line-height:1.5;">
+		<li><strong>Tahsilat (nakit):</strong> Paranın kasaya girdiği ay</li>
+		<li><strong>Paket kapsamı:</strong> Ödemenin karşılık geldiği 4 sayılan ders (Geldi / Telafi / Habersiz)</li>
+		<li><strong>Hak ediş:</strong> Tutarın ders tarihine göre aylara bölünmüş hali (tutar ÷ 4)</li>
+		<li><strong>Bekleyen:</strong> Paketten henüz kullanılmamış ders payı (ön ödeme)</li>
+	</ul>
+</div>
+
+<form method="get" action="/ui/finance/payment-detail" class="card" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:16px;">
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Tahsilat başlangıç
+		<input type="date" name="start" value="{{ start }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Tahsilat bitiş
+		<input type="date" name="end" value="{{ end }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Kapsam başlangıç
+		<input type="date" name="coverage_start" value="{{ coverage_start }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Kapsam bitiş
+		<input type="date" name="coverage_end" value="{{ coverage_end }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Öğretmen
+		<select name="teacher_id">
+			<option value="">Tümü</option>
+			{% for t in teachers %}
+			<option value="{{ t.id }}" {% if teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
+			{% endfor %}
+		</select>
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Öğrenci ID
+		<input type="number" name="student_id" value="{{ student_id }}" placeholder="Opsiyonel" min="1" />
+	</label>
+	<label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-bottom:8px;">
+		<input type="checkbox" name="only_cross_month" value="1" {% if only_cross_month %}checked{% endif %} />
+		Sadece ayı aşan paketler
+	</label>
+	<button type="submit">Sorgula</button>
+	<a href="/ui/finance/payment-detail" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none;">Bu ay</a>
+</form>
+
+{% if selected_student %}
+<p style="margin-bottom:12px;color:#0369a1;font-size:14px;">Filtrelenen öğrenci: <strong>{{ selected_student.first_name }} {{ selected_student.last_name }}</strong></p>
+{% endif %}
+
+{% set totals = analysis.totals %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+	<div class="card" style="margin:0;border-left:4px solid #10b981;">
+		<div style="font-size:12px;color:#64748b;">Tahsilat (nakit)</div>
+		<div style="font-size:20px;font-weight:700;color:#059669;">{{ '%.2f'|format(totals.cash) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;border-left:4px solid #0ea5e9;">
+		<div style="font-size:12px;color:#64748b;">Hak ediş (derse bağlanan)</div>
+		<div style="font-size:20px;font-weight:700;color:#0284c7;">{{ '%.2f'|format(totals.accrued) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;border-left:4px solid #f59e0b;">
+		<div style="font-size:12px;color:#64748b;">Bekleyen (ön ödeme)</div>
+		<div style="font-size:20px;font-weight:700;color:#b45309;">{{ '%.2f'|format(totals.prepaid) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;border-left:4px solid #8b5cf6;">
+		<div style="font-size:12px;color:#64748b;">Ayı aşan paket</div>
+		<div style="font-size:20px;font-weight:700;">{{ totals.cross_month_packages }} / {{ totals.package_count }}</div>
+	</div>
+</div>
+
+{% if analysis.monthly_compare %}
+<div class="card" style="margin-bottom:16px;">
+	<h3 class="h2" style="margin-top:0;">Aylık karşılaştırma: Tahsilat vs Hak ediş</h3>
+	<canvas id="packageCompareChart" height="220"></canvas>
+	<div class="table-wrap" style="margin-top:12px;">
+		<table>
+			<thead>
+				<tr>
+					<th>Ay</th>
+					<th>Tahsilat (nakit)</th>
+					<th>Hak ediş</th>
+					<th>Bekleyen</th>
+					<th>Fark (nakit − hak ediş)</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for m in analysis.monthly_compare %}
+			<tr>
+				<td><strong>{{ m.month }}</strong></td>
+				<td>{{ '%.2f'|format(m.cash) }} ₺</td>
+				<td>{{ '%.2f'|format(m.accrued) }} ₺</td>
+				<td>{{ '%.2f'|format(m.prepaid) }} ₺</td>
+				<td style="color:{% if m.delta > 0 %}#059669{% elif m.delta < 0 %}#dc2626{% else %}#64748b{% endif %};font-weight:600;">
+					{% if m.delta > 0 %}+{% endif %}{{ '%.2f'|format(m.delta) }} ₺
+				</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+{% endif %}
+
+<div class="card">
+	<h3 class="h2" style="margin-top:0;">Paket satırları</h3>
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Tahsilat</th>
+					<th>Öğrenci</th>
+					<th>Öğretmen</th>
+					<th>Paket #</th>
+					<th>Tutar</th>
+					<th>Kapsanan dersler</th>
+					<th>Ay dağılımı</th>
+					<th>Durum</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for row in analysis.rows %}
+			<tr {% if row.crosses_month %}style="background:#fff7ed;"{% endif %}>
+				<td>
+					{{ row.payment_date or '—' }}
+					<div style="font-size:11px;color:#64748b;">
+						{% if row.method == 'EFT' %}IBAN{% else %}{{ row.method or '—' }}{% endif %}
+					</div>
+				</td>
+				<td>
+					<a href="/ui/students/{{ row.student_id }}" style="color:#0369a1;text-decoration:none;">{{ row.student_name }}</a>
+				</td>
+				<td>{{ row.teacher_name }}</td>
+				<td>{{ row.set_index }}</td>
+				<td><strong>{{ '%.2f'|format(row.amount) }} ₺</strong></td>
+				<td style="font-size:13px;">
+					{{ row.coverage_label }}
+					{% if row.lessons %}
+					<details style="margin-top:4px;">
+						<summary style="cursor:pointer;color:#0369a1;font-size:12px;">{{ row.lessons_used }}/4 ders</summary>
+						<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;color:#475569;">
+						{% for L in row.lessons %}
+							<li>{{ L.date }} — {{ L.status_label }} ({{ '%.2f'|format(L.amount_share) }} ₺)</li>
+						{% endfor %}
+						</ul>
+					</details>
+					{% else %}
+					<div style="font-size:12px;color:#b45309;">0/4 ders kullanıldı</div>
+					{% endif %}
+				</td>
+				<td style="font-size:12px;">
+					{% for ym, val in row.month_split.items() %}
+					<div>{{ ym }}: <strong>{{ '%.2f'|format(val) }} ₺</strong></div>
+					{% endfor %}
+				</td>
+				<td>
+					{% if row.crosses_month %}
+					<span style="padding:3px 8px;background:#ffedd5;color:#c2410c;border-radius:6px;font-size:11px;font-weight:600;">Ay aşımı</span>
+					{% else %}
+					<span style="padding:3px 8px;background:#e2e8f0;color:#475569;border-radius:6px;font-size:11px;">Tek ay</span>
+					{% endif %}
+					{% if row.lessons_remaining %}
+					<div style="margin-top:4px;font-size:11px;color:#b45309;">{{ row.lessons_remaining }} ders bekliyor</div>
+					{% endif %}
+				</td>
+			</tr>
+			{% else %}
+			<tr><td colspan="8">Bu filtrelere uygun paket bulunamadı.</td></tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+{% if analysis.monthly_compare %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+	const rows = {{ analysis.monthly_compare | tojson }};
+	const ctx = document.getElementById('packageCompareChart');
+	if (!ctx || !rows.length) return;
+	new Chart(ctx, {
+		type: 'bar',
+		data: {
+			labels: rows.map(r => r.month),
+			datasets: [
+				{ label: 'Tahsilat (nakit)', data: rows.map(r => r.cash), backgroundColor: '#10b981' },
+				{ label: 'Hak ediş (ders ayı)', data: rows.map(r => r.accrued), backgroundColor: '#0ea5e9' },
+				{ label: 'Bekleyen ön ödeme', data: rows.map(r => r.prepaid), backgroundColor: '#f59e0b' }
+			]
+		},
+		options: {
+			responsive: true,
+			plugins: { legend: { position: 'bottom' } },
+			scales: { y: { beginAtZero: true } }
+		}
+	});
+})();
+</script>
+{% endif %}
+{% endblock %}

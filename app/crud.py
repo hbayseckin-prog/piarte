@@ -1021,6 +1021,249 @@ def payment_totals_by_teacher(
 	return result
 
 
+PACKAGE_LESSON_SIZE = 4
+_PAYMENT_COUNTABLE_STATUSES = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+
+
+def build_payment_package_details(
+	db: Session,
+	*,
+	payment_start: date | None = None,
+	payment_end: date | None = None,
+	coverage_start: date | None = None,
+	coverage_end: date | None = None,
+	student_id: int | None = None,
+	teacher_id: int | None = None,
+) -> dict:
+	"""
+	Her ödeme = 4 derslik paket.
+	Ödemeler kronolojik sırayla, sayılan yoklamalara (Geldi/Telafi/Habersiz) eşlenir.
+	Böylece Ağustos tahsilatı Eylül derslerini kapsıyorsa ay bazında ayrıştırılır.
+	"""
+	teacher_names = student_teacher_name_map(db)
+
+	# Paket sırası doğru olsun diye ilgili öğrencilerin TÜM ödemeleri alınır;
+	# tarih filtresi satır seviyesinde uygulanır.
+	candidate_q = db.query(models.Payment.student_id).join(models.Student)
+	if student_id:
+		candidate_q = candidate_q.filter(models.Payment.student_id == student_id)
+	if teacher_id:
+		candidate_q = candidate_q.join(
+			models.TeacherStudent,
+			models.TeacherStudent.student_id == models.Payment.student_id,
+		).filter(models.TeacherStudent.teacher_id == teacher_id)
+	if payment_start:
+		candidate_q = candidate_q.filter(models.Payment.payment_date >= payment_start)
+	if payment_end:
+		candidate_q = candidate_q.filter(models.Payment.payment_date <= payment_end)
+	student_ids = sorted({row[0] for row in candidate_q.distinct().all()})
+
+	# Kapsam ayına göre ek öğrenci bul (tahsilat bu ayda olmasa da dersi bu ayda olan paketler)
+	if coverage_start or coverage_end:
+		att_q = db.query(models.Attendance.student_id).filter(
+			models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES)
+		)
+		if coverage_start:
+			att_q = att_q.filter(models.Attendance.marked_at >= datetime.combine(coverage_start, datetime.min.time()))
+		if coverage_end:
+			att_q = att_q.filter(models.Attendance.marked_at <= datetime.combine(coverage_end, datetime.max.time()))
+		if student_id:
+			att_q = att_q.filter(models.Attendance.student_id == student_id)
+		if teacher_id:
+			att_q = att_q.join(
+				models.TeacherStudent,
+				models.TeacherStudent.student_id == models.Attendance.student_id,
+			).filter(models.TeacherStudent.teacher_id == teacher_id)
+		student_ids = sorted(set(student_ids) | {row[0] for row in att_q.distinct().all()})
+
+	if not student_ids:
+		return {
+			"rows": [],
+			"monthly_compare": [],
+			"totals": {
+				"cash": 0.0,
+				"accrued": 0.0,
+				"prepaid": 0.0,
+				"cross_month_packages": 0,
+				"package_count": 0,
+			},
+			"package_size": PACKAGE_LESSON_SIZE,
+		}
+
+	all_payments = (
+		db.query(models.Payment)
+		.filter(models.Payment.student_id.in_(student_ids))
+		.order_by(
+			models.Payment.student_id.asc(),
+			models.Payment.payment_date.asc(),
+			models.Payment.id.asc(),
+		)
+		.all()
+	)
+
+	students_map = {
+		s.id: s
+		for s in db.scalars(select(models.Student).where(models.Student.id.in_(student_ids))).all()
+	}
+
+	attendances_by_student: dict[int, list] = {sid: [] for sid in student_ids}
+	att_rows = (
+		db.query(models.Attendance)
+		.filter(
+			models.Attendance.student_id.in_(student_ids),
+			models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES),
+		)
+		.order_by(models.Attendance.student_id.asc(), models.Attendance.marked_at.asc(), models.Attendance.id.asc())
+		.all()
+	)
+	for att in att_rows:
+		attendances_by_student.setdefault(att.student_id, []).append(att)
+
+	payments_by_student: dict[int, list] = {}
+	for p in all_payments:
+		payments_by_student.setdefault(p.student_id, []).append(p)
+
+	detail_rows: list[dict] = []
+
+	for sid, payments in payments_by_student.items():
+		student = students_map.get(sid)
+		if not student:
+			continue
+		attendances = attendances_by_student.get(sid, [])
+		teacher_name = teacher_names.get(sid) or "Atanmamış"
+
+		for set_index, payment in enumerate(payments):
+			amount = float(payment.amount_try or 0)
+			unit = amount / PACKAGE_LESSON_SIZE if PACKAGE_LESSON_SIZE else amount
+			start_idx = set_index * PACKAGE_LESSON_SIZE
+			end_idx = start_idx + PACKAGE_LESSON_SIZE
+			covered = attendances[start_idx:end_idx]
+			unused_slots = PACKAGE_LESSON_SIZE - len(covered)
+
+			lesson_entries = []
+			month_split: dict[str, float] = {}
+			for att in covered:
+				lesson_day = att.marked_at.date() if att.marked_at else None
+				ym = lesson_day.strftime("%Y-%m") if lesson_day else "—"
+				month_split[ym] = month_split.get(ym, 0.0) + unit
+				lesson_entries.append({
+					"date": lesson_day.isoformat() if lesson_day else None,
+					"status": att.status,
+					"status_label": ATTENDANCE_STATUS_LABELS.get(att.status, att.status),
+					"amount_share": round(unit, 2),
+				})
+
+			pay_ym = payment.payment_date.strftime("%Y-%m") if payment.payment_date else "—"
+			if unused_slots > 0:
+				prepaid_amount = unit * unused_slots
+				month_split[f"{pay_ym} (bekleyen)"] = month_split.get(f"{pay_ym} (bekleyen)", 0.0) + prepaid_amount
+
+			# Filtre: tahsilat tarihi
+			if payment_start and payment.payment_date and payment.payment_date < payment_start:
+				continue
+			if payment_end and payment.payment_date and payment.payment_date > payment_end:
+				continue
+			# Filtre: kapsam ayı
+			if coverage_start or coverage_end:
+				in_coverage = False
+				for entry in lesson_entries:
+					if not entry["date"]:
+						continue
+					d = date.fromisoformat(entry["date"])
+					if coverage_start and d < coverage_start:
+						continue
+					if coverage_end and d > coverage_end:
+						continue
+					in_coverage = True
+					break
+				if unused_slots > 0 and payment.payment_date:
+					d = payment.payment_date
+					ok = True
+					if coverage_start and d < coverage_start:
+						ok = False
+					if coverage_end and d > coverage_end:
+						ok = False
+					if ok:
+						in_coverage = True
+				if not in_coverage:
+					continue
+
+			first_lesson = lesson_entries[0]["date"] if lesson_entries else None
+			last_lesson = lesson_entries[-1]["date"] if lesson_entries else None
+			if unused_slots == PACKAGE_LESSON_SIZE:
+				coverage_label = "Henüz ders kullanılmadı (ön ödeme)"
+			elif first_lesson and last_lesson:
+				coverage_label = f"{first_lesson} - {last_lesson}"
+				if unused_slots > 0:
+					coverage_label += f" (+{unused_slots} ders bekliyor)"
+			elif first_lesson:
+				coverage_label = first_lesson
+			else:
+				coverage_label = "—"
+
+			months_used = {e["date"][:7] for e in lesson_entries if e.get("date")}
+			if payment.payment_date:
+				months_used.add(payment.payment_date.strftime("%Y-%m"))
+			crosses_month = len(months_used) > 1
+
+			detail_rows.append({
+				"payment_id": payment.id,
+				"payment_date": payment.payment_date.isoformat() if payment.payment_date else None,
+				"payment_month": pay_ym,
+				"amount": amount,
+				"method": payment.method,
+				"note": payment.note,
+				"student_id": sid,
+				"student_name": f"{student.first_name} {student.last_name}",
+				"teacher_name": teacher_name,
+				"set_index": set_index + 1,
+				"lessons_used": len(covered),
+				"lessons_remaining": unused_slots,
+				"coverage_label": coverage_label,
+				"month_split": {k: round(v, 2) for k, v in month_split.items()},
+				"lessons": lesson_entries,
+				"crosses_month": crosses_month,
+			})
+
+	view_cash: dict[str, float] = {}
+	view_accrual: dict[str, float] = {}
+	view_prepaid: dict[str, float] = {}
+	for row in detail_rows:
+		pm = row["payment_month"]
+		view_cash[pm] = view_cash.get(pm, 0.0) + row["amount"]
+		for ym, val in row["month_split"].items():
+			if "(bekleyen)" in ym:
+				base = ym.replace(" (bekleyen)", "")
+				view_prepaid[base] = view_prepaid.get(base, 0.0) + val
+			else:
+				view_accrual[ym] = view_accrual.get(ym, 0.0) + val
+
+	all_months = sorted(set(view_cash) | set(view_accrual) | set(view_prepaid))
+	monthly_compare = [
+		{
+			"month": m,
+			"cash": round(view_cash.get(m, 0.0), 2),
+			"accrued": round(view_accrual.get(m, 0.0), 2),
+			"prepaid": round(view_prepaid.get(m, 0.0), 2),
+			"delta": round(view_cash.get(m, 0.0) - view_accrual.get(m, 0.0), 2),
+		}
+		for m in all_months
+	]
+
+	return {
+		"rows": detail_rows,
+		"monthly_compare": monthly_compare,
+		"totals": {
+			"cash": round(sum(r["amount"] for r in detail_rows), 2),
+			"accrued": round(sum(view_accrual.values()), 2),
+			"prepaid": round(sum(view_prepaid.values()), 2),
+			"cross_month_packages": sum(1 for r in detail_rows if r["crosses_month"]),
+			"package_count": len(detail_rows),
+		},
+		"package_size": PACKAGE_LESSON_SIZE,
+	}
+
+
 def check_student_payment_status(db: Session, student_id: int):
 	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
 	from datetime import date

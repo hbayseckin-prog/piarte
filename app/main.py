@@ -3232,6 +3232,102 @@ def ui_finance_income(
     )
 
 
+@app.get("/ui/finance/payment-detail", response_class=HTMLResponse)
+def ui_finance_payment_detail(
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    coverage_start: str | None = None,
+    coverage_end: str | None = None,
+    student_id: str | None = None,
+    teacher_id: str | None = None,
+    only_cross_month: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    cov_start = _parse_optional_date(coverage_start)
+    cov_end = _parse_optional_date(coverage_end)
+
+    student_id_int = None
+    if student_id and str(student_id).strip():
+        try:
+            student_id_int = int(str(student_id).strip())
+        except (ValueError, TypeError):
+            student_id_int = None
+    teacher_id_int = None
+    if teacher_id and str(teacher_id).strip():
+        try:
+            teacher_id_int = int(str(teacher_id).strip())
+        except (ValueError, TypeError):
+            teacher_id_int = None
+
+    analysis = crud.build_payment_package_details(
+        db,
+        payment_start=start_date,
+        payment_end=end_date,
+        coverage_start=cov_start,
+        coverage_end=cov_end,
+        student_id=student_id_int,
+        teacher_id=teacher_id_int,
+    )
+    rows = analysis["rows"]
+    if (only_cross_month or "").strip() in {"1", "true", "on", "yes"}:
+        rows = [r for r in rows if r.get("crosses_month")]
+        analysis = dict(analysis)
+        analysis["rows"] = rows
+        # Yeniden özet
+        view_cash: dict[str, float] = {}
+        view_accrual: dict[str, float] = {}
+        view_prepaid: dict[str, float] = {}
+        for row in rows:
+            pm = row["payment_month"]
+            view_cash[pm] = view_cash.get(pm, 0.0) + row["amount"]
+            for ym, val in row["month_split"].items():
+                if "(bekleyen)" in ym:
+                    base = ym.replace(" (bekleyen)", "")
+                    view_prepaid[base] = view_prepaid.get(base, 0.0) + val
+                else:
+                    view_accrual[ym] = view_accrual.get(ym, 0.0) + val
+        months = sorted(set(view_cash) | set(view_accrual) | set(view_prepaid))
+        analysis["monthly_compare"] = [
+            {
+                "month": m,
+                "cash": round(view_cash.get(m, 0.0), 2),
+                "accrued": round(view_accrual.get(m, 0.0), 2),
+                "prepaid": round(view_prepaid.get(m, 0.0), 2),
+                "delta": round(view_cash.get(m, 0.0) - view_accrual.get(m, 0.0), 2),
+            }
+            for m in months
+        ]
+        analysis["totals"] = {
+            "cash": round(sum(r["amount"] for r in rows), 2),
+            "accrued": round(sum(view_accrual.values()), 2),
+            "prepaid": round(sum(view_prepaid.values()), 2),
+            "cross_month_packages": len(rows),
+            "package_count": len(rows),
+        }
+
+    selected_student = db.get(models.Student, student_id_int) if student_id_int else None
+    teachers = crud.list_teachers(db)
+    return templates.TemplateResponse(
+        "finance_payment_detail.html",
+        {
+            "request": request,
+            "start": start_s,
+            "end": end_s,
+            "coverage_start": coverage_start or "",
+            "coverage_end": coverage_end or "",
+            "student_id": student_id_int or "",
+            "selected_student": selected_student,
+            "teacher_id": teacher_id_int or "",
+            "teachers": teachers,
+            "only_cross_month": (only_cross_month or "").strip() in {"1", "true", "on", "yes"},
+            "analysis": analysis,
+        },
+    )
+
+
 @app.get("/ui/finance/expenses", response_class=HTMLResponse)
 def ui_finance_expenses(
     request: Request,

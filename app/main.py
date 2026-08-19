@@ -3290,6 +3290,7 @@ def ui_finance(request: Request, start: str | None = None, end: str | None = Non
     expense_monthly = crud.monthly_expense_totals(db, start_date=start_date, end_date=end_date)
     expense_by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
     by_teacher = crud.payment_totals_by_teacher(db, start_date=start_date, end_date=end_date)
+    from . import finance_export as fexp
     return templates.TemplateResponse(
         "finance.html",
         {
@@ -3306,6 +3307,8 @@ def ui_finance(request: Request, start: str | None = None, end: str | None = Non
             "expense_monthly": expense_monthly,
             "expense_by_category": expense_by_category,
             "by_teacher": by_teacher,
+            "export_base": "/ui/finance/export/overview",
+            "export_qs": fexp.build_export_qs(start=start_s, end=end_s),
         },
     )
 
@@ -3367,6 +3370,7 @@ def ui_finance_income(
         db, start_date=start_date, end_date=end_date, method=db_method
     )
     teachers = crud.list_teachers(db)
+    from . import finance_export as fexp
 
     return templates.TemplateResponse(
         "finance_income.html",
@@ -3385,6 +3389,13 @@ def ui_finance_income(
             "kart": income_by_method.get("Kart", 0),
             "income_monthly": income_monthly,
             "by_teacher": by_teacher,
+            "export_base": "/ui/finance/export/income",
+            "export_qs": fexp.build_export_qs(
+                start=start_s,
+                end=end_s,
+                method=method_filter or "",
+                teacher_id=teacher_id_int or "",
+            ),
         },
     )
 
@@ -3467,6 +3478,8 @@ def ui_finance_payment_detail(
 
     selected_student = db.get(models.Student, student_id_int) if student_id_int else None
     teachers = crud.list_teachers(db)
+    from . import finance_export as fexp
+    only_cross = (only_cross_month or "").strip() in {"1", "true", "on", "yes"}
     return templates.TemplateResponse(
         "finance_payment_detail.html",
         {
@@ -3479,8 +3492,18 @@ def ui_finance_payment_detail(
             "selected_student": selected_student,
             "teacher_id": teacher_id_int or "",
             "teachers": teachers,
-            "only_cross_month": (only_cross_month or "").strip() in {"1", "true", "on", "yes"},
+            "only_cross_month": only_cross,
             "analysis": analysis,
+            "export_base": "/ui/finance/export/payment-detail",
+            "export_qs": fexp.build_export_qs(
+                start=start_s,
+                end=end_s,
+                coverage_start=coverage_start or "",
+                coverage_end=coverage_end or "",
+                student_id=student_id_int or "",
+                teacher_id=teacher_id_int or "",
+                only_cross_month=only_cross,
+            ),
         },
     )
 
@@ -3508,6 +3531,7 @@ def ui_finance_teacher_pay(
         teacher_id=teacher_id_int,
     )
     teachers = crud.list_teachers(db, active_only=True)
+    from . import finance_export as fexp
     return templates.TemplateResponse(
         "finance_teacher_pay.html",
         {
@@ -3517,6 +3541,12 @@ def ui_finance_teacher_pay(
             "teacher_id": teacher_id_int or "",
             "teachers": teachers,
             "report": report,
+            "export_base": "/ui/finance/export/teacher-pay",
+            "export_qs": fexp.build_export_qs(
+                start=start_s,
+                end=end_s,
+                teacher_id=teacher_id_int or "",
+            ),
         },
     )
 
@@ -3571,6 +3601,7 @@ def ui_finance_expenses(
     total = crud.sum_expenses(db, start_date=start_date, end_date=end_date, category=cat)
     by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
     from datetime import date as date_cls
+    from . import finance_export as fexp
     return templates.TemplateResponse(
         "finance_expenses.html",
         {
@@ -3583,6 +3614,12 @@ def ui_finance_expenses(
             "by_category": by_category,
             "categories": crud.EXPENSE_CATEGORIES,
             "today": date_cls.today().isoformat(),
+            "export_base": "/ui/finance/export/expenses",
+            "export_qs": fexp.build_export_qs(
+                start=start_s,
+                end=end_s,
+                category=cat or "",
+            ),
         },
     )
 
@@ -3622,6 +3659,435 @@ def ui_finance_expense_delete(expense_id: int, request: Request, db: Session = D
     if crud.delete_expense(db, expense_id):
         set_flash_success(request, "Gider kaydı silindi.")
     return RedirectResponse(url="/ui/finance/expenses", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _finance_parse_int(value: str | None) -> int | None:
+    if value and str(value).strip():
+        try:
+            return int(str(value).strip())
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def _finance_db_method(method: str | None) -> str | None:
+    method_filter = (method or "").strip() or None
+    if method_filter == "IBAN":
+        return "EFT"
+    if method_filter in ("Nakit", "Kart", "EFT"):
+        return method_filter
+    return None
+
+
+def _finance_payment_detail_analysis(
+    db: Session,
+    *,
+    start: str | None,
+    end: str | None,
+    coverage_start: str | None,
+    coverage_end: str | None,
+    student_id: str | None,
+    teacher_id: str | None,
+    only_cross_month: str | None,
+):
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    cov_start = _parse_optional_date(coverage_start)
+    cov_end = _parse_optional_date(coverage_end)
+    student_id_int = _finance_parse_teacher_id(student_id)  # same int parse
+    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    analysis = crud.build_payment_package_details(
+        db,
+        payment_start=start_date,
+        payment_end=end_date,
+        coverage_start=cov_start,
+        coverage_end=cov_end,
+        student_id=student_id_int,
+        teacher_id=teacher_id_int,
+    )
+    rows = analysis["rows"]
+    cross = (only_cross_month or "").strip() in {"1", "true", "on", "yes"}
+    if cross:
+        rows = [r for r in rows if r.get("crosses_month")]
+        analysis = dict(analysis)
+        analysis["rows"] = rows
+        view_cash: dict[str, float] = {}
+        view_accrual: dict[str, float] = {}
+        view_prepaid: dict[str, float] = {}
+        for row in rows:
+            pm = row["payment_month"]
+            view_cash[pm] = view_cash.get(pm, 0.0) + row["amount"]
+            for ym, val in row["month_split"].items():
+                if "(bekleyen)" in ym:
+                    base = ym.replace(" (bekleyen)", "")
+                    view_prepaid[base] = view_prepaid.get(base, 0.0) + val
+                else:
+                    view_accrual[ym] = view_accrual.get(ym, 0.0) + val
+        months = sorted(set(view_cash) | set(view_accrual) | set(view_prepaid))
+        analysis["monthly_compare"] = [
+            {
+                "month": m,
+                "cash": round(view_cash.get(m, 0.0), 2),
+                "accrued": round(view_accrual.get(m, 0.0), 2),
+                "prepaid": round(view_prepaid.get(m, 0.0), 2),
+                "delta": round(view_cash.get(m, 0.0) - view_accrual.get(m, 0.0), 2),
+            }
+            for m in months
+        ]
+        analysis["totals"] = {
+            "cash": round(sum(r["amount"] for r in rows), 2),
+            "accrued": round(sum(view_accrual.values()), 2),
+            "prepaid": round(sum(view_prepaid.values()), 2),
+            "cross_month_packages": len(rows),
+            "package_count": len(rows),
+        }
+    return analysis, start_s, end_s
+
+
+@app.get("/ui/finance/export/overview.{fmt}")
+def finance_export_overview(
+    fmt: str,
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from . import finance_export as fexp
+    from datetime import datetime as dt
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=404)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    income_by_method = crud.sum_payments_by_method(db, start_date=start_date, end_date=end_date)
+    income_total = crud.sum_payments_total(db, start_date=start_date, end_date=end_date)
+    expense_total = crud.sum_expenses(db, start_date=start_date, end_date=end_date)
+    net = income_total - expense_total
+    by_teacher = crud.payment_totals_by_teacher(db, start_date=start_date, end_date=end_date)
+    expense_by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
+    stamp = dt.now().strftime("%Y%m%d_%H%M")
+    meta = [fexp.period_label(start_s, end_s)]
+
+    summary_headers = ["Kalem", "Tutar (₺)"]
+    summary_rows = [
+        ["Gelir (Tahsilat)", round(income_total, 2)],
+        ["Gider", round(expense_total, 2)],
+        ["Net", round(net, 2)],
+        ["Nakit", round(income_by_method.get("Nakit", 0), 2)],
+        ["IBAN", round(income_by_method.get("EFT", 0), 2)],
+        ["Kart", round(income_by_method.get("Kart", 0), 2)],
+    ]
+    teacher_headers = ["Öğretmen", "Adet", "Toplam (₺)", "Pay (%)"]
+    teacher_rows = [
+        [
+            r["teacher_name"],
+            r["count"],
+            round(float(r["total"]), 2),
+            round((float(r["total"]) / income_total) * 100, 1) if income_total else 0,
+        ]
+        for r in by_teacher
+    ]
+    cat_headers = ["Kategori", "Toplam (₺)"]
+    cat_rows = [[c["category"], round(float(c["total"]), 2)] for c in expense_by_category]
+
+    if fmt == "xlsx":
+        return fexp.excel_response(
+            filename=f"finans_ozet_{stamp}.xlsx",
+            sheets=[
+                ("Özet", summary_headers, summary_rows),
+                ("Öğretmen dağılımı", teacher_headers, teacher_rows),
+                ("Gider kategorileri", cat_headers, cat_rows),
+            ],
+        )
+    # PDF: özet + öğretmen tablosu
+    pdf_headers = teacher_headers
+    pdf_rows = teacher_rows or [["—", 0, 0, 0]]
+    return fexp.pdf_response(
+        filename=f"finans_ozet_{stamp}.pdf",
+        title="Finans Özeti",
+        meta_lines=meta + [
+            f"Gelir: {income_total:.2f} ₺ | Gider: {expense_total:.2f} ₺ | Net: {net:.2f} ₺",
+            f"Nakit: {income_by_method.get('Nakit', 0):.2f} | IBAN: {income_by_method.get('EFT', 0):.2f} | Kart: {income_by_method.get('Kart', 0):.2f}",
+        ],
+        headers=pdf_headers,
+        rows=pdf_rows,
+        footer_note="Öğretmene göre tahsilat dağılımı",
+    )
+
+
+@app.get("/ui/finance/export/income.{fmt}")
+def finance_export_income(
+    fmt: str,
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    method: str | None = None,
+    teacher_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from . import finance_export as fexp
+    from datetime import datetime as dt
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=404)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    db_method = _finance_db_method(method)
+    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    q = db.query(models.Payment).join(models.Student)
+    if start_date:
+        q = q.filter(models.Payment.payment_date >= start_date)
+    if end_date:
+        q = q.filter(models.Payment.payment_date <= end_date)
+    if db_method:
+        q = q.filter(models.Payment.method == db_method)
+    if teacher_id_int is not None:
+        q = q.join(
+            models.TeacherStudent,
+            models.TeacherStudent.student_id == models.Payment.student_id,
+        ).filter(models.TeacherStudent.teacher_id == teacher_id_int)
+    items = q.order_by(models.Payment.payment_date.desc()).all()
+    teacher_names = crud.student_teacher_name_map(db)
+    filtered_total = float(sum(float(p.amount_try or 0) for p in items))
+    headers = ["Tarih", "Öğrenci", "Öğretmen", "Tutar (₺)", "Yöntem", "Not"]
+    rows = [
+        [
+            str(p.payment_date or ""),
+            f"{p.student.first_name} {p.student.last_name}",
+            teacher_names.get(p.student_id) or "Atanmamış",
+            round(float(p.amount_try or 0), 2),
+            fexp.method_ui_label(p.method),
+            p.note or "",
+        ]
+        for p in items
+    ]
+    stamp = dt.now().strftime("%Y%m%d_%H%M")
+    meta = [
+        fexp.period_label(start_s, end_s),
+        f"Yöntem: {(method or 'Tümü')} | Öğretmen ID: {(teacher_id or 'Tümü')}",
+        f"Kayıt: {len(rows)} | Toplam: {filtered_total:.2f} ₺",
+    ]
+    if fmt == "xlsx":
+        by_teacher = crud.payment_totals_by_teacher(
+            db, start_date=start_date, end_date=end_date, method=db_method
+        )
+        return fexp.excel_response(
+            filename=f"finans_gelirler_{stamp}.xlsx",
+            sheets=[
+                ("Tahsilat listesi", headers, rows),
+                (
+                    "Öğretmen özeti",
+                    ["Öğretmen", "Adet", "Toplam (₺)"],
+                    [[r["teacher_name"], r["count"], round(float(r["total"]), 2)] for r in by_teacher],
+                ),
+            ],
+        )
+    return fexp.pdf_response(
+        filename=f"finans_gelirler_{stamp}.pdf",
+        title="Gelirler / Tahsilatlar",
+        meta_lines=meta,
+        headers=headers,
+        rows=rows or [["—", "—", "—", 0, "—", "Kayıt yok"]],
+    )
+
+
+@app.get("/ui/finance/export/payment-detail.{fmt}")
+def finance_export_payment_detail(
+    fmt: str,
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    coverage_start: str | None = None,
+    coverage_end: str | None = None,
+    student_id: str | None = None,
+    teacher_id: str | None = None,
+    only_cross_month: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from . import finance_export as fexp
+    from datetime import datetime as dt
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=404)
+    analysis, start_s, end_s = _finance_payment_detail_analysis(
+        db,
+        start=start,
+        end=end,
+        coverage_start=coverage_start,
+        coverage_end=coverage_end,
+        student_id=student_id,
+        teacher_id=teacher_id,
+        only_cross_month=only_cross_month,
+    )
+    headers = [
+        "Tahsilat",
+        "Öğrenci",
+        "Öğretmen",
+        "Paket #",
+        "Tutar (₺)",
+        "Kapsam",
+        "Ay dağılımı",
+        "Durum",
+    ]
+    rows = []
+    for row in analysis.get("rows") or []:
+        split = "; ".join(f"{ym}: {float(val):.2f}" for ym, val in (row.get("month_split") or {}).items())
+        rows.append(
+            [
+                str(row.get("payment_date") or "—"),
+                row.get("student_name") or "",
+                row.get("teacher_name") or "",
+                row.get("set_index"),
+                round(float(row.get("amount") or 0), 2),
+                row.get("coverage_label") or "",
+                split,
+                "Ay aşımı" if row.get("crosses_month") else "Tek ay",
+            ]
+        )
+    stamp = dt.now().strftime("%Y%m%d_%H%M")
+    totals = analysis.get("totals") or {}
+    meta = [
+        fexp.period_label(start_s, end_s),
+        f"Kapsam: {(coverage_start or '—')} → {(coverage_end or '—')}",
+        f"Paket: {totals.get('package_count', len(rows))} | Tahsilat: {float(totals.get('cash') or 0):.2f} ₺",
+    ]
+    if fmt == "xlsx":
+        compare = analysis.get("monthly_compare") or []
+        return fexp.excel_response(
+            filename=f"finans_odeme_detay_{stamp}.xlsx",
+            sheets=[
+                ("Paket satırları", headers, rows),
+                (
+                    "Aylık karşılaştırma",
+                    ["Ay", "Tahsilat", "Hak ediş", "Bekleyen", "Fark"],
+                    [
+                        [
+                            m["month"],
+                            m["cash"],
+                            m["accrued"],
+                            m["prepaid"],
+                            m["delta"],
+                        ]
+                        for m in compare
+                    ],
+                ),
+            ],
+        )
+    return fexp.pdf_response(
+        filename=f"finans_odeme_detay_{stamp}.pdf",
+        title="Ödeme Detayı",
+        meta_lines=meta,
+        headers=headers,
+        rows=rows or [["—", "—", "—", "—", 0, "—", "—", "Kayıt yok"]],
+    )
+
+
+@app.get("/ui/finance/export/teacher-pay.{fmt}")
+def finance_export_teacher_pay(
+    fmt: str,
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    teacher_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from . import finance_export as fexp
+    from datetime import datetime as dt
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=404)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    teacher_id_int = _finance_parse_teacher_id(teacher_id)
+    report = crud.build_teacher_pay_report(
+        db, start_date=start_date, end_date=end_date, teacher_id=teacher_id_int
+    )
+    headers = ["Öğretmen", "Saat ücreti (₺)", "Ders saati", "Hak ediş (₺)"]
+    rows = [
+        [
+            r["teacher_name"],
+            r["hourly_rate_try"] if r.get("hourly_rate_try") is not None else "",
+            round(float(r.get("hours") or 0), 2),
+            round(float(r["amount"]), 2) if r.get("amount") is not None else "",
+        ]
+        for r in (report.get("rows") or [])
+    ]
+    totals = report.get("totals") or {}
+    stamp = dt.now().strftime("%Y%m%d_%H%M")
+    meta = [
+        fexp.period_label(start_s, end_s),
+        f"Toplam ders saati: {float(totals.get('hours') or 0):.2f} | Toplam hak ediş: {float(totals.get('amount') or 0):.2f} ₺",
+    ]
+    if fmt == "xlsx":
+        return fexp.excel_response(
+            filename=f"finans_ogretmen_hak_edis_{stamp}.xlsx",
+            sheets=[("Hak ediş", headers, rows)],
+        )
+    return fexp.pdf_response(
+        filename=f"finans_ogretmen_hak_edis_{stamp}.pdf",
+        title="Öğretmen Hak Edişi",
+        meta_lines=meta,
+        headers=headers,
+        rows=rows or [["—", "", 0, ""]],
+    )
+
+
+@app.get("/ui/finance/export/expenses.{fmt}")
+def finance_export_expenses(
+    fmt: str,
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    category: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from . import finance_export as fexp
+    from datetime import datetime as dt
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=404)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    cat = (category or "").strip() or None
+    items = crud.list_expenses(db, start_date=start_date, end_date=end_date, category=cat)
+    total = crud.sum_expenses(db, start_date=start_date, end_date=end_date, category=cat)
+    headers = ["Tarih", "Başlık", "Kategori", "Tutar (₺)", "Yöntem", "Not"]
+    rows = [
+        [
+            str(e.expense_date or ""),
+            e.title or "",
+            e.category or "",
+            round(float(e.amount_try or 0), 2),
+            fexp.method_ui_label(e.method),
+            e.note or "",
+        ]
+        for e in items
+    ]
+    stamp = dt.now().strftime("%Y%m%d_%H%M")
+    meta = [
+        fexp.period_label(start_s, end_s),
+        f"Kategori: {cat or 'Tümü'} | Kayıt: {len(rows)} | Toplam: {float(total):.2f} ₺",
+    ]
+    if fmt == "xlsx":
+        by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
+        return fexp.excel_response(
+            filename=f"finans_giderler_{stamp}.xlsx",
+            sheets=[
+                ("Gider listesi", headers, rows),
+                (
+                    "Kategori özeti",
+                    ["Kategori", "Toplam (₺)"],
+                    [[c["category"], round(float(c["total"]), 2)] for c in by_category],
+                ),
+            ],
+        )
+    return fexp.pdf_response(
+        filename=f"finans_giderler_{stamp}.pdf",
+        title="Giderler",
+        meta_lines=meta,
+        headers=headers,
+        rows=rows or [["—", "—", "—", 0, "—", "Kayıt yok"]],
+    )
 
 
 # UI: Payment Reports

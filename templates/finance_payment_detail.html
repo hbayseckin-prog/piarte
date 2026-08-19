@@ -57,6 +57,8 @@
 	<a href="/ui/finance/payment-detail" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none;">Bu ay</a>
 </form>
 
+{% include "_finance_export_buttons.html" %}
+
 {% if selected_student %}
 <p style="margin-bottom:12px;color:#0369a1;font-size:14px;">Filtrelenen öğrenci: <strong>{{ selected_student.first_name }} {{ selected_student.last_name }}</strong></p>
 {% endif %}

@@ -1,0 +1,12 @@
+{# export_base: "/ui/finance/..."  qs: query string without leading ? #}
+<div class="finance-export-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px 0;">
+	<span style="font-size:13px;color:#64748b;font-weight:600;">Rapor:</span>
+	<a href="{{ export_base }}.xlsx{% if export_qs %}?{{ export_qs }}{% endif %}"
+		style="padding:8px 12px;background:#059669;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">
+		Excel indir
+	</a>
+	<a href="{{ export_base }}.pdf{% if export_qs %}?{{ export_qs }}{% endif %}"
+		style="padding:8px 12px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">
+		PDF indir
+	</a>
+</div>

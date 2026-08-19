@@ -1828,8 +1828,8 @@ def payment_create(
         note=note,
     )
     payment = crud.create_payment(db, payload)
-    # Nakit tahsilat → admin mobil bildirimi (başarısız olsa ödeme yine kayıtlı kalır)
-    if push_notify and push_notify.is_nakit_method(method):
+    # Nakit / IBAN tahsilat → admin mobil bildirimi (başarısız olsa ödeme yine kayıtlı kalır)
+    if push_notify and push_notify.is_notifiable_payment_method(method):
         student = crud.get_student(db, student_id)
         student_name = (
             f"{student.first_name} {student.last_name}".strip()
@@ -1847,6 +1847,7 @@ def payment_create(
             amount_try=float(amount_try),
             staff_name=actor_label,
             payment_id=getattr(payment, "id", None),
+            method=method,
         )
     set_flash_success(request, "Ödeme başarıyla kaydedildi.")
     return RedirectResponse(url=safe_return_url(return_to, default_panel_url(user)), status_code=302)

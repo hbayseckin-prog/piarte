@@ -279,6 +279,23 @@ def is_nakit_method(method: str | None) -> bool:
 	return (method or "").strip().casefold() == "nakit"
 
 
+def is_notifiable_payment_method(method: str | None) -> bool:
+	"""Nakit veya IBAN(EFT) tahsilatlarda admin bildirimi gönder."""
+	m = (method or "").strip().casefold()
+	return m in {"nakit", "eft", "iban"}
+
+
+def payment_method_label(method: str | None) -> str:
+	m = (method or "").strip().casefold()
+	if m == "nakit":
+		return "Nakit"
+	if m in {"eft", "iban"}:
+		return "IBAN"
+	if m == "kart":
+		return "Kart"
+	return (method or "Ödeme").strip() or "Ödeme"
+
+
 def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], private_key: str | Any) -> tuple[bool, str | None]:
 	"""(keep_subscription, error_message). keep=False → abonelik silinmeli."""
 	try:
@@ -325,8 +342,9 @@ def notify_admins_staff_cash(
 	amount_try: float,
 	staff_name: str,
 	payment_id: int | None = None,
+	method: str | None = None,
 ) -> dict[str, Any]:
-	"""Admin aboneliklerine nakit tahsilat bildirimi. Sonuç özeti döner."""
+	"""Admin aboneliklerine tahsilat bildirimi. Sonuç özeti döner."""
 	result: dict[str, Any] = {
 		"sent": 0,
 		"failed": 0,
@@ -342,17 +360,18 @@ def notify_admins_staff_cash(
 		return result
 	_, private_key = keys
 	result["vapid_sub"] = vapid_claims().get("sub")
+	method_label = payment_method_label(method) if method else "Nakit"
 	payload = {
-		"title": "Nakit tahsilat",
+		"title": f"{method_label} tahsilat",
 		"body": f"{staff_name}: {student_name} — {amount_try:.2f} ₺",
 		"url": "/ui/finance/income",
-		"tag": f"cash-{payment_id}" if payment_id else "cash-payment",
+		"tag": f"pay-{payment_id}" if payment_id else "payment",
 	}
 	db = SessionLocal()
 	try:
 		subs = list_admin_subscriptions(db)
 		result["subscriptions"] = len(subs)
-		print(f"PUSH_SEND count={len(subs)} student={student_name!r} by={staff_name!r}")
+		print(f"PUSH_SEND count={len(subs)} method={method_label} student={student_name!r} by={staff_name!r}")
 		if not subs:
 			result["skipped"] = 1
 			result["errors"].append("Kayıtlı admin cihazı yok — Bildirimleri açın")
@@ -393,6 +412,7 @@ def schedule_admin_cash_notify(
 	amount_try: float,
 	staff_name: str,
 	payment_id: int | None = None,
+	method: str | None = None,
 ) -> None:
 	"""Ödeme yanıtından bağımsız thread."""
 	threading.Thread(
@@ -402,6 +422,7 @@ def schedule_admin_cash_notify(
 			"amount_try": amount_try,
 			"staff_name": staff_name,
 			"payment_id": payment_id,
+			"method": method,
 		},
 		daemon=True,
 	).start()

@@ -1035,6 +1035,28 @@ def lesson_duration_hours(lesson) -> float:
 	return round(diff / 60.0, 2)
 
 
+def _normalize_attendance_status_for_pay(status: str | None) -> str:
+	if status == "LATE":
+		return "TELAFI"
+	if status == "ABSENT":
+		return "UNEXCUSED_ABSENT"
+	return status or ""
+
+
+def attendance_counts_toward_teacher_pay(status: str | None, course_name: str | None) -> bool:
+	"""
+	Puantaj 'Toplam Ders' ile aynı kural:
+	- Haberli gelmedi (EXCUSED) hiçbir zaman öğretmen toplamına girmez
+	- Resim: yalnızca Geldi / Telafi
+	- Diğer kurslar: Geldi / Telafi / Habersiz
+	"""
+	normalized = _normalize_attendance_status_for_pay(status)
+	is_resim = (course_name or "").strip() == "Resim"
+	if is_resim:
+		return normalized in ("PRESENT", "TELAFI")
+	return normalized in ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+
+
 def build_teacher_pay_report(
 	db: Session,
 	*,
@@ -1044,17 +1066,17 @@ def build_teacher_pay_report(
 ) -> dict:
 	"""
 	Öğretmen ders saat ücreti × işlenen ders saati.
-	İşlenen ders: öğretmenin slotlarında, sayılan yoklama alınmış benzersiz (ders, gün) oturumları.
+	Sayım, puantaj sekmesindeki öğretmen 'Toplam Ders' ile aynı yoklama kurallarını kullanır;
+	her sayılan yoklama, ders süresi kadar saat ekler (süre yoksa 1 saat).
 	"""
 	teachers = list_teachers(db, active_only=True)
 	if teacher_id:
 		teachers = [t for t in teachers if t.id == teacher_id]
 
-	# Yoklamaları öğretmen dersleriyle birleştir
 	q = (
-		db.query(models.Attendance, models.Lesson)
+		db.query(models.Attendance, models.Lesson, models.Course)
 		.join(models.Lesson, models.Lesson.id == models.Attendance.lesson_id)
-		.filter(models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES))
+		.outerjoin(models.Course, models.Course.id == models.Lesson.course_id)
 		.filter(models.Attendance.marked_at.isnot(None))
 	)
 	if teacher_id:
@@ -1062,38 +1084,35 @@ def build_teacher_pay_report(
 	else:
 		teacher_ids = [t.id for t in teachers]
 		if not teacher_ids:
-			return {"rows": [], "totals": {"hours": 0.0, "amount": 0.0, "sessions": 0}}
+			return {"rows": [], "totals": {"hours": 0.0, "amount": 0.0, "lessons": 0}}
 		q = q.filter(models.Lesson.teacher_id.in_(teacher_ids))
 	if start_date:
 		q = q.filter(models.Attendance.marked_at >= datetime.combine(start_date, datetime.min.time()))
 	if end_date:
 		q = q.filter(models.Attendance.marked_at <= datetime.combine(end_date, datetime.max.time()))
 
-	# Benzersiz oturum: (teacher_id, lesson_id, day)
-	sessions: dict[tuple[int, int, date], float] = {}
-	for attendance, lesson in q.all():
-		day = attendance.marked_at.date()
-		key = (lesson.teacher_id, lesson.id, day)
-		if key not in sessions:
-			sessions[key] = lesson_duration_hours(lesson)
-
 	hours_by_teacher: dict[int, float] = {}
-	sessions_by_teacher: dict[int, int] = {}
-	for (tid, _lid, _day), hours in sessions.items():
+	lessons_by_teacher: dict[int, int] = {}
+	for attendance, lesson, course in q.all():
+		course_name = course.name if course else None
+		if not attendance_counts_toward_teacher_pay(attendance.status, course_name):
+			continue
+		tid = lesson.teacher_id
+		hours = lesson_duration_hours(lesson)
 		hours_by_teacher[tid] = hours_by_teacher.get(tid, 0.0) + hours
-		sessions_by_teacher[tid] = sessions_by_teacher.get(tid, 0) + 1
+		lessons_by_teacher[tid] = lessons_by_teacher.get(tid, 0) + 1
 
 	rows = []
 	total_hours = 0.0
 	total_amount = 0.0
-	total_sessions = 0
+	total_lessons = 0
 	for teacher in sorted(teachers, key=lambda t: ((t.first_name or ""), (t.last_name or ""))):
 		hours = round(hours_by_teacher.get(teacher.id, 0.0), 2)
-		sess = sessions_by_teacher.get(teacher.id, 0)
+		lesson_count = lessons_by_teacher.get(teacher.id, 0)
 		rate = float(teacher.hourly_rate_try) if teacher.hourly_rate_try is not None else None
 		amount = round(hours * rate, 2) if rate is not None else None
 		total_hours += hours
-		total_sessions += sess
+		total_lessons += lesson_count
 		if amount is not None:
 			total_amount += amount
 		rows.append({
@@ -1101,7 +1120,7 @@ def build_teacher_pay_report(
 			"teacher_name": f"{teacher.first_name} {teacher.last_name}",
 			"is_active": bool(getattr(teacher, "is_active", True)),
 			"hourly_rate_try": rate,
-			"sessions": sess,
+			"lessons": lesson_count,
 			"hours": hours,
 			"amount": amount,
 		})
@@ -1111,7 +1130,7 @@ def build_teacher_pay_report(
 		"totals": {
 			"hours": round(total_hours, 2),
 			"amount": round(total_amount, 2),
-			"sessions": total_sessions,
+			"lessons": total_lessons,
 		},
 	}
 

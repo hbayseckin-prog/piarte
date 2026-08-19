@@ -1035,7 +1035,11 @@ def lesson_duration_hours(lesson) -> float:
 	return round(diff / 60.0, 2)
 
 
-def _normalize_attendance_status_for_pay(status: str | None) -> str:
+def is_resim_course_name(course_name: str | None) -> bool:
+	return (course_name or "").strip().casefold() == "resim"
+
+
+def normalize_attendance_status_value(status: str | None) -> str:
 	if status == "LATE":
 		return "TELAFI"
 	if status == "ABSENT":
@@ -1043,18 +1047,18 @@ def _normalize_attendance_status_for_pay(status: str | None) -> str:
 	return status or ""
 
 
-def attendance_counts_toward_teacher_pay(status: str | None, course_name: str | None) -> bool:
+def teacher_puantaj_lesson_credit(status: str | None, course_name: str | None) -> int:
 	"""
-	Puantaj 'Toplam Ders' ile aynı kural:
-	- Haberli gelmedi (EXCUSED) hiçbir zaman öğretmen toplamına girmez
-	- Resim: yalnızca Geldi / Telafi
-	- Diğer kurslar: Geldi / Telafi / Habersiz
+	Öğretmen puantajı 'Toplam Ders' artışı (0 veya 1).
+	Resim: yalnızca Geldi / Telafi.
+	Diğer kurslar: Geldi / Telafi / Habersiz. Haberli hiçbirinde toplam dersi artırmaz.
 	"""
-	normalized = _normalize_attendance_status_for_pay(status)
-	is_resim = (course_name or "").strip() == "Resim"
-	if is_resim:
-		return normalized in ("PRESENT", "TELAFI")
-	return normalized in ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+	normalized = normalize_attendance_status_value(status)
+	if is_resim_course_name(course_name):
+		return 1 if normalized in ("PRESENT", "TELAFI") else 0
+	if normalized in ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT"):
+		return 1
+	return 0
 
 
 def build_teacher_pay_report(
@@ -1065,9 +1069,9 @@ def build_teacher_pay_report(
 	teacher_id: int | None = None,
 ) -> dict:
 	"""
-	Öğretmen ders saat ücreti × işlenen ders saati.
-	Sayım, puantaj sekmesindeki öğretmen 'Toplam Ders' ile aynı yoklama kurallarını kullanır;
-	her sayılan yoklama, ders süresi kadar saat ekler (süre yoksa 1 saat).
+	Öğretmen ders saat ücreti × işlenen ders.
+	Resim dahil tüm öğretmenlerde sayım, puantaj 'Toplam Ders' ile birebir aynıdır
+	(1 puantaj dersi = 1 saat birimi).
 	"""
 	teachers = list_teachers(db, active_only=True)
 	if teacher_id:
@@ -1095,12 +1099,13 @@ def build_teacher_pay_report(
 	lessons_by_teacher: dict[int, int] = {}
 	for attendance, lesson, course in q.all():
 		course_name = course.name if course else None
-		if not attendance_counts_toward_teacher_pay(attendance.status, course_name):
+		credit = teacher_puantaj_lesson_credit(attendance.status, course_name)
+		if credit <= 0:
 			continue
 		tid = lesson.teacher_id
-		hours = lesson_duration_hours(lesson)
-		hours_by_teacher[tid] = hours_by_teacher.get(tid, 0.0) + hours
-		lessons_by_teacher[tid] = lessons_by_teacher.get(tid, 0) + 1
+		# Puantaj Toplam Ders ile birebir: 1 kredi = 1 saat birimi
+		hours_by_teacher[tid] = hours_by_teacher.get(tid, 0.0) + float(credit)
+		lessons_by_teacher[tid] = lessons_by_teacher.get(tid, 0) + credit
 
 	rows = []
 	total_hours = 0.0
@@ -1823,51 +1828,31 @@ def get_attendance_report_by_teacher(
             else:
                 date_str = ''
             
-            # Eski LATE değerlerini TELAFI olarak say (geriye dönük uyumluluk)
-            # Eski ABSENT değerlerini UNEXCUSED_ABSENT olarak say (geriye dönük uyumluluk)
-            status = att.status
-            if status == "LATE":
-                status = "TELAFI"
-            elif status == "ABSENT":
-                status = "UNEXCUSED_ABSENT"
-            
-            # Resim kursu kontrolü
-            is_resim_course = lesson and lesson.course and lesson.course.name == "Resim"
-            
-            # Resim kursu için özel hesaplama:
-            # - PRESENT, TELAFI -> öğretmen puantajına +1
-            # - UNEXCUSED_ABSENT, EXCUSED_ABSENT -> öğretmen puantajına eklenmez (lesson_count = 0)
-            # Diğer kurslar için: Her yoklama kaydı = 1 ders
-            if is_resim_course:
-                if status == "PRESENT" or status == "TELAFI":
-                    lesson_count = 1  # Öğretmen puantajına eklenir
-                else:
-                    lesson_count = 0  # Öğretmen puantajına eklenmez
-            else:
-                lesson_count = 1  # Diğer kurslar için normal
+            status = normalize_attendance_status_value(att.status)
+            course_name = lesson.course.name if lesson and lesson.course else None
+            is_resim_course = is_resim_course_name(course_name)
+            # Öğretmen Toplam Ders artışı: Resim ve diğer kurslar için ortak kural
+            lesson_count = teacher_puantaj_lesson_credit(status, course_name)
             
             if status == "PRESENT":
                 student_stats[att_student_id]["present"] += lesson_count
                 student_stats[att_student_id]["total"] += lesson_count
                 student_stats[att_student_id]["dates"].append(date_str)
             elif status == "EXCUSED_ABSENT":
-                student_stats[att_student_id]["excused_absent"] += lesson_count
+                # Haberli: öğrenci sütununda görünsün diye 1; öğretmen toplamına girmez (lesson_count=0)
+                student_stats[att_student_id]["excused_absent"] += 1
                 student_stats[att_student_id]["dates"].append(date_str)
-                # Haberli gelmedi durumunda toplam ders sayısına eklenmez
             elif status == "TELAFI":
                 student_stats[att_student_id]["telafi"] += lesson_count
                 student_stats[att_student_id]["total"] += lesson_count
                 student_stats[att_student_id]["dates"].append(date_str)
             elif status == "UNEXCUSED_ABSENT":
-                # Resim kursu için: Öğrenci puantajında görünür ama öğretmen puantajına eklenmez
-                # Diğer kurslar için: Normal şekilde sayılır
+                # Resim: öğrenci sütununda görünür, öğretmen toplamına eklenmez
+                # Diğer: hem sütun hem toplam
                 if is_resim_course:
-                    # Öğrenci bazlı puantajda görünür (unexcused_absent artar)
                     student_stats[att_student_id]["unexcused_absent"] += 1
-                    # Ama öğretmen puantajına eklenmez (lesson_count = 0, total'e eklenmez)
                     student_stats[att_student_id]["dates"].append(date_str)
                 else:
-                    # Diğer kurslar için normal
                     student_stats[att_student_id]["unexcused_absent"] += lesson_count
                     student_stats[att_student_id]["total"] += lesson_count
                     student_stats[att_student_id]["dates"].append(date_str)

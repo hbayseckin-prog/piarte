@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, status, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi import Response
 from fastapi.templating import Jinja2Templates
@@ -404,17 +404,25 @@ def api_push_test(request: Request, db: Session = Depends(get_db)):
             detail="Kayıtlı cihaz yok. Ana Ekran PWA'dan Bildirimleri açın.",
         )
     name = (user.get("full_name") or user.get("username") or "Admin").strip()
-    push_notify.notify_admins_staff_cash(
+    result = push_notify.notify_admins_staff_cash(
         student_name="Test bildirimi",
         amount_try=0.0,
         staff_name=name,
         payment_id=None,
     )
+    ok = result.get("sent", 0) > 0
     return {
-        "ok": True,
-        "subscriptions": count,
-        "vapid_sub": push_notify.vapid_claims().get("sub"),
-        "message": f"{count} cihaza test gönderildi",
+        "ok": ok,
+        "subscriptions": result.get("subscriptions", count),
+        "sent": result.get("sent", 0),
+        "failed": result.get("failed", 0),
+        "vapid_sub": result.get("vapid_sub"),
+        "errors": (result.get("errors") or [])[:3],
+        "message": (
+            f"{result.get('sent', 0)} cihaz başarılı"
+            if ok
+            else "Gönderilemedi: " + "; ".join((result.get("errors") or ["bilinmeyen hata"])[:2])
+        ),
     }
 
 

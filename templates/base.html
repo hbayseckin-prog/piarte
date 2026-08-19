@@ -299,7 +299,7 @@
 			}
 		});
 
-		if (testBtn) {
+				if (testBtn) {
 			testBtn.addEventListener("click", async function () {
 				testBtn.disabled = true;
 				msg.textContent = "Test gönderiliyor…";
@@ -313,7 +313,10 @@
 					if (!res.ok) {
 						throw new Error(data.detail || ("HTTP " + res.status));
 					}
-					msg.textContent = "Test gönderildi (" + (data.subscriptions || "?") + " cihaz). Birkaç saniye içinde gelmeli.";
+					if (!data.ok) {
+						throw new Error(data.message || ((data.errors && data.errors[0]) || "Gönderilemedi"));
+					}
+					msg.textContent = "Test OK (" + data.sent + "/" + data.subscriptions + "). Birkaç saniye içinde gelmeli. Gelmezse uygulamayı kapatıp Ana Ekran ikonundan tekrar açın.";
 				} catch (e) {
 					msg.textContent = "Test başarısız: " + (e && e.message ? e.message : e);
 				}

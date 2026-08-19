@@ -96,40 +96,70 @@ def ensure_vapid_meta_table() -> None:
 
 
 def _generate_vapid_keypair() -> tuple[str, str]:
+	"""public_key (applicationServerKey b64url), private_key (raw 32-byte b64url).
+
+	pywebpush Vapid.from_string PEM kabul etmez; raw b64url gerekir.
+	"""
 	from cryptography.hazmat.backends import default_backend
-	from cryptography.hazmat.primitives import serialization
 	from cryptography.hazmat.primitives.asymmetric import ec
 
 	private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-	private_pem = private_key.private_bytes(
-		encoding=serialization.Encoding.PEM,
-		format=serialization.PrivateFormat.PKCS8,
-		encryption_algorithm=serialization.NoEncryption(),
-	).decode("utf-8")
+	raw_priv = private_key.private_numbers().private_value.to_bytes(32, "big")
+	private_b64 = _b64url(raw_priv)
 	nums = private_key.public_key().public_numbers()
 	public_raw = b"\x04" + nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big")
-	return _b64url(public_raw), private_pem
+	return _b64url(public_raw), private_b64
 
 
-def get_vapid_keys() -> tuple[str, str] | None:
-	"""(public_key_b64url, private_pem). Yoksa None."""
+def _normalize_private_key(priv: str) -> str | Any:
+	"""PEM ise Vapid nesnesine çevir; raw string ise olduğu gibi bırak."""
+	priv = (priv or "").strip()
+	if priv.startswith("-----BEGIN"):
+		from py_vapid import Vapid
+
+		return Vapid.from_pem(priv.encode("utf-8"))
+	return priv
+
+
+def get_vapid_keys() -> tuple[str, str | Any] | None:
+	"""(public_key_b64url, private_for_webpush). Yoksa None."""
 	global _VAPID_CACHE
 	if _VAPID_CACHE:
-		return _VAPID_CACHE["public"], _VAPID_CACHE["private"]
+		return _VAPID_CACHE["public"], _normalize_private_key(_VAPID_CACHE["private"])
 
 	pub = (os.getenv("VAPID_PUBLIC_KEY") or "").strip()
 	priv = (os.getenv("VAPID_PRIVATE_KEY") or "").strip()
 	if pub and priv:
 		_VAPID_CACHE = {"public": pub, "private": priv}
-		return pub, priv
+		return pub, _normalize_private_key(priv)
 
 	ensure_vapid_meta_table()
 	db = SessionLocal()
 	try:
 		row = db.execute(text("SELECT public_key, private_key FROM push_vapid_keys WHERE id = 1")).fetchone()
 		if row and row[0] and row[1]:
-			_VAPID_CACHE = {"public": row[0], "private": row[1]}
-			return row[0], row[1]
+			pub, priv = row[0], row[1]
+			# Eski PEM kayıtlarını raw'a çevir (kalıcı)
+			if isinstance(priv, str) and priv.strip().startswith("-----BEGIN"):
+				try:
+					from py_vapid import Vapid
+
+					v = Vapid.from_pem(priv.encode("utf-8"))
+					raw = v.private_key.private_numbers().private_value.to_bytes(32, "big")
+					priv = _b64url(raw)
+					# public'i de private'dan yeniden üret (eşleşme garantisi)
+					nums = v.private_key.public_key().public_numbers()
+					pub = _b64url(b"\x04" + nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big"))
+					db.execute(
+						text("UPDATE push_vapid_keys SET public_key = :p, private_key = :s WHERE id = 1"),
+						{"p": pub, "s": priv},
+					)
+					db.commit()
+					print("PUSH: eski PEM VAPID anahtarı raw formata çevrildi — cihazlarda Bildirimleri yeniden açın")
+				except Exception as e:
+					print(f"PUSH: PEM çevirme hatası (yine de denenecek): {e}")
+			_VAPID_CACHE = {"public": pub, "private": priv}
+			return pub, _normalize_private_key(priv)
 		pub, priv = _generate_vapid_keypair()
 		db.execute(
 			text("INSERT INTO push_vapid_keys (id, public_key, private_key) VALUES (1, :p, :s)"),
@@ -138,7 +168,7 @@ def get_vapid_keys() -> tuple[str, str] | None:
 		db.commit()
 		_VAPID_CACHE = {"public": pub, "private": priv}
 		logger.info("VAPID anahtarları oluşturuldu ve veritabanına kaydedildi")
-		return pub, priv
+		return pub, _normalize_private_key(priv)
 	except Exception as e:
 		db.rollback()
 		logger.error("VAPID anahtarları alınamadı: %s", e)
@@ -249,14 +279,14 @@ def is_nakit_method(method: str | None) -> bool:
 	return (method or "").strip().casefold() == "nakit"
 
 
-def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], private_key: str) -> bool:
-	"""True = ok veya geçici hata; False = abonelik silinmeli."""
+def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], private_key: str | Any) -> tuple[bool, str | None]:
+	"""(keep_subscription, error_message). keep=False → abonelik silinmeli."""
 	try:
 		from pywebpush import webpush
 	except ImportError:
 		logger.error("pywebpush yüklü değil; push atlandı")
 		print("PUSH_ERROR: pywebpush yüklü değil")
-		return True
+		return True, "pywebpush yüklü değil"
 
 	try:
 		claims = vapid_claims()
@@ -271,7 +301,7 @@ def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], pr
 			ttl=86400,
 		)
 		print(f"PUSH_OK endpoint={subscription.endpoint[:48]}… sub={claims.get('sub')}")
-		return True
+		return True, None
 	except Exception as e:
 		status = getattr(getattr(e, "response", None), "status_code", None)
 		body = ""
@@ -281,11 +311,12 @@ def _send_one(subscription: models.PushSubscription, payload: dict[str, Any], pr
 				body = (resp.text or "")[:300]
 		except Exception:
 			pass
-		print(f"PUSH_FAIL status={status} err={e} body={body}")
-		logger.warning("Push gönderilemedi status=%s: %s %s", status, e, body)
+		err = f"status={status} err={e} body={body}"
+		print(f"PUSH_FAIL {err}")
+		logger.warning("Push gönderilemedi: %s", err)
 		if status in (404, 410):
-			return False
-		return True
+			return False, err
+		return True, err
 
 
 def notify_admins_staff_cash(
@@ -294,13 +325,23 @@ def notify_admins_staff_cash(
 	amount_try: float,
 	staff_name: str,
 	payment_id: int | None = None,
-) -> None:
-	"""Admin aboneliklerine nakit tahsilat bildirimi."""
+) -> dict[str, Any]:
+	"""Admin aboneliklerine nakit tahsilat bildirimi. Sonuç özeti döner."""
+	result: dict[str, Any] = {
+		"sent": 0,
+		"failed": 0,
+		"skipped": 0,
+		"subscriptions": 0,
+		"errors": [],
+		"vapid_sub": None,
+	}
 	keys = get_vapid_keys()
 	if not keys:
+		result["errors"].append("VAPID anahtarı yok")
 		print("PUSH_SKIP: VAPID anahtarı yok")
-		return
+		return result
 	_, private_key = keys
+	result["vapid_sub"] = vapid_claims().get("sub")
 	payload = {
 		"title": "Nakit tahsilat",
 		"body": f"{staff_name}: {student_name} — {amount_try:.2f} ₺",
@@ -310,14 +351,22 @@ def notify_admins_staff_cash(
 	db = SessionLocal()
 	try:
 		subs = list_admin_subscriptions(db)
+		result["subscriptions"] = len(subs)
 		print(f"PUSH_SEND count={len(subs)} student={student_name!r} by={staff_name!r}")
 		if not subs:
+			result["skipped"] = 1
+			result["errors"].append("Kayıtlı admin cihazı yok — Bildirimleri açın")
 			print("PUSH_SKIP: admin aboneliği yok")
-			return
+			return result
 		stale_ids: list[int] = []
 		for sub in subs:
-			ok = _send_one(sub, payload, private_key)
-			if not ok:
+			keep, err = _send_one(sub, payload, private_key)
+			if err:
+				result["failed"] += 1
+				result["errors"].append(err)
+			else:
+				result["sent"] += 1
+			if not keep:
 				stale_ids.append(sub.id)
 		if stale_ids:
 			db.query(models.PushSubscription).filter(
@@ -328,12 +377,14 @@ def notify_admins_staff_cash(
 	except Exception as e:
 		logger.error("Admin push bildirimi hatası: %s", e)
 		print(f"PUSH_ERROR: {e}")
+		result["errors"].append(str(e))
 		try:
 			db.rollback()
 		except Exception:
 			pass
 	finally:
 		db.close()
+	return result
 
 
 def schedule_admin_cash_notify(

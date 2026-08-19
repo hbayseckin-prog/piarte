@@ -168,4 +168,18 @@ class LessonStudent(Base):
 	student = relationship("Student")
 
 
+class Expense(Base):
+	"""İşletme giderleri (kira, fatura vb.) — admin Finans modülü"""
+	__tablename__ = "expenses"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True)
+	title: Mapped[str] = mapped_column(String(120), nullable=False)
+	category: Mapped[str] = mapped_column(String(40), nullable=False, default="Diğer")  # Kira, Fatura, Personel, Malzeme, Vergi, Diğer
+	amount_try: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+	expense_date: Mapped[date] = mapped_column(Date, default=date.today)
+	method: Mapped[str | None] = mapped_column(String(30), nullable=True)  # Nakit, Kart, EFT
+	note: Mapped[str | None] = mapped_column(Text, nullable=True)
+	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 

@@ -790,6 +790,175 @@ def delete_payment(db: Session, payment_id: int):
 	return False
 
 
+# Expenses (Finans / Giderler)
+EXPENSE_CATEGORIES = ["Kira", "Fatura", "Personel", "Malzeme", "Vergi", "Diğer"]
+
+
+def create_expense(db: Session, data: schemas.ExpenseCreate):
+	payload = data.model_dump()
+	if not payload.get("expense_date"):
+		payload["expense_date"] = date.today()
+	if not payload.get("category"):
+		payload["category"] = "Diğer"
+	expense = models.Expense(**payload)
+	db.add(expense)
+	db.commit()
+	db.refresh(expense)
+	return expense
+
+
+def get_expense(db: Session, expense_id: int):
+	return db.get(models.Expense, expense_id)
+
+
+def list_expenses(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+	category: str | None = None,
+):
+	stmt = select(models.Expense)
+	if start_date:
+		stmt = stmt.where(models.Expense.expense_date >= start_date)
+	if end_date:
+		stmt = stmt.where(models.Expense.expense_date <= end_date)
+	if category and category.strip():
+		stmt = stmt.where(models.Expense.category == category.strip())
+	stmt = stmt.order_by(models.Expense.expense_date.desc(), models.Expense.id.desc())
+	return db.scalars(stmt).all()
+
+
+def update_expense(db: Session, expense_id: int, data: schemas.ExpenseUpdate):
+	expense = db.get(models.Expense, expense_id)
+	if not expense:
+		return None
+	payload = data.model_dump()
+	if not payload.get("expense_date"):
+		payload["expense_date"] = date.today()
+	for key, value in payload.items():
+		setattr(expense, key, value)
+	db.commit()
+	db.refresh(expense)
+	return expense
+
+
+def delete_expense(db: Session, expense_id: int) -> bool:
+	expense = db.get(models.Expense, expense_id)
+	if not expense:
+		return False
+	db.delete(expense)
+	db.commit()
+	return True
+
+
+def sum_expenses(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+	category: str | None = None,
+) -> float:
+	q = db.query(func.coalesce(func.sum(models.Expense.amount_try), 0))
+	if start_date:
+		q = q.filter(models.Expense.expense_date >= start_date)
+	if end_date:
+		q = q.filter(models.Expense.expense_date <= end_date)
+	if category and category.strip():
+		q = q.filter(models.Expense.category == category.strip())
+	return float(q.scalar() or 0)
+
+
+def sum_payments_by_method(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+) -> dict[str, float]:
+	"""Nakit / EFT(IBAN) / Kart toplamları."""
+	q = db.query(models.Payment.method, func.coalesce(func.sum(models.Payment.amount_try), 0))
+	if start_date:
+		q = q.filter(models.Payment.payment_date >= start_date)
+	if end_date:
+		q = q.filter(models.Payment.payment_date <= end_date)
+	q = q.group_by(models.Payment.method)
+	result = {"Nakit": 0.0, "EFT": 0.0, "Kart": 0.0, "Diğer": 0.0}
+	for method, total in q.all():
+		key = (method or "").strip()
+		amount = float(total or 0)
+		if key in ("Nakit", "EFT", "Kart"):
+			result[key] += amount
+		else:
+			result["Diğer"] += amount
+	return result
+
+
+def sum_payments_total(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+) -> float:
+	q = db.query(func.coalesce(func.sum(models.Payment.amount_try), 0))
+	if start_date:
+		q = q.filter(models.Payment.payment_date >= start_date)
+	if end_date:
+		q = q.filter(models.Payment.payment_date <= end_date)
+	return float(q.scalar() or 0)
+
+
+def monthly_payment_totals(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+) -> list[dict]:
+	"""Aylık tahsilat toplamları (grafik için)."""
+	payments = db.query(models.Payment)
+	if start_date:
+		payments = payments.filter(models.Payment.payment_date >= start_date)
+	if end_date:
+		payments = payments.filter(models.Payment.payment_date <= end_date)
+	buckets: dict[str, float] = {}
+	for p in payments.all():
+		if not p.payment_date:
+			continue
+		key = p.payment_date.strftime("%Y-%m")
+		buckets[key] = buckets.get(key, 0.0) + float(p.amount_try or 0)
+	return [{"month": k, "total": buckets[k]} for k in sorted(buckets.keys())]
+
+
+def monthly_expense_totals(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+) -> list[dict]:
+	expenses = list_expenses(db, start_date=start_date, end_date=end_date)
+	buckets: dict[str, float] = {}
+	for e in expenses:
+		if not e.expense_date:
+			continue
+		key = e.expense_date.strftime("%Y-%m")
+		buckets[key] = buckets.get(key, 0.0) + float(e.amount_try or 0)
+	return [{"month": k, "total": buckets[k]} for k in sorted(buckets.keys())]
+
+
+def expense_totals_by_category(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+) -> list[dict]:
+	q = db.query(models.Expense.category, func.coalesce(func.sum(models.Expense.amount_try), 0))
+	if start_date:
+		q = q.filter(models.Expense.expense_date >= start_date)
+	if end_date:
+		q = q.filter(models.Expense.expense_date <= end_date)
+	q = q.group_by(models.Expense.category)
+	return [{"category": (cat or "Diğer"), "total": float(total or 0)} for cat, total in q.all()]
+
+
 def check_student_payment_status(db: Session, student_id: int):
 	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
 	from datetime import date

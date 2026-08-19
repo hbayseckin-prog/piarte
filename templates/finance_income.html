@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Gelirler / Tahsilatlar - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Gelirler — Tahsilatlar</h2>
+<p style="color:#64748b;margin-top:-8px;margin-bottom:16px;">Nakit ve IBAN tahsilatları; tarih aralığı ile sorgulanır</p>
+
+<nav style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+	<a href="/ui/finance" style="padding:8px 14px;background:#e2e8f0;color:#334155;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Özet</a>
+	<a href="/ui/finance/income" style="padding:8px 14px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Gelirler / Tahsilatlar</a>
+	<a href="/ui/finance/expenses" style="padding:8px 14px;background:#fef3c7;color:#92400e;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Giderler</a>
+</nav>
+
+<form method="get" action="/ui/finance/income" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:16px;" class="card">
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Başlangıç
+		<input type="date" name="start" value="{{ start }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Bitiş
+		<input type="date" name="end" value="{{ end }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Yöntem
+		<select name="method">
+			<option value="">Tümü</option>
+			<option value="Nakit" {% if method == 'Nakit' %}selected{% endif %}>Nakit tahsilat</option>
+			<option value="IBAN" {% if method == 'IBAN' %}selected{% endif %}>IBAN ödemeleri</option>
+			<option value="Kart" {% if method == 'Kart' %}selected{% endif %}>Kart</option>
+		</select>
+	</label>
+	<button type="submit">Sorgula</button>
+</form>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+	<div class="card" style="margin:0;border-left:4px solid #10b981;">
+		<div style="font-size:12px;color:#64748b;">Dönem toplamı</div>
+		<div style="font-size:20px;font-weight:700;color:#059669;">{{ '%.2f'|format(income_total) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">Nakit tahsilat</div>
+		<div style="font-size:18px;font-weight:700;">{{ '%.2f'|format(nakit) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">IBAN ödemeleri</div>
+		<div style="font-size:18px;font-weight:700;">{{ '%.2f'|format(iban) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">Filtrelenen liste</div>
+		<div style="font-size:18px;font-weight:700;">{{ '%.2f'|format(filtered_total) }} ₺</div>
+	</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px;">
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Aylık tahsilat</h3>
+		<canvas id="incomeMonthlyChart" height="200"></canvas>
+	</div>
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Nakit vs IBAN</h3>
+		<canvas id="incomeMethodChart" height="200"></canvas>
+	</div>
+</div>
+
+<div class="card">
+	<h3 class="h2" style="margin-top:0;">Tahsilat listesi</h3>
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Tarih</th>
+					<th>Öğrenci</th>
+					<th>Tutar</th>
+					<th>Yöntem</th>
+					<th>Not</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for p in items %}
+			<tr>
+				<td>{{ p.payment_date }}</td>
+				<td>{{ p.student.first_name }} {{ p.student.last_name }}</td>
+				<td>{{ '%.2f'|format(p.amount_try) }} ₺</td>
+				<td>
+					{% if p.method == 'EFT' %}IBAN
+					{% elif p.method == 'Nakit' %}Nakit
+					{% else %}{{ p.method or '-' }}{% endif %}
+				</td>
+				<td>{{ p.note or '' }}</td>
+			</tr>
+			{% else %}
+			<tr><td colspan="5">Bu dönemde tahsilat bulunmuyor.</td></tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+	const monthly = {{ income_monthly | tojson }};
+	const mCtx = document.getElementById('incomeMonthlyChart');
+	if (mCtx) {
+		new Chart(mCtx, {
+			type: 'line',
+			data: {
+				labels: monthly.map(x => x.month),
+				datasets: [{
+					label: 'Tahsilat (₺)',
+					data: monthly.map(x => x.total),
+					borderColor: '#0ea5e9',
+					backgroundColor: 'rgba(14,165,233,0.15)',
+					fill: true,
+					tension: 0.25
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { display: false } },
+				scales: { y: { beginAtZero: true } }
+			}
+		});
+	}
+	const methodCtx = document.getElementById('incomeMethodChart');
+	if (methodCtx) {
+		new Chart(methodCtx, {
+			type: 'doughnut',
+			data: {
+				labels: ['Nakit tahsilat', 'IBAN ödemeleri', 'Kart'],
+				datasets: [{
+					data: [{{ nakit }}, {{ iban }}, {{ kart }}],
+					backgroundColor: ['#0ea5e9', '#8b5cf6', '#f59e0b']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+	}
+})();
+</script>
+{% endblock %}

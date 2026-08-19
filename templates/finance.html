@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Finans - Piarte{% endblock %}
+{% block content %}
+<h2 class="h1">Finans</h2>
+<p style="color:#64748b;margin-top:-8px;margin-bottom:16px;">Gelir, gider ve net finansal özet — yalnızca admin</p>
+
+<nav style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+	<a href="/ui/finance" style="padding:8px 14px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Özet</a>
+	<a href="/ui/finance/income" style="padding:8px 14px;background:#e0f2fe;color:#0369a1;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Gelirler / Tahsilatlar</a>
+	<a href="/ui/finance/expenses" style="padding:8px 14px;background:#fef3c7;color:#92400e;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Giderler</a>
+</nav>
+
+<form method="get" action="/ui/finance" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:16px;" class="card">
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Başlangıç
+		<input type="date" name="start" value="{{ start }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Bitiş
+		<input type="date" name="end" value="{{ end }}" />
+	</label>
+	<button type="submit">Filtrele</button>
+	<a href="/ui/finance" class="secondary" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-decoration:none;">Bu ay</a>
+</form>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
+	<div class="card" style="margin:0;border-left:4px solid #10b981;">
+		<div style="font-size:12px;color:#64748b;font-weight:600;">+ Gelir (Tahsilat)</div>
+		<div style="font-size:24px;font-weight:700;color:#059669;margin-top:4px;">{{ '%.2f'|format(income_total) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;border-left:4px solid #ef4444;">
+		<div style="font-size:12px;color:#64748b;font-weight:600;">− Gider</div>
+		<div style="font-size:24px;font-weight:700;color:#dc2626;margin-top:4px;">{{ '%.2f'|format(expense_total) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;border-left:4px solid {% if net >= 0 %}#0ea5e9{% else %}#f97316{% endif %};">
+		<div style="font-size:12px;color:#64748b;font-weight:600;">Net (Gelir − Gider)</div>
+		<div style="font-size:24px;font-weight:700;color:{% if net >= 0 %}#0284c7{% else %}#c2410c{% endif %};margin-top:4px;">
+			{% if net >= 0 %}+{% endif %}{{ '%.2f'|format(net) }} ₺
+		</div>
+	</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">Nakit tahsilat</div>
+		<div style="font-size:18px;font-weight:700;margin-top:4px;">{{ '%.2f'|format(nakit) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">IBAN ödemeleri</div>
+		<div style="font-size:18px;font-weight:700;margin-top:4px;">{{ '%.2f'|format(iban) }} ₺</div>
+	</div>
+	<div class="card" style="margin:0;">
+		<div style="font-size:12px;color:#64748b;">Kart</div>
+		<div style="font-size:18px;font-weight:700;margin-top:4px;">{{ '%.2f'|format(kart) }} ₺</div>
+	</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Gelir vs Gider (aylık)</h3>
+		<canvas id="financeNetChart" height="220"></canvas>
+	</div>
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Tahsilat dağılımı</h3>
+		<canvas id="financeMethodChart" height="220"></canvas>
+	</div>
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Gider kategorileri</h3>
+		{% if expense_by_category %}
+		<canvas id="financeExpenseChart" height="220"></canvas>
+		{% else %}
+		<p style="color:#64748b;font-size:14px;">Bu dönemde gider kaydı yok. <a href="/ui/finance/expenses">Gider ekle</a></p>
+		{% endif %}
+	</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+	const incomeMonthly = {{ income_monthly | tojson }};
+	const expenseMonthly = {{ expense_monthly | tojson }};
+	const months = Array.from(new Set([
+		...incomeMonthly.map(x => x.month),
+		...expenseMonthly.map(x => x.month)
+	])).sort();
+	const incomeMap = Object.fromEntries(incomeMonthly.map(x => [x.month, x.total]));
+	const expenseMap = Object.fromEntries(expenseMonthly.map(x => [x.month, x.total]));
+
+	const netCtx = document.getElementById('financeNetChart');
+	if (netCtx) {
+		new Chart(netCtx, {
+			type: 'bar',
+			data: {
+				labels: months,
+				datasets: [
+					{ label: 'Gelir (+)', data: months.map(m => incomeMap[m] || 0), backgroundColor: '#10b981' },
+					{ label: 'Gider (−)', data: months.map(m => expenseMap[m] || 0), backgroundColor: '#ef4444' }
+				]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } },
+				scales: { y: { beginAtZero: true } }
+			}
+		});
+	}
+
+	const methodCtx = document.getElementById('financeMethodChart');
+	if (methodCtx) {
+		new Chart(methodCtx, {
+			type: 'doughnut',
+			data: {
+				labels: ['Nakit', 'IBAN', 'Kart'],
+				datasets: [{
+					data: [{{ nakit }}, {{ iban }}, {{ kart }}],
+					backgroundColor: ['#0ea5e9', '#8b5cf6', '#f59e0b']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+	}
+
+	const expenseCtx = document.getElementById('financeExpenseChart');
+	const expenseCats = {{ expense_by_category | tojson }};
+	if (expenseCtx && expenseCats.length) {
+		new Chart(expenseCtx, {
+			type: 'doughnut',
+			data: {
+				labels: expenseCats.map(x => x.category),
+				datasets: [{
+					data: expenseCats.map(x => x.total),
+					backgroundColor: ['#f97316', '#ef4444', '#eab308', '#84cc16', '#06b6d4', '#64748b']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+	}
+})();
+</script>
+{% endblock %}

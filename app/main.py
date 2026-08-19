@@ -182,10 +182,16 @@ async def startup_event():
 			ensure_is_active_column,
 			ensure_teacher_is_active_column,
 			ensure_lesson_students_backfill_from_attendance,
+			ensure_expenses_table,
+			engine,
+			Base,
 		)
 		ensure_is_active_column()
 		ensure_teacher_is_active_column()
 		ensure_lesson_students_backfill_from_attendance()
+		ensure_expenses_table()
+		# Yeni Expense tablosu için metadata create (mevcut tablolara dokunmaz)
+		Base.metadata.create_all(bind=engine, tables=[models.Expense.__table__])
 	except Exception as e:
 		logging.error(f"Startup migration hatasi: {e}")
 
@@ -3088,6 +3094,179 @@ def ui_teacher_detail(teacher_id: int, request: Request, db: Session = Depends(g
         lessons_with_students.append({"lesson": lesson, "students": students, "attendance_count": att_count})
     teacher_students = crud.list_students_by_teacher(db, teacher_id, active_only=False)
     return templates.TemplateResponse("teacher_detail.html", {"request": request, "teacher": teacher, "lessons_with_students": lessons_with_students, "teacher_students": teacher_students})
+
+
+def _parse_optional_date(value: str | None):
+    from datetime import date as date_cls
+    if not value or not str(value).strip():
+        return None
+    try:
+        y, m, d = map(int, str(value).strip().split("-"))
+        return date_cls(y, m, d)
+    except Exception:
+        return None
+
+
+def _default_finance_range(start: str | None, end: str | None):
+    """Tarih boşsa içinde bulunulan ay."""
+    from datetime import date as date_cls
+    from calendar import monthrange
+    today = date_cls.today()
+    start_date = _parse_optional_date(start)
+    end_date = _parse_optional_date(end)
+    if start_date is None and end_date is None:
+        start_date = today.replace(day=1)
+        end_date = today.replace(day=monthrange(today.year, today.month)[1])
+    return start_date, end_date, (start_date.isoformat() if start_date else ""), (end_date.isoformat() if end_date else "")
+
+
+# UI: Finans (admin only)
+@app.get("/ui/finance", response_class=HTMLResponse)
+def ui_finance(request: Request, start: str | None = None, end: str | None = None, db: Session = Depends(get_db)):
+    require_admin(request)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    income_by_method = crud.sum_payments_by_method(db, start_date=start_date, end_date=end_date)
+    income_total = crud.sum_payments_total(db, start_date=start_date, end_date=end_date)
+    expense_total = crud.sum_expenses(db, start_date=start_date, end_date=end_date)
+    net = income_total - expense_total
+    income_monthly = crud.monthly_payment_totals(db, start_date=start_date, end_date=end_date)
+    expense_monthly = crud.monthly_expense_totals(db, start_date=start_date, end_date=end_date)
+    expense_by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
+    return templates.TemplateResponse(
+        "finance.html",
+        {
+            "request": request,
+            "start": start_s,
+            "end": end_s,
+            "income_total": income_total,
+            "expense_total": expense_total,
+            "net": net,
+            "nakit": income_by_method.get("Nakit", 0),
+            "iban": income_by_method.get("EFT", 0),
+            "kart": income_by_method.get("Kart", 0),
+            "income_monthly": income_monthly,
+            "expense_monthly": expense_monthly,
+            "expense_by_category": expense_by_category,
+        },
+    )
+
+
+@app.get("/ui/finance/income", response_class=HTMLResponse)
+def ui_finance_income(
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    method: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    method_filter = (method or "").strip() or None
+    # UI "IBAN" -> DB "EFT"
+    db_method = None
+    if method_filter == "IBAN":
+        db_method = "EFT"
+    elif method_filter in ("Nakit", "Kart", "EFT"):
+        db_method = method_filter
+
+    q = db.query(models.Payment).join(models.Student)
+    if start_date:
+        q = q.filter(models.Payment.payment_date >= start_date)
+    if end_date:
+        q = q.filter(models.Payment.payment_date <= end_date)
+    if db_method:
+        q = q.filter(models.Payment.method == db_method)
+    items = q.order_by(models.Payment.payment_date.desc()).all()
+
+    income_by_method = crud.sum_payments_by_method(db, start_date=start_date, end_date=end_date)
+    income_total = crud.sum_payments_total(db, start_date=start_date, end_date=end_date)
+    filtered_total = float(sum(float(p.amount_try or 0) for p in items))
+    income_monthly = crud.monthly_payment_totals(db, start_date=start_date, end_date=end_date)
+
+    return templates.TemplateResponse(
+        "finance_income.html",
+        {
+            "request": request,
+            "start": start_s,
+            "end": end_s,
+            "method": method_filter or "",
+            "items": items,
+            "income_total": income_total,
+            "filtered_total": filtered_total,
+            "nakit": income_by_method.get("Nakit", 0),
+            "iban": income_by_method.get("EFT", 0),
+            "kart": income_by_method.get("Kart", 0),
+            "income_monthly": income_monthly,
+        },
+    )
+
+
+@app.get("/ui/finance/expenses", response_class=HTMLResponse)
+def ui_finance_expenses(
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    category: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    cat = (category or "").strip() or None
+    items = crud.list_expenses(db, start_date=start_date, end_date=end_date, category=cat)
+    total = crud.sum_expenses(db, start_date=start_date, end_date=end_date, category=cat)
+    by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
+    from datetime import date as date_cls
+    return templates.TemplateResponse(
+        "finance_expenses.html",
+        {
+            "request": request,
+            "start": start_s,
+            "end": end_s,
+            "category": cat or "",
+            "items": items,
+            "total": total,
+            "by_category": by_category,
+            "categories": crud.EXPENSE_CATEGORIES,
+            "today": date_cls.today().isoformat(),
+        },
+    )
+
+
+@app.post("/ui/finance/expenses")
+def ui_finance_expense_create(
+    request: Request,
+    title: str = Form(...),
+    category: str = Form("Diğer"),
+    amount_try: float = Form(...),
+    expense_date: str = Form(""),
+    method: str = Form(""),
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    from datetime import date as date_cls
+    parsed_date = _parse_optional_date(expense_date) or date_cls.today()
+    crud.create_expense(
+        db,
+        schemas.ExpenseCreate(
+            title=title.strip(),
+            category=(category or "Diğer").strip() or "Diğer",
+            amount_try=amount_try,
+            expense_date=parsed_date,
+            method=(method or "").strip() or None,
+            note=(note or "").strip() or None,
+        ),
+    )
+    set_flash_success(request, "Gider kaydı oluşturuldu.")
+    return RedirectResponse(url="/ui/finance/expenses", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/ui/finance/expenses/{expense_id}/delete")
+def ui_finance_expense_delete(expense_id: int, request: Request, db: Session = Depends(get_db)):
+    require_admin(request)
+    if crud.delete_expense(db, expense_id):
+        set_flash_success(request, "Gider kaydı silindi.")
+    return RedirectResponse(url="/ui/finance/expenses", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # UI: Payment Reports

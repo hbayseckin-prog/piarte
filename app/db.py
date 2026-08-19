@@ -252,4 +252,56 @@ except Exception:
 	pass
 
 
+def ensure_expenses_table():
+	"""expenses tablosunun var olduğundan emin ol (Finans / Giderler)."""
+	try:
+		from sqlalchemy import inspect, text
+		inspector = inspect(engine)
+		if "expenses" in set(inspector.get_table_names()):
+			return
+		print("expenses tablosu bulunamadi, olusturuluyor...")
+		is_pg = "postgres" in str(engine.url).lower()
+		ddl = """
+			CREATE TABLE expenses (
+				id SERIAL PRIMARY KEY,
+				title VARCHAR(120) NOT NULL,
+				category VARCHAR(40) NOT NULL DEFAULT 'Diger',
+				amount_try NUMERIC(12, 2) NOT NULL,
+				expense_date DATE NOT NULL,
+				method VARCHAR(30),
+				note TEXT,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)
+		""" if is_pg else """
+			CREATE TABLE expenses (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				title VARCHAR(120) NOT NULL,
+				category VARCHAR(40) NOT NULL DEFAULT 'Diger',
+				amount_try NUMERIC(12, 2) NOT NULL,
+				expense_date DATE NOT NULL,
+				method VARCHAR(30),
+				note TEXT,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)
+		"""
+		db = SessionLocal()
+		try:
+			db.execute(text(ddl))
+			db.commit()
+			print("expenses tablosu olusturuldu")
+		except Exception as e:
+			db.rollback()
+			print(f"expenses tablo olusturma: {e}")
+		finally:
+			db.close()
+	except Exception as e:
+		print(f"expenses tablo kontrol hatasi: {e}")
+
+
+try:
+	ensure_expenses_table()
+except Exception:
+	pass
+
+
 

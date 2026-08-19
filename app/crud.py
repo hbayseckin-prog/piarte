@@ -959,6 +959,68 @@ def expense_totals_by_category(
 	return [{"category": (cat or "Diğer"), "total": float(total or 0)} for cat, total in q.all()]
 
 
+def student_teacher_name_map(db: Session) -> dict[int, str]:
+	"""student_id -> 'Ad Soyad' (TeacherStudent üzerinden; yoksa boş)."""
+	rows = (
+		db.query(models.TeacherStudent.student_id, models.Teacher.first_name, models.Teacher.last_name)
+		.join(models.Teacher, models.Teacher.id == models.TeacherStudent.teacher_id)
+		.all()
+	)
+	return {
+		student_id: f"{(first or '').strip()} {(last or '').strip()}".strip() or f"Öğretmen #{student_id}"
+		for student_id, first, last in rows
+	}
+
+
+def payment_totals_by_teacher(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+	method: str | None = None,
+) -> list[dict]:
+	"""
+	Öğretmene kayıtlı öğrencilerin tahsilat toplamları.
+	Öğretmeni olmayan öğrenciler 'Atanmamış' altında toplanır.
+	"""
+	q = (
+		db.query(
+			models.Teacher.id,
+			models.Teacher.first_name,
+			models.Teacher.last_name,
+			func.coalesce(func.sum(models.Payment.amount_try), 0),
+			func.count(models.Payment.id),
+		)
+		.select_from(models.Payment)
+		.join(models.Student, models.Student.id == models.Payment.student_id)
+		.outerjoin(models.TeacherStudent, models.TeacherStudent.student_id == models.Payment.student_id)
+		.outerjoin(models.Teacher, models.Teacher.id == models.TeacherStudent.teacher_id)
+	)
+	if start_date:
+		q = q.filter(models.Payment.payment_date >= start_date)
+	if end_date:
+		q = q.filter(models.Payment.payment_date <= end_date)
+	if method and method.strip():
+		q = q.filter(models.Payment.method == method.strip())
+	q = q.group_by(models.Teacher.id, models.Teacher.first_name, models.Teacher.last_name)
+	rows = q.all()
+
+	result = []
+	for teacher_id, first, last, total, count in rows:
+		if teacher_id is None:
+			name = "Atanmamış"
+		else:
+			name = f"{(first or '').strip()} {(last or '').strip()}".strip() or f"Öğretmen #{teacher_id}"
+		result.append({
+			"teacher_id": teacher_id,
+			"teacher_name": name,
+			"total": float(total or 0),
+			"count": int(count or 0),
+		})
+	result.sort(key=lambda x: (-x["total"], x["teacher_name"]))
+	return result
+
+
 def check_student_payment_status(db: Session, student_id: int):
 	"""Öğrencinin ödeme durumunu kontrol eder - ödeme gerekip gerekmediğini döndürür"""
 	from datetime import date

@@ -3132,6 +3132,7 @@ def ui_finance(request: Request, start: str | None = None, end: str | None = Non
     income_monthly = crud.monthly_payment_totals(db, start_date=start_date, end_date=end_date)
     expense_monthly = crud.monthly_expense_totals(db, start_date=start_date, end_date=end_date)
     expense_by_category = crud.expense_totals_by_category(db, start_date=start_date, end_date=end_date)
+    by_teacher = crud.payment_totals_by_teacher(db, start_date=start_date, end_date=end_date)
     return templates.TemplateResponse(
         "finance.html",
         {
@@ -3147,6 +3148,7 @@ def ui_finance(request: Request, start: str | None = None, end: str | None = Non
             "income_monthly": income_monthly,
             "expense_monthly": expense_monthly,
             "expense_by_category": expense_by_category,
+            "by_teacher": by_teacher,
         },
     )
 
@@ -3157,6 +3159,7 @@ def ui_finance_income(
     start: str | None = None,
     end: str | None = None,
     method: str | None = None,
+    teacher_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     require_admin(request)
@@ -3169,6 +3172,13 @@ def ui_finance_income(
     elif method_filter in ("Nakit", "Kart", "EFT"):
         db_method = method_filter
 
+    teacher_id_int = None
+    if teacher_id and str(teacher_id).strip():
+        try:
+            teacher_id_int = int(str(teacher_id).strip())
+        except (ValueError, TypeError):
+            teacher_id_int = None
+
     q = db.query(models.Payment).join(models.Student)
     if start_date:
         q = q.filter(models.Payment.payment_date >= start_date)
@@ -3176,12 +3186,30 @@ def ui_finance_income(
         q = q.filter(models.Payment.payment_date <= end_date)
     if db_method:
         q = q.filter(models.Payment.method == db_method)
+    if teacher_id_int is not None:
+        q = q.join(
+            models.TeacherStudent,
+            models.TeacherStudent.student_id == models.Payment.student_id,
+        ).filter(models.TeacherStudent.teacher_id == teacher_id_int)
     items = q.order_by(models.Payment.payment_date.desc()).all()
+
+    teacher_names = crud.student_teacher_name_map(db)
+    payment_rows = [
+        {
+            "payment": p,
+            "teacher_name": teacher_names.get(p.student_id) or "Atanmamış",
+        }
+        for p in items
+    ]
 
     income_by_method = crud.sum_payments_by_method(db, start_date=start_date, end_date=end_date)
     income_total = crud.sum_payments_total(db, start_date=start_date, end_date=end_date)
     filtered_total = float(sum(float(p.amount_try or 0) for p in items))
     income_monthly = crud.monthly_payment_totals(db, start_date=start_date, end_date=end_date)
+    by_teacher = crud.payment_totals_by_teacher(
+        db, start_date=start_date, end_date=end_date, method=db_method
+    )
+    teachers = crud.list_teachers(db)
 
     return templates.TemplateResponse(
         "finance_income.html",
@@ -3190,13 +3218,16 @@ def ui_finance_income(
             "start": start_s,
             "end": end_s,
             "method": method_filter or "",
-            "items": items,
+            "teacher_id": teacher_id_int or "",
+            "teachers": teachers,
+            "payment_rows": payment_rows,
             "income_total": income_total,
             "filtered_total": filtered_total,
             "nakit": income_by_method.get("Nakit", 0),
             "iban": income_by_method.get("EFT", 0),
             "kart": income_by_method.get("Kart", 0),
             "income_monthly": income_monthly,
+            "by_teacher": by_teacher,
         },
     )
 

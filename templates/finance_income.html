@@ -2,7 +2,7 @@
 {% block title %}Gelirler / Tahsilatlar - Piarte{% endblock %}
 {% block content %}
 <h2 class="h1">Gelirler — Tahsilatlar</h2>
-<p style="color:#64748b;margin-top:-8px;margin-bottom:16px;">Nakit ve IBAN tahsilatları; tarih aralığı ile sorgulanır</p>
+<p style="color:#64748b;margin-top:-8px;margin-bottom:16px;">Nakit ve IBAN tahsilatları; öğretmen dağılımı ve tarih sorgusu</p>
 
 <nav style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
 	<a href="/ui/finance" style="padding:8px 14px;background:#e2e8f0;color:#334155;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Özet</a>
@@ -16,6 +16,14 @@
 	</label>
 	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Bitiş
 		<input type="date" name="end" value="{{ end }}" />
+	</label>
+	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Öğretmen
+		<select name="teacher_id">
+			<option value="">Tümü</option>
+			{% for t in teachers %}
+			<option value="{{ t.id }}" {% if teacher_id == t.id %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>
+			{% endfor %}
+		</select>
 	</label>
 	<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;">Yöntem
 		<select name="method">
@@ -56,7 +64,41 @@
 		<h3 class="h2" style="margin-top:0;">Nakit vs IBAN</h3>
 		<canvas id="incomeMethodChart" height="200"></canvas>
 	</div>
+	<div class="card" style="margin:0;">
+		<h3 class="h2" style="margin-top:0;">Öğretmene göre</h3>
+		{% if by_teacher %}
+		<canvas id="incomeTeacherChart" height="200"></canvas>
+		{% else %}
+		<p style="color:#64748b;font-size:14px;">Dağılım için veri yok.</p>
+		{% endif %}
+	</div>
 </div>
+
+{% if by_teacher %}
+<div class="card" style="margin-bottom:16px;">
+	<h3 class="h2" style="margin-top:0;">Öğretmen tahsilat özeti</h3>
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Öğretmen</th>
+					<th>Adet</th>
+					<th>Toplam</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for row in by_teacher %}
+			<tr>
+				<td><strong>{{ row.teacher_name }}</strong></td>
+				<td>{{ row.count }}</td>
+				<td>{{ '%.2f'|format(row.total) }} ₺</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+{% endif %}
 
 <div class="card">
 	<h3 class="h2" style="margin-top:0;">Tahsilat listesi</h3>
@@ -66,16 +108,19 @@
 				<tr>
 					<th>Tarih</th>
 					<th>Öğrenci</th>
+					<th>Öğretmen</th>
 					<th>Tutar</th>
 					<th>Yöntem</th>
 					<th>Not</th>
 				</tr>
 			</thead>
 			<tbody>
-			{% for p in items %}
+			{% for row in payment_rows %}
+			{% set p = row.payment %}
 			<tr>
 				<td>{{ p.payment_date }}</td>
 				<td>{{ p.student.first_name }} {{ p.student.last_name }}</td>
+				<td>{{ row.teacher_name }}</td>
 				<td>{{ '%.2f'|format(p.amount_try) }} ₺</td>
 				<td>
 					{% if p.method == 'EFT' %}IBAN
@@ -85,7 +130,7 @@
 				<td>{{ p.note or '' }}</td>
 			</tr>
 			{% else %}
-			<tr><td colspan="5">Bu dönemde tahsilat bulunmuyor.</td></tr>
+			<tr><td colspan="6">Bu dönemde tahsilat bulunmuyor.</td></tr>
 			{% endfor %}
 			</tbody>
 		</table>
@@ -127,6 +172,25 @@
 				datasets: [{
 					data: [{{ nakit }}, {{ iban }}, {{ kart }}],
 					backgroundColor: ['#0ea5e9', '#8b5cf6', '#f59e0b']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+	}
+	const teacherCtx = document.getElementById('incomeTeacherChart');
+	const byTeacher = {{ by_teacher | tojson }};
+	if (teacherCtx && byTeacher.length) {
+		const colors = ['#0ea5e9','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#84cc16','#f97316'];
+		new Chart(teacherCtx, {
+			type: 'doughnut',
+			data: {
+				labels: byTeacher.map(x => x.teacher_name),
+				datasets: [{
+					data: byTeacher.map(x => x.total),
+					backgroundColor: byTeacher.map((_, i) => colors[i % colors.length])
 				}]
 			},
 			options: {

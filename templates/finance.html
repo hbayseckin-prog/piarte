@@ -72,6 +72,40 @@
 	</div>
 </div>
 
+<div class="card" style="margin-top:16px;">
+	<h3 class="h2" style="margin-top:0;">Öğretmene göre tahsilat dağılımı</h3>
+	<p style="color:#64748b;font-size:13px;margin-top:-4px;">Öğretmene kayıtlı öğrencilerin yaptığı ödemeler</p>
+	{% if by_teacher %}
+	<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:12px;">
+		<canvas id="financeTeacherChart" height="240"></canvas>
+	</div>
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Öğretmen</th>
+					<th>Tahsilat adedi</th>
+					<th>Toplam</th>
+					<th>Pay</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for row in by_teacher %}
+			<tr>
+				<td><strong>{{ row.teacher_name }}</strong></td>
+				<td>{{ row.count }}</td>
+				<td>{{ '%.2f'|format(row.total) }} ₺</td>
+				<td>{% if income_total %}{{ '%.1f'|format((row.total / income_total) * 100) }}%{% else %}—{% endif %}</td>
+			</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	{% else %}
+	<p style="color:#64748b;font-size:14px;">Bu dönemde öğretmene bağlı tahsilat yok.</p>
+	{% endif %}
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 (function() {
@@ -136,6 +170,29 @@
 			options: {
 				responsive: true,
 				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+	}
+
+	const teacherCtx = document.getElementById('financeTeacherChart');
+	const byTeacher = {{ by_teacher | tojson }};
+	if (teacherCtx && byTeacher.length) {
+		const colors = ['#0ea5e9','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#84cc16','#f97316','#6366f1','#64748b'];
+		new Chart(teacherCtx, {
+			type: 'bar',
+			data: {
+				labels: byTeacher.map(x => x.teacher_name),
+				datasets: [{
+					label: 'Tahsilat (₺)',
+					data: byTeacher.map(x => x.total),
+					backgroundColor: byTeacher.map((_, i) => colors[i % colors.length])
+				}]
+			},
+			options: {
+				indexAxis: 'y',
+				responsive: true,
+				plugins: { legend: { display: false } },
+				scales: { x: { beginAtZero: true } }
 			}
 		});
 	}

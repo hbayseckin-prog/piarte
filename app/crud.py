@@ -1021,6 +1021,110 @@ def payment_totals_by_teacher(
 	return result
 
 
+def lesson_duration_hours(lesson) -> float:
+	"""Ders süresi (saat). Saat bilgisi yoksa 1.0 kabul edilir."""
+	start = getattr(lesson, "start_time", None)
+	end = getattr(lesson, "end_time", None)
+	if not start or not end:
+		return 1.0
+	start_m = start.hour * 60 + start.minute
+	end_m = end.hour * 60 + end.minute
+	diff = end_m - start_m
+	if diff <= 0:
+		return 1.0
+	return round(diff / 60.0, 2)
+
+
+def build_teacher_pay_report(
+	db: Session,
+	*,
+	start_date: date | None = None,
+	end_date: date | None = None,
+	teacher_id: int | None = None,
+) -> dict:
+	"""
+	Öğretmen ders saat ücreti × işlenen ders saati.
+	İşlenen ders: öğretmenin slotlarında, sayılan yoklama alınmış benzersiz (ders, gün) oturumları.
+	"""
+	teachers = list_teachers(db, active_only=False)
+	if teacher_id:
+		teachers = [t for t in teachers if t.id == teacher_id]
+
+	# Yoklamaları öğretmen dersleriyle birleştir
+	q = (
+		db.query(models.Attendance, models.Lesson)
+		.join(models.Lesson, models.Lesson.id == models.Attendance.lesson_id)
+		.filter(models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES))
+		.filter(models.Attendance.marked_at.isnot(None))
+	)
+	if teacher_id:
+		q = q.filter(models.Lesson.teacher_id == teacher_id)
+	else:
+		teacher_ids = [t.id for t in teachers]
+		if not teacher_ids:
+			return {"rows": [], "totals": {"hours": 0.0, "amount": 0.0, "sessions": 0}}
+		q = q.filter(models.Lesson.teacher_id.in_(teacher_ids))
+	if start_date:
+		q = q.filter(models.Attendance.marked_at >= datetime.combine(start_date, datetime.min.time()))
+	if end_date:
+		q = q.filter(models.Attendance.marked_at <= datetime.combine(end_date, datetime.max.time()))
+
+	# Benzersiz oturum: (teacher_id, lesson_id, day)
+	sessions: dict[tuple[int, int, date], float] = {}
+	for attendance, lesson in q.all():
+		day = attendance.marked_at.date()
+		key = (lesson.teacher_id, lesson.id, day)
+		if key not in sessions:
+			sessions[key] = lesson_duration_hours(lesson)
+
+	hours_by_teacher: dict[int, float] = {}
+	sessions_by_teacher: dict[int, int] = {}
+	for (tid, _lid, _day), hours in sessions.items():
+		hours_by_teacher[tid] = hours_by_teacher.get(tid, 0.0) + hours
+		sessions_by_teacher[tid] = sessions_by_teacher.get(tid, 0) + 1
+
+	rows = []
+	total_hours = 0.0
+	total_amount = 0.0
+	total_sessions = 0
+	for teacher in sorted(teachers, key=lambda t: ((t.first_name or ""), (t.last_name or ""))):
+		hours = round(hours_by_teacher.get(teacher.id, 0.0), 2)
+		sess = sessions_by_teacher.get(teacher.id, 0)
+		rate = float(teacher.hourly_rate_try) if teacher.hourly_rate_try is not None else None
+		amount = round(hours * rate, 2) if rate is not None else None
+		total_hours += hours
+		total_sessions += sess
+		if amount is not None:
+			total_amount += amount
+		rows.append({
+			"teacher_id": teacher.id,
+			"teacher_name": f"{teacher.first_name} {teacher.last_name}",
+			"is_active": bool(getattr(teacher, "is_active", True)),
+			"hourly_rate_try": rate,
+			"sessions": sess,
+			"hours": hours,
+			"amount": amount,
+		})
+
+	return {
+		"rows": rows,
+		"totals": {
+			"hours": round(total_hours, 2),
+			"amount": round(total_amount, 2),
+			"sessions": total_sessions,
+		},
+	}
+
+
+def set_teacher_hourly_rate(db: Session, teacher_id: int, hourly_rate_try: float | None) -> bool:
+	teacher = db.get(models.Teacher, teacher_id)
+	if not teacher:
+		return False
+	teacher.hourly_rate_try = hourly_rate_try
+	db.commit()
+	return True
+
+
 PACKAGE_LESSON_SIZE = 4
 _PAYMENT_COUNTABLE_STATUSES = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
 

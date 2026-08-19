@@ -45,6 +45,7 @@ class Teacher(Base):
 	last_name: Mapped[str] = mapped_column(String(100), nullable=False)
 	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	hourly_rate_try: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)  # Ders saat ücreti (₺)
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

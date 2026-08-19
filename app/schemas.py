@@ -39,6 +39,7 @@ class TeacherCreate(BaseModel):
 	last_name: str
 	phone: Optional[str] = None
 	email: Optional[str] = None
+	hourly_rate_try: Optional[float] = None
 
 
 class TeacherUpdate(TeacherCreate):
@@ -51,6 +52,7 @@ class TeacherOut(BaseModel):
 	last_name: str
 	phone: Optional[str] = None
 	email: Optional[str] = None
+	hourly_rate_try: Optional[float] = None
 	created_at: datetime
 
 	class Config:

@@ -181,6 +181,7 @@ async def startup_event():
 		from app.db import (
 			ensure_is_active_column,
 			ensure_teacher_is_active_column,
+			ensure_teacher_hourly_rate_column,
 			ensure_lesson_students_backfill_from_attendance,
 			ensure_expenses_table,
 			engine,
@@ -188,6 +189,7 @@ async def startup_event():
 		)
 		ensure_is_active_column()
 		ensure_teacher_is_active_column()
+		ensure_teacher_hourly_rate_column()
 		ensure_lesson_students_backfill_from_attendance()
 		ensure_expenses_table()
 		# Yeni Expense tablosu için metadata create (mevcut tablolara dokunmaz)
@@ -1602,16 +1604,24 @@ def teacher_update_form(
     last_name: str = Form(...),
     phone: str | None = Form(None),
     email: str | None = Form(None),
+    hourly_rate_try: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
     if not user or user.get("role") != "admin":
         return RedirectResponse(url="/login/admin", status_code=302)
+    rate_val = None
+    if hourly_rate_try is not None and str(hourly_rate_try).strip() != "":
+        try:
+            rate_val = float(str(hourly_rate_try).strip().replace(",", "."))
+        except ValueError:
+            rate_val = None
     payload = schemas.TeacherUpdate(
         first_name=first_name,
         last_name=last_name,
         phone=phone or None,
         email=email or None,
+        hourly_rate_try=rate_val,
     )
     crud.update_teacher(db, teacher_id, payload)
     return RedirectResponse(url=f"/ui/teachers/{teacher_id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -3325,6 +3335,77 @@ def ui_finance_payment_detail(
             "only_cross_month": (only_cross_month or "").strip() in {"1", "true", "on", "yes"},
             "analysis": analysis,
         },
+    )
+
+
+@app.get("/ui/finance/teacher-pay", response_class=HTMLResponse)
+def ui_finance_teacher_pay(
+    request: Request,
+    start: str | None = None,
+    end: str | None = None,
+    teacher_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    require_admin(request)
+    start_date, end_date, start_s, end_s = _default_finance_range(start, end)
+    teacher_id_int = None
+    if teacher_id and str(teacher_id).strip():
+        try:
+            teacher_id_int = int(str(teacher_id).strip())
+        except (ValueError, TypeError):
+            teacher_id_int = None
+    report = crud.build_teacher_pay_report(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        teacher_id=teacher_id_int,
+    )
+    teachers = crud.list_teachers(db, active_only=False)
+    return templates.TemplateResponse(
+        "finance_teacher_pay.html",
+        {
+            "request": request,
+            "start": start_s,
+            "end": end_s,
+            "teacher_id": teacher_id_int or "",
+            "teachers": teachers,
+            "report": report,
+        },
+    )
+
+
+@app.post("/ui/finance/teacher-pay/rates")
+async def ui_finance_teacher_pay_rates(request: Request, db: Session = Depends(get_db)):
+    require_admin(request)
+    form = await request.form()
+    updated = 0
+    for key, value in form.items():
+        if not str(key).startswith("rate_"):
+            continue
+        try:
+            tid = int(str(key).replace("rate_", "", 1))
+        except ValueError:
+            continue
+        raw = str(value).strip().replace(",", ".")
+        if raw == "":
+            ok = crud.set_teacher_hourly_rate(db, tid, None)
+        else:
+            try:
+                rate = float(raw)
+            except ValueError:
+                continue
+            ok = crud.set_teacher_hourly_rate(db, tid, rate)
+        if ok:
+            updated += 1
+    set_flash_success(request, f"{updated} öğretmen saat ücreti kaydedildi.")
+    start = form.get("start") or ""
+    end = form.get("end") or ""
+    teacher_id = form.get("teacher_id") or ""
+    from urllib.parse import urlencode
+    qs = urlencode({k: v for k, v in {"start": start, "end": end, "teacher_id": teacher_id}.items() if v})
+    return RedirectResponse(
+        url="/ui/finance/teacher-pay" + (f"?{qs}" if qs else ""),
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

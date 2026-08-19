@@ -112,6 +112,35 @@ def ensure_teacher_is_active_column():
 		print(f"teachers.is_active kolonu kontrol edilirken hata: {e}")
 
 
+def ensure_teacher_hourly_rate_column():
+	"""teachers.hourly_rate_try kolonunun var olduğundan emin ol"""
+	try:
+		from sqlalchemy import text, inspect
+		inspector = inspect(engine)
+		try:
+			columns = inspector.get_columns("teachers")
+			column_names = [col["name"] for col in columns]
+		except Exception:
+			column_names = []
+		if "hourly_rate_try" in column_names:
+			return
+		print("teachers.hourly_rate_try kolonu bulunamadi, ekleniyor...")
+		db = SessionLocal()
+		try:
+			db.execute(text("ALTER TABLE teachers ADD COLUMN hourly_rate_try NUMERIC(12, 2)"))
+			db.commit()
+			print("teachers.hourly_rate_try kolonu eklendi")
+		except Exception as e:
+			db.rollback()
+			error_str = str(e).lower()
+			if "duplicate" not in error_str and "already exists" not in error_str:
+				print(f"hourly_rate_try eklenirken hata: {e}")
+		finally:
+			db.close()
+	except Exception as e:
+		print(f"hourly_rate_try kontrol hatasi: {e}")
+
+
 def ensure_attendance_lesson_fk_restrict():
 	"""PostgreSQL'de attendances.lesson_id FK'yi RESTRICT yap (yoklama kayıtları ders silinirken silinmesin)"""
 	try:
@@ -300,6 +329,11 @@ def ensure_expenses_table():
 
 try:
 	ensure_expenses_table()
+except Exception:
+	pass
+
+try:
+	ensure_teacher_hourly_rate_column()
 except Exception:
 	pass
 

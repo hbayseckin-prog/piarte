@@ -12,6 +12,7 @@
 <div class="card">
 	<div>Telefon: {{ teacher.phone or '-' }}</div>
 	<div>Email: {{ teacher.email or '-' }}</div>
+	<div>Ders saat ücreti: {% if teacher.hourly_rate_try is not none %}{{ '%.2f'|format(teacher.hourly_rate_try) }} ₺{% else %}-{% endif %}</div>
 </div>
 
 {% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
@@ -33,6 +34,10 @@
         <label>
             E-posta
             <input type="email" name="email" value="{{ teacher.email or '' }}" />
+        </label>
+        <label>
+            Ders saat ücreti (₺)
+            <input type="number" name="hourly_rate_try" step="0.01" min="0" value="{{ teacher.hourly_rate_try if teacher.hourly_rate_try is not none else '' }}" placeholder="Örn. 500" />
         </label>
         <button type="submit">Kaydet</button>
     </form>

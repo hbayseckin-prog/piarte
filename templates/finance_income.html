@@ -98,6 +98,24 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for row in by_teacher %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value"><strong>{{ row.teacher_name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Adet</div>
+					<div class="mobile-card-value">{{ row.count }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Toplam</div>
+					<div class="mobile-card-value"><strong style="color:#059669;">{{ '%.2f'|format(row.total) }} ₺</strong></div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 </div>
 {% endif %}
@@ -136,6 +154,47 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for row in payment_rows %}
+			{% set p = row.payment %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tarih</div>
+					<div class="mobile-card-value">{{ p.payment_date }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğrenci</div>
+					<div class="mobile-card-value"><strong>{{ p.student.first_name }} {{ p.student.last_name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value">{{ row.teacher_name }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tutar</div>
+					<div class="mobile-card-value"><strong style="color:#059669;">{{ '%.2f'|format(p.amount_try) }} ₺</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Yöntem</div>
+					<div class="mobile-card-value">
+						{% if p.method == 'EFT' %}IBAN
+						{% elif p.method == 'Nakit' %}Nakit
+						{% else %}{{ p.method or '-' }}{% endif %}
+					</div>
+				</div>
+				{% if p.note %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Not</div>
+					<div class="mobile-card-value">{{ p.note }}</div>
+				</div>
+				{% endif %}
+			</div>
+			{% else %}
+			<div class="mobile-card">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Bu dönemde tahsilat bulunmuyor.</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 </div>
 

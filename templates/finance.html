@@ -102,6 +102,28 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for row in by_teacher %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value"><strong>{{ row.teacher_name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tahsilat adedi</div>
+					<div class="mobile-card-value">{{ row.count }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Toplam</div>
+					<div class="mobile-card-value"><strong style="color:#059669;">{{ '%.2f'|format(row.total) }} ₺</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Pay</div>
+					<div class="mobile-card-value">{% if income_total %}{{ '%.1f'|format((row.total / income_total) * 100) }}%{% else %}—{% endif %}</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 	{% else %}
 	<p style="color:#64748b;font-size:14px;">Bu dönemde öğretmene bağlı tahsilat yok.</p>

@@ -110,6 +110,34 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for m in analysis.monthly_compare %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ay</div>
+					<div class="mobile-card-value"><strong>{{ m.month }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tahsilat (nakit)</div>
+					<div class="mobile-card-value">{{ '%.2f'|format(m.cash) }} ₺</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Hak ediş</div>
+					<div class="mobile-card-value">{{ '%.2f'|format(m.accrued) }} ₺</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Bekleyen</div>
+					<div class="mobile-card-value">{{ '%.2f'|format(m.prepaid) }} ₺</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Fark</div>
+					<div class="mobile-card-value" style="color:{% if m.delta > 0 %}#059669{% elif m.delta < 0 %}#dc2626{% else %}#64748b{% endif %};font-weight:600;">
+						{% if m.delta > 0 %}+{% endif %}{{ '%.2f'|format(m.delta) }} ₺
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 </div>
 {% endif %}
@@ -181,6 +209,70 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for row in analysis.rows %}
+			<div class="mobile-card" {% if row.crosses_month %}style="border-left:3px solid #f97316;"{% endif %}>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tahsilat</div>
+					<div class="mobile-card-value">
+						{{ row.payment_date or '—' }}
+						<span style="font-size:11px;color:#64748b;">
+							({% if row.method == 'EFT' %}IBAN{% else %}{{ row.method or '—' }}{% endif %})
+						</span>
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğrenci</div>
+					<div class="mobile-card-value">
+						<a href="/ui/students/{{ row.student_id }}" style="color:#0369a1;text-decoration:none;">{{ row.student_name }}</a>
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value">{{ row.teacher_name }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Paket #</div>
+					<div class="mobile-card-value">{{ row.set_index }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tutar</div>
+					<div class="mobile-card-value"><strong>{{ '%.2f'|format(row.amount) }} ₺</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kapsanan</div>
+					<div class="mobile-card-value" style="font-size:13px;">{{ row.coverage_label }}</div>
+				</div>
+				{% if row.month_split %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ay dağılımı</div>
+					<div class="mobile-card-value" style="font-size:12px;">
+						{% for ym, val in row.month_split.items() %}
+						<div>{{ ym }}: <strong>{{ '%.2f'|format(val) }} ₺</strong></div>
+						{% endfor %}
+					</div>
+				</div>
+				{% endif %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Durum</div>
+					<div class="mobile-card-value">
+						{% if row.crosses_month %}
+						<span style="padding:3px 8px;background:#ffedd5;color:#c2410c;border-radius:6px;font-size:11px;font-weight:600;">Ay aşımı</span>
+						{% else %}
+						<span style="padding:3px 8px;background:#e2e8f0;color:#475569;border-radius:6px;font-size:11px;">Tek ay</span>
+						{% endif %}
+						{% if row.lessons_remaining %}
+						<div style="margin-top:4px;font-size:11px;color:#b45309;">{{ row.lessons_remaining }} ders bekliyor</div>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+			{% else %}
+			<div class="mobile-card">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Bu filtrelere uygun paket bulunamadı.</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 </div>
 

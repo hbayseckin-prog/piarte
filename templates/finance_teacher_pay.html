@@ -4,7 +4,7 @@
 <h2 class="h1">Öğretmen Hak Edişi</h2>
 <p style="color:#64748b;margin-top:-8px;margin-bottom:12px;">
 	Her öğretmen için <strong>ders saat ücreti</strong> tanımlayın. Seçilen tarihe kadar işlenen ders saatleri
-	(yoklama alınmış oturumlar) × saat ücreti = ödenecek tutar.
+	× saat ücreti = ödenecek tutar.
 </p>
 
 {% if request.session.get('flash_success') %}
@@ -24,9 +24,9 @@
 <div class="card" style="margin-bottom:16px;background:#f8fafc;">
 	<strong>Hesaplama kuralı</strong>
 	<ul style="margin:8px 0 0 18px;color:#475569;font-size:14px;line-height:1.5;">
-		<li>İşlenen oturum: öğretmenin dersinde yoklama alınmış her gün (Geldi / Telafi / Habersiz)</li>
+		<li>İşlenen ders saati: öğretmenin dersinde yoklama alınmış her gün için ders süresi (Geldi / Telafi / Habersiz)</li>
 		<li>Süre: dersin başlangıç–bitiş saati; saat yoksa <strong>1 saat</strong></li>
-		<li>Hak ediş = toplam saat × tanımlı saat ücreti</li>
+		<li>Hak ediş = toplam ders saati × tanımlı saat ücreti</li>
 	</ul>
 </div>
 
@@ -51,12 +51,8 @@
 
 {% set totals = report.totals %}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
-	<div class="card" style="margin:0;border-left:4px solid #0ea5e9;">
-		<div style="font-size:12px;color:#64748b;">Toplam oturum</div>
-		<div style="font-size:22px;font-weight:700;">{{ totals.sessions }}</div>
-	</div>
 	<div class="card" style="margin:0;border-left:4px solid #8b5cf6;">
-		<div style="font-size:12px;color:#64748b;">Toplam saat</div>
+		<div style="font-size:12px;color:#64748b;">Toplam ders saati</div>
 		<div style="font-size:22px;font-weight:700;">{{ '%.2f'|format(totals.hours) }}</div>
 	</div>
 	<div class="card" style="margin:0;border-left:4px solid #10b981;">
@@ -79,8 +75,7 @@
 				<tr>
 					<th>Öğretmen</th>
 					<th>Saat ücreti (₺)</th>
-					<th>Oturum</th>
-					<th>Toplam saat</th>
+					<th>Ders saati</th>
 					<th>Hak ediş (bu tarihe kadar)</th>
 				</tr>
 			</thead>
@@ -97,7 +92,6 @@
 						placeholder="Örn. 500"
 						style="width:120px;padding:8px;" />
 				</td>
-				<td>{{ row.sessions }}</td>
 				<td>{{ '%.2f'|format(row.hours) }}</td>
 				<td>
 					{% if row.amount is not none %}
@@ -108,7 +102,7 @@
 				</td>
 			</tr>
 			{% else %}
-			<tr><td colspan="5">Öğretmen bulunamadı.</td></tr>
+			<tr><td colspan="4">Öğretmen bulunamadı.</td></tr>
 			{% endfor %}
 			</tbody>
 		</table>

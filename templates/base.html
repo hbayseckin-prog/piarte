@@ -146,6 +146,7 @@
 			<a href="/ui/teachers"><span class="icon">🎹</span><span>Öğretmenler</span></a>
 			<a href="/ui/finance"><span class="icon">📊</span><span>Finans</span></a>
 			<a href="/ui/reports/payments"><span class="icon">💳</span><span>Ödemeler</span></a>
+			<a href="#" id="piarte-push-nav" onclick="if(window.piarteOpenPushSetup){window.piarteOpenPushSetup();} return false;"><span class="icon">🔔</span><span>Bildirimler</span></a>
 			<a href="/logout"><span class="icon">↩</span><span>Çıkış</span></a>
 		{% else %}
 			<a href="/dashboard"><span class="icon">♫</span><span>Panel</span></a>
@@ -158,6 +159,157 @@
 	</nav>
 	{% block content %}{% endblock %}
 	<div class="footer">♪ ♫ 🎸 🥁 🎻</div>
+	{% if user and user.get('role') == 'admin' %}
+	<div id="piarte-push-bar" style="display:none;position:fixed;bottom:16px;left:16px;right:16px;max-width:420px;margin:0 auto;z-index:60;background:#0f172a;color:#fff;padding:12px 14px;border-radius:14px;box-shadow:0 8px 28px rgba(15,23,42,.35);font-size:13px;">
+		<div style="font-weight:600;margin-bottom:4px;">Nakit tahsilat bildirimleri</div>
+		<div id="piarte-push-msg" style="opacity:.9;margin-bottom:10px;line-height:1.4;"></div>
+		<div style="display:flex;gap:8px;flex-wrap:wrap;">
+			<button type="button" id="piarte-push-enable" style="flex:1;min-width:120px;margin:0;background:#0ea5e9;display:none;">Bildirimleri aç</button>
+			<button type="button" id="piarte-push-dismiss" class="secondary" style="flex:0;min-width:80px;margin:0;padding:12px 10px;">Kapat</button>
+		</div>
+	</div>
+	<script>
+	(function () {
+		const bar = document.getElementById("piarte-push-bar");
+		const msg = document.getElementById("piarte-push-msg");
+		const enableBtn = document.getElementById("piarte-push-enable");
+		const dismissBtn = document.getElementById("piarte-push-dismiss");
+		if (!bar || !msg || !enableBtn) return;
+
+		const DISMISS_KEY = "piarte_push_dismiss_v2";
+		const FORCE_KEY = "piarte_push_force_show";
+
+		function isIOS() {
+			return /iPad|iPhone|iPod/.test(navigator.userAgent || "")
+				|| (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+		}
+		function isStandalone() {
+			return window.matchMedia("(display-mode: standalone)").matches
+				|| window.matchMedia("(display-mode: fullscreen)").matches
+				|| window.navigator.standalone === true;
+		}
+		function urlBase64ToUint8Array(base64String) {
+			const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+			const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+			const raw = atob(base64);
+			const out = new Uint8Array(raw.length);
+			for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+			return out;
+		}
+		function showBar(text, showEnable) {
+			msg.textContent = text;
+			enableBtn.style.display = showEnable ? "inline-block" : "none";
+			enableBtn.disabled = false;
+			bar.style.display = "block";
+		}
+		function hideBar() {
+			bar.style.display = "none";
+		}
+
+		async function ensureSubscription() {
+			if (!("serviceWorker" in navigator)) {
+				throw new Error("Bu tarayıcı service worker desteklemiyor");
+			}
+			const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+			await navigator.serviceWorker.ready;
+			if (!reg.pushManager) {
+				throw new Error("PushManager yok. iPhone’da uygulamayı Ana Ekran ikonundan açın (Safari sekmesinden değil). iOS 16.4+ gerekir.");
+			}
+			let sub = await reg.pushManager.getSubscription();
+			if (!sub) {
+				const keyRes = await fetch("/api/push/vapid-public-key", { credentials: "same-origin" });
+				if (!keyRes.ok) throw new Error("VAPID anahtarı alınamadı (" + keyRes.status + ")");
+				const { publicKey } = await keyRes.json();
+				sub = await reg.pushManager.subscribe({
+					userVisibleOnly: true,
+					applicationServerKey: urlBase64ToUint8Array(publicKey),
+				});
+			}
+			const res = await fetch("/api/push/subscribe", {
+				method: "POST",
+				credentials: "same-origin",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(sub.toJSON()),
+			});
+			if (!res.ok) throw new Error("Abonelik kaydı başarısız (" + res.status + ")");
+			return true;
+		}
+
+		async function init() {
+			const forced = sessionStorage.getItem(FORCE_KEY) === "1";
+			if (forced) sessionStorage.removeItem(FORCE_KEY);
+
+			try {
+				if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+					await ensureSubscription();
+					if (!forced) {
+						hideBar();
+						return;
+					}
+					showBar("Bildirimler açık. Staff nakit tahsilatında bildirim gelir.", false);
+					return;
+				}
+				if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+					showBar("Bildirim izni kapalı. iPhone Ayarlar → Bildirimler → Piarte üzerinden açın.", false);
+					return;
+				}
+				if (isIOS() && !isStandalone()) {
+					showBar("iPhone’da bildirim için: Ana Ekran’daki Piarte ikonundan açın (Safari’den değil). Açtıktan sonra tekrar ‘Bildirimleri aç’a basın.", false);
+					return;
+				}
+				if (!("serviceWorker" in navigator)) {
+					showBar("Bu cihaz web bildirimlerini desteklemiyor.", false);
+					return;
+				}
+				if (!forced && localStorage.getItem(DISMISS_KEY) === "1") {
+					hideBar();
+					return;
+				}
+				showBar("Staff nakit tahsilatında telefona bildirim almak için açın. İzin verdikten sonra Ayarlar → Bildirimler’de Piarte görünür.", true);
+			} catch (e) {
+				showBar("Kurulum: " + (e && e.message ? e.message : e), isStandalone() || !isIOS());
+			}
+		}
+
+		enableBtn.addEventListener("click", async function () {
+			enableBtn.disabled = true;
+			msg.textContent = "İzin isteniyor…";
+			try {
+				if (typeof Notification === "undefined") {
+					throw new Error("Notification API yok. Ana Ekran uygulamasından açın.");
+				}
+				const perm = await Notification.requestPermission();
+				if (perm !== "granted") {
+					msg.textContent = "İzin verilmedi. iPhone Ayarlar → Bildirimler’den Piarte’yi açabilirsiniz.";
+					enableBtn.disabled = false;
+					return;
+				}
+				await ensureSubscription();
+				localStorage.removeItem(DISMISS_KEY);
+				msg.textContent = "Bildirimler açıldı. Ayarlar → Bildirimler’de Piarte artık görünmeli.";
+				enableBtn.style.display = "none";
+				setTimeout(hideBar, 3500);
+			} catch (e) {
+				msg.textContent = "Kurulum başarısız: " + (e && e.message ? e.message : e);
+				enableBtn.disabled = false;
+			}
+		});
+
+		dismissBtn.addEventListener("click", function () {
+			localStorage.setItem(DISMISS_KEY, "1");
+			hideBar();
+		});
+
+		window.piarteOpenPushSetup = function () {
+			localStorage.removeItem(DISMISS_KEY);
+			sessionStorage.setItem(FORCE_KEY, "1");
+			init();
+		};
+
+		init();
+	})();
+	</script>
+	{% endif %}
 </body>
 </html>
 

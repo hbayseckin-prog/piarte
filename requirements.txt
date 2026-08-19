@@ -9,4 +9,6 @@ passlib[bcrypt]==1.7.4
 itsdangerous>=2.1.2
 openpyxl==3.1.5
 psycopg2-binary==2.9.9
+pywebpush==2.0.1
+cryptography>=42.0.0
 

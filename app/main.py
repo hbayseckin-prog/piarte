@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, status
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, status, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi import Response
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,10 @@ import os
 
 from .db import Base, engine, get_db
 from . import crud, schemas, models
+try:
+	from . import push_notify
+except ImportError:
+	push_notify = None
 try:
     from . import excel_sync
 except ImportError:
@@ -194,6 +198,11 @@ async def startup_event():
 		ensure_expenses_table()
 		# Yeni Expense tablosu için metadata create (mevcut tablolara dokunmaz)
 		Base.metadata.create_all(bind=engine, tables=[models.Expense.__table__])
+		if push_notify:
+			push_notify.ensure_push_subscriptions_table()
+			push_notify.ensure_vapid_meta_table()
+			push_notify.get_vapid_keys()
+			Base.metadata.create_all(bind=engine, tables=[models.PushSubscription.__table__])
 	except Exception as e:
 		logging.error(f"Startup migration hatasi: {e}")
 
@@ -298,6 +307,74 @@ def web_manifest():
         media_type="application/manifest+json",
         headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    sw_path = os.path.join(base_dir, "sw.js")
+    if not os.path.exists(sw_path):
+        raise HTTPException(status_code=404)
+    return FileResponse(
+        sw_path,
+        media_type="application/javascript; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/",
+        },
+    )
+
+
+@app.get("/api/push/vapid-public-key")
+def api_push_vapid_public_key(request: Request):
+    require_admin(request)
+    if not push_notify:
+        raise HTTPException(status_code=503, detail="Push desteklenmiyor")
+    key = push_notify.get_vapid_public_key()
+    if not key:
+        raise HTTPException(status_code=503, detail="VAPID anahtarı yok")
+    return {"publicKey": key}
+
+
+@app.post("/api/push/subscribe")
+async def api_push_subscribe(request: Request, db: Session = Depends(get_db)):
+    user = require_admin(request)
+    if not push_notify:
+        raise HTTPException(status_code=503, detail="Push desteklenmiyor")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz JSON")
+    endpoint = (body.get("endpoint") or "").strip()
+    keys = body.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth = (keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth:
+        raise HTTPException(status_code=400, detail="Eksik abonelik bilgisi")
+    push_notify.upsert_subscription(
+        db,
+        user_id=int(user["id"]),
+        endpoint=endpoint,
+        p256dh=p256dh,
+        auth=auth,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return {"ok": True}
+
+
+@app.post("/api/push/unsubscribe")
+async def api_push_unsubscribe(request: Request, db: Session = Depends(get_db)):
+    require_admin(request)
+    if not push_notify:
+        raise HTTPException(status_code=503, detail="Push desteklenmiyor")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz JSON")
+    endpoint = (body.get("endpoint") or "").strip()
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="endpoint gerekli")
+    push_notify.delete_subscription_by_endpoint(db, endpoint)
+    return {"ok": True}
 
 
 # iframe güvenlik header'ları için middleware
@@ -1668,6 +1745,7 @@ def payment_form(
 @app.post("/payments/new")
 def payment_create(
     request: Request,
+    background_tasks: BackgroundTasks,
     student_id: int = Form(...),
     amount_try: float = Form(...),
     payment_date: str | None = Form(None),
@@ -1701,7 +1779,27 @@ def payment_create(
         method=method,
         note=note,
     )
-    crud.create_payment(db, payload)
+    payment = crud.create_payment(db, payload)
+    # Staff nakit tahsilatı → admin mobil bildirimi (başarısız olsa ödeme yine kayıtlı kalır)
+    if (
+        push_notify
+        and is_staff_user
+        and (method or "").strip() == "Nakit"
+    ):
+        student = crud.get_student(db, student_id)
+        student_name = (
+            f"{student.first_name} {student.last_name}".strip()
+            if student
+            else f"Öğrenci #{student_id}"
+        )
+        staff_name = (user.get("full_name") or user.get("username") or "Personel").strip()
+        background_tasks.add_task(
+            push_notify.notify_admins_staff_cash,
+            student_name=student_name,
+            amount_try=float(amount_try),
+            staff_name=staff_name,
+            payment_id=getattr(payment, "id", None),
+        )
     set_flash_success(request, "Ödeme başarıyla kaydedildi.")
     return RedirectResponse(url=safe_return_url(return_to, default_panel_url(user)), status_code=302)
 

@@ -337,5 +337,13 @@ try:
 except Exception:
 	pass
 
+try:
+	from .push_notify import ensure_push_subscriptions_table, ensure_vapid_meta_table
+
+	ensure_push_subscriptions_table()
+	ensure_vapid_meta_table()
+except Exception:
+	pass
+
 
 

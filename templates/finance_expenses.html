@@ -121,6 +121,50 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for e in items %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tarih</div>
+					<div class="mobile-card-value">{{ e.expense_date }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Başlık</div>
+					<div class="mobile-card-value"><strong>{{ e.title }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Kategori</div>
+					<div class="mobile-card-value">{{ e.category }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Tutar</div>
+					<div class="mobile-card-value"><strong style="color:#dc2626;">{{ '%.2f'|format(e.amount_try) }} ₺</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Yöntem</div>
+					<div class="mobile-card-value">{% if e.method == 'EFT' %}IBAN{% else %}{{ e.method or '-' }}{% endif %}</div>
+				</div>
+				{% if e.note %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Not</div>
+					<div class="mobile-card-value">{{ e.note }}</div>
+				</div>
+				{% endif %}
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">İşlem</div>
+					<div class="mobile-card-value">
+						<form method="post" action="/ui/finance/expenses/{{ e.id }}/delete" style="display:inline;margin:0;" onsubmit="return confirm('Bu gider kaydını silmek istediğinize emin misiniz?');">
+							<button type="submit" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">Sil</button>
+						</form>
+					</div>
+				</div>
+			</div>
+			{% else %}
+			<div class="mobile-card">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Bu dönemde gider kaydı yok.</div>
+			</div>
+			{% endfor %}
+		</div>
 	</div>
 </div>
 

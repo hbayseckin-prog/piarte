@@ -4,10 +4,15 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from io import BytesIO
-from typing import Any, Iterable, Sequence
+from pathlib import Path
+from typing import Any, Sequence
 from urllib.parse import urlencode
 
 from fastapi.responses import Response, StreamingResponse
+
+_ROOT = Path(__file__).resolve().parent.parent
+_BUNDLED_REGULAR = _ROOT / "fonts" / "DejaVuSans.ttf"
+_BUNDLED_BOLD = _ROOT / "fonts" / "DejaVuSans-Bold.ttf"
 
 
 def method_ui_label(method: str | None) -> str:
@@ -19,7 +24,6 @@ def method_ui_label(method: str | None) -> str:
 
 def build_export_qs(**params: Any) -> str:
 	cleaned = {k: v for k, v in params.items() if v not in (None, "", False)}
-	# bool True → 1
 	for k, v in list(cleaned.items()):
 		if v is True:
 			cleaned[k] = "1"
@@ -74,19 +78,39 @@ def _excel_cell(value: Any) -> Any:
 	return value
 
 
-def _find_unicode_font() -> str | None:
-	candidates = [
+def _find_unicode_fonts() -> tuple[str | None, str | None]:
+	"""(regular_ttf, bold_ttf). Önce repodaki fonts/, sonra sistem."""
+	regular_candidates = [
+		str(_BUNDLED_REGULAR),
 		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 		"/usr/share/fonts/TTF/DejaVuSans.ttf",
 		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 		"C:/Windows/Fonts/arial.ttf",
-		"C:/Windows/Fonts/calibri.ttf",
 		os.path.join(os.environ.get("WINDIR", "C:/Windows"), "Fonts", "arial.ttf"),
 	]
-	for path in candidates:
-		if path and os.path.isfile(path):
-			return path
-	return None
+	bold_candidates = [
+		str(_BUNDLED_BOLD),
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+		"/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+		"C:/Windows/Fonts/arialbd.ttf",
+		os.path.join(os.environ.get("WINDIR", "C:/Windows"), "Fonts", "arialbd.ttf"),
+	]
+	regular = next((p for p in regular_candidates if p and os.path.isfile(p)), None)
+	bold = next((p for p in bold_candidates if p and os.path.isfile(p)), None)
+	if regular and not bold:
+		bold = regular
+	return regular, bold
+
+
+def _latin1_safe(text: str) -> str:
+	"""Helvetica fallback için Türkçe karakterleri sadeleştir."""
+	repl = {
+		"ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G", "ı": "i", "İ": "I",
+		"ö": "o", "Ö": "O", "ş": "s", "Ş": "S", "ü": "u", "Ü": "U",
+		"₺": "TL", "→": "-", "—": "-", "·": "-",
+	}
+	out = "".join(repl.get(ch, ch) for ch in text)
+	return out.encode("latin-1", errors="replace").decode("latin-1")
 
 
 def pdf_response(
@@ -104,74 +128,79 @@ def pdf_response(
 	pdf.set_auto_page_break(auto=True, margin=12)
 	pdf.add_page()
 
-	font_path = _find_unicode_font()
-	if font_path:
-		pdf.add_font("ReportFont", "", font_path)
-		pdf.add_font("ReportFont", "B", font_path)
+	regular_path, bold_path = _find_unicode_fonts()
+	unicode_ok = bool(regular_path)
+	if unicode_ok:
+		pdf.add_font("ReportFont", "", regular_path)
+		pdf.add_font("ReportFont", "B", bold_path or regular_path)
 		font = "ReportFont"
+
+		def _t(val: Any) -> str:
+			if val is None:
+				return ""
+			if isinstance(val, float):
+				return f"{val:.2f}"
+			return str(val)
 	else:
 		font = "Helvetica"
 
+		def _t(val: Any) -> str:
+			if val is None:
+				return ""
+			if isinstance(val, float):
+				return f"{val:.2f}"
+			return _latin1_safe(str(val))
+
 	pdf.set_font(font, "B", 14)
-	pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+	pdf.cell(0, 8, _t(title), new_x="LMARGIN", new_y="NEXT")
 	pdf.set_font(font, "", 9)
 	pdf.set_text_color(80, 80, 80)
 	for line in meta_lines:
-		pdf.cell(0, 5, str(line), new_x="LMARGIN", new_y="NEXT")
+		pdf.cell(0, 5, _t(line), new_x="LMARGIN", new_y="NEXT")
 	pdf.set_text_color(0, 0, 0)
 	pdf.ln(3)
 
 	usable = pdf.w - pdf.l_margin - pdf.r_margin
 	col_count = max(len(headers), 1)
-	# weight longer text columns a bit more
 	widths = [usable / col_count] * col_count
 	if col_count >= 4:
-		# first col slightly wider
 		widths[0] = usable * 0.22
 		rest = (usable - widths[0]) / (col_count - 1)
 		for i in range(1, col_count):
 			widths[i] = rest
 
-	def _cell_text(val: Any) -> str:
-		if val is None:
-			return ""
-		if isinstance(val, float):
-			return f"{val:.2f}"
-		return str(val)
-
 	row_h = 6
 	pdf.set_font(font, "B", 8)
 	pdf.set_fill_color(224, 242, 254)
 	for i, h in enumerate(headers):
-		pdf.cell(widths[i], row_h, _cell_text(h), border=1, fill=True)
+		pdf.cell(widths[i], row_h, _t(h)[:40], border=1, fill=True)
 	pdf.ln(row_h)
 
 	pdf.set_font(font, "", 8)
 	for row in rows:
-		# page break
 		if pdf.get_y() > pdf.h - 18:
 			pdf.add_page()
 			pdf.set_font(font, "B", 8)
 			pdf.set_fill_color(224, 242, 254)
 			for i, h in enumerate(headers):
-				pdf.cell(widths[i], row_h, _cell_text(h), border=1, fill=True)
+				pdf.cell(widths[i], row_h, _t(h)[:40], border=1, fill=True)
 			pdf.ln(row_h)
 			pdf.set_font(font, "", 8)
 		vals = list(row) + [""] * max(0, col_count - len(row))
 		for i in range(col_count):
-			pdf.cell(widths[i], row_h, _cell_text(vals[i])[:60], border=1)
+			pdf.cell(widths[i], row_h, _t(vals[i])[:60], border=1)
 		pdf.ln(row_h)
 
 	if footer_note:
 		pdf.ln(4)
 		pdf.set_font(font, "", 8)
 		pdf.set_text_color(100, 100, 100)
-		pdf.cell(0, 5, footer_note, new_x="LMARGIN", new_y="NEXT")
+		pdf.cell(0, 5, _t(footer_note), new_x="LMARGIN", new_y="NEXT")
 
 	pdf.set_y(-10)
 	pdf.set_font(font, "", 7)
 	pdf.set_text_color(120, 120, 120)
-	pdf.cell(0, 4, f"Piarte Finans · {datetime.now().strftime('%d.%m.%Y %H:%M')}", align="R")
+	pdf.cell(0, 4, _t(f"Piarte Finans · {datetime.now().strftime('%d.%m.%Y %H:%M')}"), align="R")
 
 	out = bytes(pdf.output())
 	safe = filename if filename.endswith(".pdf") else f"{filename}.pdf"

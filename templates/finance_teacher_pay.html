@@ -86,7 +86,7 @@
 					<strong>{{ row.teacher_name }}</strong>
 				</td>
 				<td>
-					<input type="number" name="rate_{{ row.teacher_id }}" step="0.01" min="0"
+					<input type="number" class="teacher-pay-desktop-input" name="rate_{{ row.teacher_id }}" step="0.01" min="0"
 						value="{% if row.hourly_rate_try is not none %}{{ row.hourly_rate_try }}{% endif %}"
 						placeholder="Örn. 500"
 						style="width:120px;padding:8px;" />
@@ -105,7 +105,58 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		<div class="mobile-card-view">
+			{% for row in report.rows %}
+			<div class="mobile-card">
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Öğretmen</div>
+					<div class="mobile-card-value"><strong>{{ row.teacher_name }}</strong></div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Saat ücreti (₺)</div>
+					<div class="mobile-card-value">
+						<input type="number" class="teacher-pay-mobile-input" name="rate_{{ row.teacher_id }}" step="0.01" min="0"
+							value="{% if row.hourly_rate_try is not none %}{{ row.hourly_rate_try }}{% endif %}"
+							placeholder="Örn. 500"
+							style="width:100%;max-width:160px;padding:8px;box-sizing:border-box;" />
+					</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Ders saati</div>
+					<div class="mobile-card-value">{{ '%.2f'|format(row.hours) }}</div>
+				</div>
+				<div class="mobile-card-row">
+					<div class="mobile-card-label">Hak ediş</div>
+					<div class="mobile-card-value">
+						{% if row.amount is not none %}
+						<strong style="color:#059669;">{{ '%.2f'|format(row.amount) }} ₺</strong>
+						{% else %}
+						<span style="color:#94a3b8;">Saat ücreti girin</span>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+			{% else %}
+			<div class="mobile-card">
+				<div class="mobile-card-value" style="text-align:center;color:#64748b;">Öğretmen bulunamadı.</div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	<div style="margin-top:12px;">
+		<button type="submit" style="width:100%;max-width:320px;">Saat ücretlerini kaydet</button>
 	</div>
 	<p style="margin-top:12px;color:#64748b;font-size:13px;">Ücretleri değiştirdikten sonra önce <strong>Saat ücretlerini kaydet</strong>, ardından tekrar <strong>Hesapla</strong> ile güncel tutarı görün.</p>
 </form>
+<script>
+(function() {
+	function syncTeacherPayInputs() {
+		var mobile = window.matchMedia('(max-width: 768px)').matches;
+		document.querySelectorAll('.teacher-pay-desktop-input').forEach(function(el) { el.disabled = mobile; });
+		document.querySelectorAll('.teacher-pay-mobile-input').forEach(function(el) { el.disabled = !mobile; });
+	}
+	syncTeacherPayInputs();
+	window.addEventListener('resize', syncTeacherPayInputs);
+})();
+</script>
 {% endblock %}

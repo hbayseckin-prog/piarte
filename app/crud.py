@@ -1762,6 +1762,8 @@ def get_attendance_report_by_teacher(
     """Öğretmenlere göre yoklama raporu oluşturur. Filtreleme parametreleri ile çalışır."""
     from sqlalchemy.orm import joinedload
 
+    status_filter = (status or "").strip().upper()
+
     if teacher_id:
         teachers = [db.get(models.Teacher, teacher_id)] if db.get(models.Teacher, teacher_id) else []
     else:
@@ -1832,8 +1834,9 @@ def get_attendance_report_by_teacher(
             lesson = lesson_map.get(att.lesson_id)
             att_student_id = att.student_id
             status = normalize_attendance_status_value(att.status)
-            # Telafisi Alınacak öğretmen puantajına hiç yazılmaz.
-            if status == TELAFI_ALINACAK_STATUS:
+            # Telafisi Alınacak varsayılan puantaja yazılmaz; öğretmen bu duruma göre filtrelerse sayılır.
+            # Toplam derse yine eklenmez.
+            if status == TELAFI_ALINACAK_STATUS and status_filter != TELAFI_ALINACAK_STATUS:
                 continue
             if att_student_id not in student_stats:
                 student = student_map.get(att_student_id)
@@ -1843,6 +1846,7 @@ def get_attendance_report_by_teacher(
                     "student": student,
                     "present": 0,
                     "excused_absent": 0,
+                    "telafi_alinacak": 0,
                     "telafi": 0,
                     "unexcused_absent": 0,
                     "total": 0,
@@ -1861,7 +1865,10 @@ def get_attendance_report_by_teacher(
             # Öğretmen Toplam Ders artışı: Resim ve diğer kurslar için ortak kural
             lesson_count = teacher_puantaj_lesson_credit(status, course_name)
             
-            if status == "PRESENT":
+            if status == TELAFI_ALINACAK_STATUS:
+                student_stats[att_student_id]["telafi_alinacak"] += 1
+                student_stats[att_student_id]["dates"].append(date_str)
+            elif status == "PRESENT":
                 student_stats[att_student_id]["present"] += lesson_count
                 student_stats[att_student_id]["total"] += lesson_count
                 student_stats[att_student_id]["dates"].append(date_str)

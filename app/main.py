@@ -1483,7 +1483,7 @@ def search_student_actions(
 
 # UI: Teacher panel
 @app.get("/ui/teacher", response_class=HTMLResponse)
-def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, db: Session = Depends(get_db)):
+def teacher_panel(request: Request, selected_teacher_id: int | None = None, start_date: str | None = None, end_date: str | None = None, status: str | None = None, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/login/teacher", status_code=302)
@@ -1530,6 +1530,10 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 end_date_obj = date(y, m, d)
             except Exception:
                 end_date_obj = None
+
+        status_filter = (status or "").strip().upper()
+        if status_filter not in {"PRESENT", "EXCUSED_ABSENT", "UNEXCUSED_ABSENT", "TELAFI_ALINACAK", "TELAFI"}:
+            status_filter = ""
         
         # Tüm öğretmenleri getir
         all_teachers = crud.list_teachers(db)
@@ -1574,7 +1578,8 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 db,
                 teacher_id=current_teacher_id,
                 start_date=start_date_obj,
-                end_date=end_date_obj
+                end_date=end_date_obj,
+                status=status_filter or None,
             )
             # Toplamları hesapla
             if attendance_report and len(attendance_report) > 0:
@@ -1583,6 +1588,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                     totals = {
                         "total_present": sum(s.get("present", 0) for s in teacher_report["students"]),
                         "total_excused_absent": sum(s.get("excused_absent", 0) for s in teacher_report["students"]),
+                        "total_telafi_alinacak": sum(s.get("telafi_alinacak", 0) for s in teacher_report["students"]),
                         "total_telafi": sum(s.get("telafi", 0) for s in teacher_report["students"]),
                         "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in teacher_report["students"]),
                         "total_lessons": sum(s.get("total", 0) for s in teacher_report["students"])
@@ -1601,6 +1607,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
             "attendance_totals": attendance_totals,
             "start_date": start_date or "",
             "end_date": end_date or "",
+            "status_filter": status_filter,
         }
         return templates.TemplateResponse("teacher_panel.html", context)
     except Exception as e:

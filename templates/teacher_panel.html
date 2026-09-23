@@ -138,12 +138,20 @@
 <div class="card">
 	<h3 class="h2">Puantaj Tablosu</h3>
 	<p style="color:var(--muted);margin-top:8px;margin-bottom:16px;font-size:14px;">
-		Öğrenciler için aldığınız yoklamalar. Haberli gelmedi ve Telafisi Alınacak durumları tabloya işlenmez. Telafi dersi toplama eklenir. Tarih aralığı seçerek sonuçları filtreleyebilirsiniz.
+		Öğrenciler için aldığınız yoklamalar. Tarih ve duruma göre filtreleyebilirsiniz. Haberli gelmedi ve Telafisi Alınacak toplam derse eklenmez. Telafi dersi toplama eklenir.
 	</p>
 	
 	<form method="get" action="/ui/teacher" class="form-row" style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:12px;">
 		<input type="date" name="start_date" value="{{ start_date }}" placeholder="Başlangıç Tarihi" />
 		<input type="date" name="end_date" value="{{ end_date }}" placeholder="Bitiş Tarihi" />
+		<select name="status">
+			<option value="">Tüm Durumlar</option>
+			<option value="PRESENT" {% if status_filter == 'PRESENT' %}selected{% endif %}>Geldi</option>
+			<option value="EXCUSED_ABSENT" {% if status_filter == 'EXCUSED_ABSENT' %}selected{% endif %}>Haberli Gelmedi</option>
+			<option value="UNEXCUSED_ABSENT" {% if status_filter == 'UNEXCUSED_ABSENT' %}selected{% endif %}>Habersiz Gelmedi</option>
+			<option value="TELAFI_ALINACAK" {% if status_filter == 'TELAFI_ALINACAK' %}selected{% endif %}>Telafisi Alınacak</option>
+			<option value="TELAFI" {% if status_filter == 'TELAFI' %}selected{% endif %}>Telafi</option>
+		</select>
 		{% if selected_teacher_id %}
 		<input type="hidden" name="selected_teacher_id" value="{{ selected_teacher_id }}" />
 		{% endif %}
@@ -167,6 +175,7 @@
 							<th>Öğrenci</th>
 							<th>Geldi</th>
 							<th>Haberli Gelmedi</th>
+							{% if status_filter == 'TELAFI_ALINACAK' %}<th>Telafisi Alınacak</th>{% endif %}
 							<th>Telafi</th>
 							<th>Habersiz Gelmedi</th>
 							<th>Toplam Ders</th>
@@ -178,6 +187,7 @@
 							<td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
 							<td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>
 							<td style="text-align:center;color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</td>
+							{% if status_filter == 'TELAFI_ALINACAK' %}<td style="text-align:center;color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</td>{% endif %}
 							<td style="text-align:center;color:#8b5cf6;font-weight:600;">{{ student_data.telafi }}</td>
 							<td style="text-align:center;color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</td>
 							<td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>
@@ -190,6 +200,7 @@
 							<td style="padding:12px;font-weight:700;color:#0f172a;">TOPLAM</td>
 							<td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</td>
 							<td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</td>
+							{% if status_filter == 'TELAFI_ALINACAK' %}<td style="text-align:center;padding:12px;color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi_alinacak }}</td>{% endif %}
 							<td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</td>
 							<td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</td>
 							<td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</td>
@@ -212,6 +223,12 @@
 							<div class="mobile-card-label">Haberli Gelmedi</div>
 							<div class="mobile-card-value" style="color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</div>
 						</div>
+						{% if status_filter == 'TELAFI_ALINACAK' %}
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Telafisi Alınacak</div>
+							<div class="mobile-card-value" style="color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</div>
+						</div>
+						{% endif %}
 						<div class="mobile-card-row">
 							<div class="mobile-card-label">Telafi</div>
 							<div class="mobile-card-value" style="color:#8b5cf6;font-weight:600;">{{ student_data.telafi }}</div>
@@ -240,6 +257,12 @@
 							<div class="mobile-card-label">Haberli Gelmedi</div>
 							<div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</div>
 						</div>
+						{% if status_filter == 'TELAFI_ALINACAK' %}
+						<div class="mobile-card-row">
+							<div class="mobile-card-label">Telafisi Alınacak</div>
+							<div class="mobile-card-value" style="color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi_alinacak }}</div>
+						</div>
+						{% endif %}
 						<div class="mobile-card-row">
 							<div class="mobile-card-label">Telafi</div>
 							<div class="mobile-card-value" style="color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</div>
@@ -263,8 +286,8 @@
 		{% endfor %}
 	{% else %}
 	<p style="color:var(--muted);text-align:center;padding:16px;">
-		{% if start_date or end_date %}
-			Seçilen tarih aralığı için puantaj verisi bulunmuyor.
+		{% if start_date or end_date or status_filter %}
+			Seçilen filtrelere uygun puantaj verisi bulunmuyor.
 		{% else %}
 			Puantaj verilerini görmek için lütfen tarih aralığı seçin.
 		{% endif %}

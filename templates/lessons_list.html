@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Ders Programı - Piarte{% endblock %}
 {% block content %}
+{% set user_role = request.session.get('user').get('role') if request.session.get('user') else '' %}
+{% set show_yoklama_column = user_role != 'staff' %}
+{% set show_lesson_actions = user_role in ['admin', 'staff'] %}
+{% set lesson_colspan = 7 + (1 if show_yoklama_column else 0) + (1 if show_lesson_actions else 0) %}
 <h2 class="h1">Ders Programı</h2>
 
 {% if request.session.get('flash_success') %}
@@ -59,8 +63,10 @@
           <th>Öğrenci</th>
           <th>Saat</th>
           <th>Açıklama</th>
+          {% if show_yoklama_column %}
           <th>Yoklama</th>
-          {% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}
+          {% endif %}
+          {% if show_lesson_actions %}
           <th>İşlemler</th>
           {% endif %}
         </tr>
@@ -90,8 +96,10 @@
           </td>
           <td>{{ (l.start_time or '') }} - {{ (l.end_time or '') }}</td>
           <td>{{ l.description or '' }}</td>
+          {% if show_yoklama_column %}
           <td><a href="/lessons/{{ l.id }}/attendance/new?return_to={{ '/ui/lessons' | urlencode }}">Yoklama</a></td>
-          {% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}
+          {% endif %}
+          {% if show_lesson_actions %}
           <td>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <a href="/lessons/{{ l.id }}/edit"
@@ -111,7 +119,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="{% if request.session.get('user') and request.session.get('user').get('role') in ['admin','staff'] %}9{% else %}8{% endif %}">
+          <td colspan="{{ lesson_colspan }}">
             Kayıtlı ders bulunmuyor.
           </td>
         </tr>

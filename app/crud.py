@@ -1053,18 +1053,33 @@ def normalize_attendance_status_value(status: str | None) -> str:
 	return status or ""
 
 
+TELAFI_ALINACAK_STATUS = "TELAFI_ALINACAK"
+# Öğrencinin paket/ders sayısı: Geldi, Habersiz, Telafisi Alınacak.
+# Telafi (yapılan telafi dersi) öğrenci ders sayısını değiştirmez.
+STUDENT_LESSON_STATUSES = ("PRESENT", "UNEXCUSED_ABSENT", TELAFI_ALINACAK_STATUS)
+
+
 def teacher_puantaj_lesson_credit(status: str | None, course_name: str | None) -> int:
 	"""
 	Öğretmen puantajı 'Toplam Ders' artışı (0 veya 1).
 	Resim: yalnızca Geldi / Telafi.
-	Diğer kurslar: Geldi / Telafi / Habersiz. Haberli hiçbirinde toplam dersi artırmaz.
+	Diğer kurslar: Geldi / Telafi / Habersiz.
+	Haberli ve Telafisi Alınacak öğretmen toplamına girmez.
 	"""
 	normalized = normalize_attendance_status_value(status)
+	if normalized == TELAFI_ALINACAK_STATUS:
+		return 0
 	if is_resim_course_name(course_name):
 		return 1 if normalized in ("PRESENT", "TELAFI") else 0
 	if normalized in ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT"):
 		return 1
 	return 0
+
+
+def student_program_lesson_total(summary: dict | None) -> int:
+	"""Öğrenci programındaki ders sayısı. Telafi bu toplama eklenmez."""
+	summary = summary or {}
+	return sum(int(summary.get(status, 0) or 0) for status in ("PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", TELAFI_ALINACAK_STATUS))
 
 
 def build_teacher_pay_report(
@@ -1156,7 +1171,7 @@ def set_teacher_hourly_rate(db: Session, teacher_id: int, hourly_rate_try: float
 
 
 PACKAGE_LESSON_SIZE = 4
-_PAYMENT_COUNTABLE_STATUSES = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+_PAYMENT_COUNTABLE_STATUSES = STUDENT_LESSON_STATUSES
 
 
 def build_payment_package_details(
@@ -1171,7 +1186,7 @@ def build_payment_package_details(
 ) -> dict:
 	"""
 	Her ödeme = 4 derslik paket.
-	Ödemeler kronolojik sırayla, sayılan yoklamalara (Geldi/Telafi/Habersiz) eşlenir.
+	Ödemeler kronolojik sırayla, sayılan yoklamalara (Geldi/Telafisi Alınacak/Habersiz) eşlenir.
 	Böylece Ağustos tahsilatı Eylül derslerini kapsıyorsa ay bazında ayrıştırılır.
 	"""
 	teacher_names = student_teacher_name_map(db)
@@ -1403,12 +1418,12 @@ def check_student_payment_status(db: Session, student_id: int):
 	from datetime import date
 	today = date.today()
 	
-	# Öğrencinin toplam ders sayısını hesapla (PRESENT veya TELAFI)
+	# Öğrenci ders sayısı: Geldi, Habersiz, Telafisi Alınacak. Telafi eklenmez.
 	total_lessons = db.scalars(
 		select(func.count(models.Attendance.id))
 		.where(
 			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(["PRESENT", "TELAFI", "UNEXCUSED_ABSENT"])  # Habersiz gelmedi de toplam derse dahil
+			models.Attendance.status.in_(STUDENT_LESSON_STATUSES),
 		)
 	).first() or 0
 	
@@ -1441,6 +1456,7 @@ ATTENDANCE_STATUS_LABELS = {
 	"UNEXCUSED_ABSENT": "Habersiz Gelmedi",
 	"EXCUSED_ABSENT": "Haberli Gelmedi",
 	"TELAFI": "Telafi",
+	"TELAFI_ALINACAK": "Telafisi Alınacak",
 }
 
 ATTENDANCE_STATUS_SUMMARY_STYLES = {
@@ -1448,6 +1464,7 @@ ATTENDANCE_STATUS_SUMMARY_STYLES = {
 	"UNEXCUSED_ABSENT": {"bg": "#fee2e2", "color": "#dc2626"},
 	"EXCUSED_ABSENT": {"bg": "#ffedd5", "color": "#c2410c"},
 	"TELAFI": {"bg": "#ede9fe", "color": "#6d28d9"},
+	"TELAFI_ALINACAK": {"bg": "#fef08a", "color": "#854d0e"},
 }
 
 ATTENDANCE_STATUS_DATE_BADGE_STYLES = {
@@ -1455,6 +1472,7 @@ ATTENDANCE_STATUS_DATE_BADGE_STYLES = {
 	"UNEXCUSED_ABSENT": {"bg": "#fee2e2", "color": "#dc2626", "border": "#fca5a5"},
 	"EXCUSED_ABSENT": {"bg": "#ffedd5", "color": "#c2410c", "border": "#fdba74"},
 	"TELAFI": {"bg": "#ede9fe", "color": "#6d28d9", "border": "#c4b5fd"},
+	"TELAFI_ALINACAK": {"bg": "#fef08a", "color": "#854d0e", "border": "#eab308"},
 }
 
 
@@ -1495,7 +1513,7 @@ def summarize_student_attendances(attendances) -> tuple[dict[str, int], list[dic
 
 WEEKDAY_MAP_TR = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 VALID_PAYMENT_STATUS_FILTERS = frozenset({"needs_payment", "waiting", "paid"})
-_ATTENDANCE_STATUSES_FOR_PAYMENT = ("PRESENT", "TELAFI", "UNEXCUSED_ABSENT")
+_ATTENDANCE_STATUSES_FOR_PAYMENT = STUDENT_LESSON_STATUSES
 
 
 def classify_payment_status(total_lessons: int, total_paid_sets: int) -> dict:
@@ -1813,6 +1831,10 @@ def get_attendance_report_by_teacher(
         for att in attendances:
             lesson = lesson_map.get(att.lesson_id)
             att_student_id = att.student_id
+            status = normalize_attendance_status_value(att.status)
+            # Telafisi Alınacak öğretmen puantajına hiç yazılmaz.
+            if status == TELAFI_ALINACAK_STATUS:
+                continue
             if att_student_id not in student_stats:
                 student = student_map.get(att_student_id)
                 if not student:
@@ -1834,7 +1856,6 @@ def get_attendance_report_by_teacher(
             else:
                 date_str = ''
             
-            status = normalize_attendance_status_value(att.status)
             course_name = lesson.course.name if lesson and lesson.course else None
             is_resim_course = is_resim_course_name(course_name)
             # Öğretmen Toplam Ders artışı: Resim ve diğer kurslar için ortak kural

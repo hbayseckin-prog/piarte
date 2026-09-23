@@ -68,6 +68,7 @@
 							<option value="">-</option>
 							<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 							<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
+							<option value="TELAFI_ALINACAK" {% if item.current_status == "TELAFI_ALINACAK" %}selected{% endif %}>Telafisi Alınacak</option>
 							<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
 							<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz Gelmedi</option>
 						</select>
@@ -100,6 +101,7 @@
 								<option value="">-</option>
 								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
+								<option value="TELAFI_ALINACAK" {% if item.current_status == "TELAFI_ALINACAK" %}selected{% endif %}>Telafisi Alınacak</option>
 								<option value="TELAFI" {% if item.current_status == "TELAFI" or item.current_status == "LATE" %}selected{% endif %}>Telafi</option>
 								<option value="UNEXCUSED_ABSENT" {% if item.current_status == "UNEXCUSED_ABSENT" %}selected{% endif %}>Habersiz Gelmedi</option>
 							</select>
@@ -142,6 +144,10 @@
 				<div style="font-size:20px;font-weight:700;color:#d97706;">{{ summary.counts.EXCUSED_ABSENT }}</div>
 				<div style="font-size:12px;color:#b45309;margin-top:4px;">Haberli Gelmedi</div>
 			</div>
+			<div style="padding:8px;background:#fef08a;border-radius:6px;text-align:center;">
+				<div style="font-size:20px;font-weight:700;color:#854d0e;">{{ summary.counts.TELAFI_ALINACAK }}</div>
+				<div style="font-size:12px;color:#854d0e;margin-top:4px;">Telafisi Alınacak</div>
+			</div>
 			<div style="padding:8px;background:#dbeafe;border-radius:6px;text-align:center;">
 				<div style="font-size:20px;font-weight:700;color:#2563eb;">{{ summary.counts.TELAFI }}</div>
 				<div style="font-size:12px;color:#1e40af;margin-top:4px;">Telafi</div>
@@ -164,6 +170,8 @@
 							<span style="padding:4px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-size:12px;font-weight:500;">Geldi</span>
 							{% elif att.status == 'EXCUSED_ABSENT' %}
 							<span style="padding:4px 8px;background:#fef3c7;color:#d97706;border-radius:4px;font-size:12px;font-weight:500;">Haberli Gelmedi</span>
+							{% elif att.status == 'TELAFI_ALINACAK' %}
+							<span style="padding:4px 8px;background:#fef08a;color:#854d0e;border-radius:4px;font-size:12px;font-weight:500;">Telafisi Alınacak</span>
 							{% elif att.status == 'TELAFI' %}
 							<span style="padding:4px 8px;background:#dbeafe;color:#2563eb;border-radius:4px;font-size:12px;font-weight:500;">Telafi</span>
 							{% elif att.status == 'UNEXCUSED_ABSENT' %}

@@ -98,6 +98,7 @@
 						<span style="padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">Geldi: {{ student_attendance_summary.PRESENT or 0 }}</span>
 						<span style="padding:4px 10px;background:#fee2e2;color:#dc2626;border-radius:6px;font-size:12px;font-weight:600;">Habersiz Gelmedi: {{ student_attendance_summary.UNEXCUSED_ABSENT or 0 }}</span>
 						<span style="padding:4px 10px;background:#ffedd5;color:#c2410c;border-radius:6px;font-size:12px;font-weight:600;">Haberli Gelmedi: {{ student_attendance_summary.EXCUSED_ABSENT or 0 }}</span>
+						<span style="padding:4px 10px;background:#fef08a;color:#854d0e;border-radius:6px;font-size:12px;font-weight:600;">Telafisi Alınacak: {{ student_attendance_summary.TELAFI_ALINACAK or 0 }}</span>
 						<span style="padding:4px 10px;background:#ede9fe;color:#6d28d9;border-radius:6px;font-size:12px;font-weight:600;">Telafi: {{ student_attendance_summary.TELAFI or 0 }}</span>
 					</div>
 					{% endif %}
@@ -606,6 +607,7 @@
             <option value="">Tüm Durumlar</option>
             <option value="PRESENT" {% if filters and filters.status == 'PRESENT' %}selected{% endif %}>Geldi</option>
             <option value="EXCUSED_ABSENT" {% if filters and filters.status == 'EXCUSED_ABSENT' %}selected{% endif %}>Haberli Gelmedi</option>
+            <option value="TELAFI_ALINACAK" {% if filters and filters.status == 'TELAFI_ALINACAK' %}selected{% endif %}>Telafisi Alınacak</option>
             <option value="TELAFI" {% if filters and (filters.status == 'TELAFI' or filters.status == 'LATE') %}selected{% endif %}>Telafi</option>
             <option value="UNEXCUSED_ABSENT" {% if filters and filters.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>Habersiz Gelmedi</option>
         </select>
@@ -653,6 +655,8 @@
                         <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                     {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                         <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                    {% elif entry.attendance.status == 'TELAFI_ALINACAK' %}
+                        <span style="padding:4px 8px;background:#ca8a04;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafisi Alınacak</span>
                     {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
                         <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
                     {% elif entry.attendance.status == 'ABSENT' %}
@@ -702,6 +706,8 @@
                             <span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Habersiz gelmedi</span>
                         {% elif entry.attendance.status == 'EXCUSED_ABSENT' %}
                             <span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Haberli gelmedi</span>
+                        {% elif entry.attendance.status == 'TELAFI_ALINACAK' %}
+                            <span style="padding:4px 8px;background:#ca8a04;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafisi Alınacak</span>
                         {% elif entry.attendance.status == 'TELAFI' or entry.attendance.status == 'LATE' %}
                             <span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Telafi</span>
                         {% elif entry.attendance.status == 'ABSENT' %}

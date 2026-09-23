@@ -84,6 +84,8 @@
 						<span style="padding:4px 8px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;">Habersiz</span>
 					{% elif row.attendance.status == 'EXCUSED_ABSENT' %}
 						<span style="padding:4px 8px;background:#f97316;color:#fff;border-radius:6px;font-size:12px;">Haberli</span>
+					{% elif row.attendance.status == 'TELAFI_ALINACAK' %}
+						<span style="padding:4px 8px;background:#ca8a04;color:#fff;border-radius:6px;font-size:12px;">Telafisi Alınacak</span>
 					{% elif row.attendance.status == 'TELAFI' or row.attendance.status == 'LATE' %}
 						<span style="padding:4px 8px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;">Telafi</span>
 					{% else %}{{ row.attendance.status }}{% endif %}
@@ -119,6 +121,7 @@
 						{% if row.attendance.status == 'PRESENT' %}Geldi
 						{% elif row.attendance.status == 'UNEXCUSED_ABSENT' %}Habersiz gelmedi
 						{% elif row.attendance.status == 'EXCUSED_ABSENT' %}Haberli gelmedi
+						{% elif row.attendance.status == 'TELAFI_ALINACAK' %}Telafisi Alınacak
 						{% elif row.attendance.status == 'TELAFI' or row.attendance.status == 'LATE' %}Telafi
 						{% else %}{{ row.attendance.status }}{% endif %}
 					</div>

@@ -52,6 +52,7 @@
                     style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
                     <option value="PRESENT" {% if attendance.status == 'PRESENT' %}selected{% endif %}>✅ Geldi</option>
                     <option value="EXCUSED_ABSENT" {% if attendance.status == 'EXCUSED_ABSENT' %}selected{% endif %}>📝 Haberli Gelmedi</option>
+                    <option value="TELAFI_ALINACAK" {% if attendance.status == 'TELAFI_ALINACAK' %}selected{% endif %}>🟨 Telafisi Alınacak</option>
                     <option value="TELAFI" {% if attendance.status == 'TELAFI' or attendance.status == 'LATE' %}selected{% endif %}>🔄 Telafi</option>
                     <option value="UNEXCUSED_ABSENT" {% if attendance.status == 'UNEXCUSED_ABSENT' %}selected{% endif %}>❌ Habersiz Gelmedi</option>
                 </select>

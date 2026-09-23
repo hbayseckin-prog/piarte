@@ -2192,6 +2192,7 @@ def attendance_form(
                         "counts": {
                             "PRESENT": 0,
                             "EXCUSED_ABSENT": 0,
+                            "TELAFI_ALINACAK": 0,
                             "TELAFI": 0,
                             "UNEXCUSED_ABSENT": 0,
                             "LATE": 0  # Eski kayıtlar için
@@ -2387,7 +2388,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         except Exception:
             marked_at_dt = None
 
-    valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI"}
+    valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI", "TELAFI_ALINACAK"}
     to_create: list[schemas.AttendanceCreate] = []
     passive_attempted_student_names: list[str] = []
 
@@ -2461,7 +2462,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
         else:
             request.session["attendance_errors"] = (
                 "Yoklama verisi bulunamadı. Lütfen en az bir öğrenci için durum seçin "
-                "(Geldi, Haberli Gelmedi, Telafi, veya Habersiz Gelmedi)."
+                "(Geldi, Haberli Gelmedi, Telafi, Telafisi Alınacak veya Habersiz Gelmedi)."
             )
         return RedirectResponse(
             url=attendance_new_url(lesson_id, return_to_value, error="no_data"),
@@ -4647,8 +4648,8 @@ def staff_panel(
                 # Sadece yoklama alınmış derslerin tarihlerini sırala (gösterim için)
                 attendance_dates_sorted = [entry["date"] for entry in attendance_date_entries]
                 
-                # Öğrencinin toplam ders sayısını hesapla (yoklama kayıtları)
-                total_lessons_count = sum(student_attendance_summary.values())
+                # Öğrenci ders sayısı: Telafi eklenmez, Telafisi Alınacak eklenir
+                total_lessons_count = crud.student_program_lesson_total(student_attendance_summary)
                 
                 # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(

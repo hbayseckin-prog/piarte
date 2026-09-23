@@ -1758,6 +1758,7 @@ def get_attendance_report_by_teacher(
     end_date: date | None = None,
     status: str | None = None,
     student_name: str | None = None,
+    include_telafi_alinacak: bool = False,
 ):
     """Öğretmenlere göre yoklama raporu oluşturur. Filtreleme parametreleri ile çalışır."""
     from sqlalchemy.orm import joinedload
@@ -1783,8 +1784,8 @@ def get_attendance_report_by_teacher(
             )
             if student_id:
                 stmt = stmt.where(models.Attendance.student_id == student_id)
-            if status and status.strip():
-                stmt = stmt.where(attendance_status_filter(status))
+            if status_filter:
+                stmt = stmt.where(attendance_status_filter(status_filter))
             attendances = db.scalars(stmt).all()
 
             if course_id or start_date or end_date:
@@ -1834,9 +1835,8 @@ def get_attendance_report_by_teacher(
             lesson = lesson_map.get(att.lesson_id)
             att_student_id = att.student_id
             status = normalize_attendance_status_value(att.status)
-            # Telafisi Alınacak varsayılan puantaja yazılmaz; öğretmen bu duruma göre filtrelerse sayılır.
-            # Toplam derse yine eklenmez.
-            if status == TELAFI_ALINACAK_STATUS and status_filter != TELAFI_ALINACAK_STATUS:
+            # Telafisi Alınacak toplam derse eklenmez. Öğretmen tablosunda ayrı sütunda görünür.
+            if status == TELAFI_ALINACAK_STATUS and not include_telafi_alinacak and status_filter != TELAFI_ALINACAK_STATUS:
                 continue
             if att_student_id not in student_stats:
                 student = student_map.get(att_student_id)

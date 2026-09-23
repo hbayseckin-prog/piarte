@@ -1580,6 +1580,7 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 start_date=start_date_obj,
                 end_date=end_date_obj,
                 status=status_filter or None,
+                include_telafi_alinacak=True,
             )
             # Toplamları hesapla
             if attendance_report and len(attendance_report) > 0:

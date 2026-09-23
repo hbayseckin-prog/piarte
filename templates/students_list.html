@@ -15,7 +15,7 @@
 		<div style="flex:1;min-width:220px;">
 			<label for="student-name-filter" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#0f172a;">Öğrenci adına göre ara</label>
 			<input id="student-name-filter" type="text" name="q" value="{{ q or '' }}" placeholder="Ad veya soyad (en az 3 harf)" autocomplete="off" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" />
-			<small style="display:block;margin-top:6px;color:#64748b;">Ad veya soyadın ilk 3 harfiyle eşleşir.</small>
+			<small style="display:block;margin-top:6px;color:#64748b;">3 harf yazılınca adın veya soyadın ilk 3 harfi eşleşen öğrenciler listelenir.</small>
 		</div>
 		<button type="submit" style="padding:10px 16px;">Ara</button>
 		{% if q %}
@@ -25,6 +25,10 @@
 	{% if q and not name_filter_applied %}
 	<div style="padding:12px;background:#fffbeb;color:#92400e;border:1px solid #f59e0b;border-radius:8px;margin-bottom:16px;">
 		Arama için en az 3 harf girin. Liste şimdilik filtrelenmedi.
+	</div>
+	{% elif name_filter_applied %}
+	<div style="padding:12px;background:#e0f2fe;color:#0369a1;border:1px solid #0ea5e9;border-radius:8px;margin-bottom:16px;">
+		İlk 3 harf eşleşmesi ({{ q[:3] }}): {{ students|length }} öğrenci
 	</div>
 	{% endif %}
 	<div class="table-wrap">
@@ -102,6 +106,32 @@
 		</div>
 	</div>
 </div>
+<script>
+(function () {
+	var form = document.querySelector('form[action="/ui/students"]');
+	var input = document.getElementById('student-name-filter');
+	if (!form || !input) return;
+
+	function fold(value) {
+		return (value || '').trim().replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
+	}
+
+	var lastPrefix = fold(input.value).slice(0, 3);
+	var timer = null;
+
+	input.addEventListener('input', function () {
+		clearTimeout(timer);
+		var folded = fold(input.value);
+		if (folded.length > 0 && folded.length < 3) return;
+		var prefix = folded.slice(0, 3);
+		if (prefix === lastPrefix) return;
+		timer = setTimeout(function () {
+			lastPrefix = prefix;
+			form.requestSubmit();
+		}, 250);
+	});
+})();
+</script>
 {% endblock %}
 
 

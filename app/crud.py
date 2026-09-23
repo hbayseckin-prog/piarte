@@ -681,13 +681,19 @@ def update_attendance(db: Session, attendance_id: int, status: str | None = None
 	return attendance
 
 
+def fold_student_name(value: str) -> str:
+	"""Türkçe İ/I farkını koruyarak ada göre karşılaştırmak için küçültür."""
+	text = (value or "").strip().replace("İ", "i").replace("I", "ı")
+	return text.lower()
+
+
 def student_name_matches_prefix(full_name: str, term: str) -> bool:
 	"""Öğrenci adı filtresi: yazılan metnin ilk 3 harfi ad, soyad veya tam adla eşleşmeli."""
-	term = (term or "").strip().lower()
+	term = fold_student_name(term)
 	if len(term) < 3:
 		return False
 	prefix = term[:3]
-	normalized = (full_name or "").strip().lower()
+	normalized = fold_student_name(full_name)
 	parts = normalized.split()
 	first = parts[0] if parts else ""
 	last = parts[-1] if len(parts) > 1 else ""

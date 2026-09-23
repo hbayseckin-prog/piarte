@@ -56,6 +56,18 @@ def set_flash_success(request: Request, message: str) -> None:
     request.session["flash_success"] = message
 
 
+def students_list_url(q: str | None = None) -> str:
+    from urllib.parse import urlencode
+    query = (q or "").strip()
+    if not query:
+        return "/ui/students"
+    return "/ui/students?" + urlencode({"q": query})
+
+
+def _students_list_redirect(request: Request) -> str:
+    return students_list_url(request.query_params.get("q"))
+
+
 def attendance_new_url(lesson_id: int, return_to: str | None = None, **query) -> str:
     from urllib.parse import urlencode
     params = {k: v for k, v in query.items() if v is not None and v != ""}
@@ -3167,13 +3179,29 @@ def payments_by_student(student_id: int, db: Session = Depends(get_db)):
 
 # UI: Students - list and detail
 @app.get("/ui/students", response_class=HTMLResponse)
-def ui_students(request: Request, db: Session = Depends(get_db)):
+def ui_students(request: Request, q: str | None = None, db: Session = Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse(url="/", status_code=302)
     if request.session.get("user").get("role") == "teacher":
         return RedirectResponse(url="/ui/teacher", status_code=302)
+    query = (q or "").strip()
     students = crud.list_students(db)
-    return templates.TemplateResponse("students_list.html", {"request": request, "students": students})
+    name_filter_applied = len(query) >= 3
+    if name_filter_applied:
+        students = [
+            student
+            for student in students
+            if crud.student_name_matches_prefix(f"{student.first_name or ''} {student.last_name or ''}", query)
+        ]
+    return templates.TemplateResponse(
+        "students_list.html",
+        {
+            "request": request,
+            "students": students,
+            "q": query,
+            "name_filter_applied": name_filter_applied,
+        },
+    )
 
 
 @app.get("/ui/students/{student_id}", response_class=HTMLResponse)
@@ -5024,7 +5052,7 @@ def toggle_student_active(student_id: int, request: Request, db: Session = Depen
         db.refresh(student)
         status_text = "aktif" if student.is_active else "pasif"
         request.session["student_toggle_success"] = f"Öğrenci {status_text} yapıldı"
-    return RedirectResponse(url="/ui/students", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=_students_list_redirect(request), status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/students/{student_id}/delete")
@@ -5035,7 +5063,7 @@ def delete_student_route(student_id: int, request: Request, db: Session = Depend
         return RedirectResponse(url="/login/admin", status_code=status.HTTP_303_SEE_OTHER)
     if crud.delete_student(db, student_id):
         request.session["student_toggle_success"] = "Öğrenci kalıcı olarak silindi"
-    return RedirectResponse(url="/ui/students", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=_students_list_redirect(request), status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/teachers/{teacher_id}/delete")

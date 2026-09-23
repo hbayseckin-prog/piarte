@@ -11,6 +11,22 @@
 	<div style="margin-bottom:16px;">
 		<a href="/students/new" style="padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;display:inline-block;">Yeni Öğrenci Ekle</a>
 	</div>
+	<form method="get" action="/ui/students" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:16px;padding:12px;background:#f9fafb;border:1px solid var(--border);border-radius:12px;">
+		<div style="flex:1;min-width:220px;">
+			<label for="student-name-filter" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#0f172a;">Öğrenci adına göre ara</label>
+			<input id="student-name-filter" type="text" name="q" value="{{ q or '' }}" placeholder="Ad veya soyad (en az 3 harf)" autocomplete="off" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;" />
+			<small style="display:block;margin-top:6px;color:#64748b;">Ad veya soyadın ilk 3 harfiyle eşleşir.</small>
+		</div>
+		<button type="submit" style="padding:10px 16px;">Ara</button>
+		{% if q %}
+		<a href="/ui/students" style="padding:10px 16px;background:#fff;color:#0f172a;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:500;">Temizle</a>
+		{% endif %}
+	</form>
+	{% if q and not name_filter_applied %}
+	<div style="padding:12px;background:#fffbeb;color:#92400e;border:1px solid #f59e0b;border-radius:8px;margin-bottom:16px;">
+		Arama için en az 3 harf girin. Liste şimdilik filtrelenmedi.
+	</div>
+	{% endif %}
 	<div class="table-wrap">
 		<table>
 			<thead><tr><th>Ad Soyad</th><th>Telefon</th><th>İşlemler</th></tr></thead>
@@ -28,13 +44,19 @@
 					<div class="btn-group" style="flex-wrap:nowrap;">
 						<a href="/ui/students/{{ s.id }}" style="padding:6px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;white-space:nowrap;">Detay</a>
 						{% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
-						<form method="post" action="/students/{{ s.id }}/toggle-active" style="display:inline;margin:0;">
+						<form method="post" action="/students/{{ s.id }}/toggle-active{% if q %}?q={{ q | urlencode }}{% endif %}" style="display:inline;margin:0;">
 							<button type="submit" style="padding:6px 12px;background:{% if s.is_active %}#f59e0b{% else %}#10b981{% endif %};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;">
 								{% if s.is_active %}Pasif Yap{% else %}Aktif Yap{% endif %}
 							</button>
 						</form>
 						{% endif %}
 					</div>
+				</td>
+			</tr>
+			{% else %}
+			<tr>
+				<td colspan="3" style="text-align:center;color:#64748b;padding:20px;">
+					{% if name_filter_applied %}Bu ada uyan öğrenci bulunamadı.{% else %}Kayıtlı öğrenci bulunmuyor.{% endif %}
 				</td>
 			</tr>
 			{% endfor %}
@@ -62,7 +84,7 @@
 						<div class="btn-group">
 							<a href="/ui/students/{{ s.id }}" style="padding:8px 12px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;display:inline-block;text-align:center;flex:1;">Detay</a>
 							{% if request.session.get('user') and (request.session.get('user').get('role') == 'admin' or request.session.get('user').get('role') == 'staff') %}
-							<form method="post" action="/students/{{ s.id }}/toggle-active" style="display:inline;margin:0;flex:1;">
+							<form method="post" action="/students/{{ s.id }}/toggle-active{% if q %}?q={{ q | urlencode }}{% endif %}" style="display:inline;margin:0;flex:1;">
 								<button type="submit" style="padding:8px 12px;background:{% if s.is_active %}#f59e0b{% else %}#10b981{% endif %};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;width:100%;">
 									{% if s.is_active %}Pasif Yap{% else %}Aktif Yap{% endif %}
 								</button>
@@ -72,6 +94,10 @@
 					</div>
 				</div>
 			</div>
+			{% else %}
+			<p style="color:#64748b;text-align:center;padding:20px;">
+				{% if name_filter_applied %}Bu ada uyan öğrenci bulunamadı.{% else %}Kayıtlı öğrenci bulunmuyor.{% endif %}
+			</p>
 			{% endfor %}
 		</div>
 	</div>

@@ -1685,7 +1685,7 @@ def student_update(
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ("admin", "staff"):
         return RedirectResponse(url="/login/admin", status_code=302)
     dob = None
     if date_of_birth:

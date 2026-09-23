@@ -9,7 +9,7 @@
 	<div>Veli: {{ student.parent_name or '-' }} ({{ student.parent_phone or '-' }})</div>
 </div>
 
-{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
+{% if request.session.get('user') and request.session.get('user').get('role') in ['admin', 'staff'] %}
 <div class="card">
     <h3>Bilgileri Düzenle</h3>
     <form method="post" action="/students/{{ student.id }}/update" class="form-grid">

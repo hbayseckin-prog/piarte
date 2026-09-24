@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, or_, and_
 from datetime import date, datetime
 from . import models, schemas
 
@@ -1054,8 +1054,12 @@ def normalize_attendance_status_value(status: str | None) -> str:
 
 
 TELAFI_ALINACAK_STATUS = "TELAFI_ALINACAK"
-# Öğrencinin paket/ders sayısı: Geldi, Habersiz, Telafisi Alınacak.
-# Telafi (yapılan telafi dersi) öğrenci ders sayısını değiştirmez.
+# Telafisi Alınacak seçeneği 24 Eylül 2026'da eklendi.
+# Bu tarihten önceki Telafi kayıtları öğrencinin ders sayısıydı; öğretmene de yazılır.
+# Bu tarihten sonraki Telafi yalnızca öğretmen puantajına girer. Öğrenci sayısı Telafisi Alınacak ile artar.
+STUDENT_LEGACY_TELAFI_UNTIL = date(2026, 9, 23)
+# Öğrencinin paket/ders sayısı: Geldi, Habersiz, Telafisi Alınacak
+# ve 23 Eylül 2026 (dahil) öncesi Telafi.
 STUDENT_LESSON_STATUSES = ("PRESENT", "UNEXCUSED_ABSENT", TELAFI_ALINACAK_STATUS)
 
 
@@ -1076,10 +1080,40 @@ def teacher_puantaj_lesson_credit(status: str | None, course_name: str | None) -
 	return 0
 
 
-def student_program_lesson_total(summary: dict | None) -> int:
-	"""Öğrenci programındaki ders sayısı. Telafi bu toplama eklenmez."""
+def _marked_on_or_before(marked_at, cutoff: date) -> bool:
+	if not marked_at:
+		return False
+	marked_date = marked_at.date() if hasattr(marked_at, "date") else marked_at
+	return marked_date <= cutoff
+
+
+def legacy_telafi_counts_for_student(status: str | None, marked_at) -> bool:
+	"""23 Eylül 2026 ve öncesi Telafi, öğrenci ders sayısına dahildir."""
+	normalized = normalize_attendance_status_value(status)
+	return normalized == "TELAFI" and _marked_on_or_before(marked_at, STUDENT_LEGACY_TELAFI_UNTIL)
+
+
+def student_countable_attendance_clause():
+	"""Ödeme ve paket sayımında kullanılan yoklama filtresi."""
+	legacy_telafi = and_(
+		models.Attendance.status.in_(["TELAFI", "LATE"]),
+		models.Attendance.marked_at.isnot(None),
+		models.Attendance.marked_at <= datetime.combine(STUDENT_LEGACY_TELAFI_UNTIL, datetime.max.time()),
+	)
+	return or_(
+		models.Attendance.status.in_(STUDENT_LESSON_STATUSES),
+		legacy_telafi,
+	)
+
+
+def student_program_lesson_total(summary: dict | None, attendances=None) -> int:
+	"""Öğrenci programındaki ders sayısı. 23 Eylül 2026 sonrası Telafi bu toplama eklenmez."""
 	summary = summary or {}
-	return sum(int(summary.get(status, 0) or 0) for status in ("PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", TELAFI_ALINACAK_STATUS))
+	total = sum(int(summary.get(status, 0) or 0) for status in ("PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", TELAFI_ALINACAK_STATUS))
+	for att in attendances or []:
+		if legacy_telafi_counts_for_student(getattr(att, "status", None), getattr(att, "marked_at", None)):
+			total += 1
+	return total
 
 
 def build_teacher_pay_report(
@@ -1210,7 +1244,7 @@ def build_payment_package_details(
 	# Kapsam ayına göre ek öğrenci bul (tahsilat bu ayda olmasa da dersi bu ayda olan paketler)
 	if coverage_start or coverage_end:
 		att_q = db.query(models.Attendance.student_id).filter(
-			models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES)
+			student_countable_attendance_clause()
 		)
 		if coverage_start:
 			att_q = att_q.filter(models.Attendance.marked_at >= datetime.combine(coverage_start, datetime.min.time()))
@@ -1260,7 +1294,7 @@ def build_payment_package_details(
 		db.query(models.Attendance)
 		.filter(
 			models.Attendance.student_id.in_(student_ids),
-			models.Attendance.status.in_(_PAYMENT_COUNTABLE_STATUSES),
+			student_countable_attendance_clause(),
 		)
 		.order_by(models.Attendance.student_id.asc(), models.Attendance.marked_at.asc(), models.Attendance.id.asc())
 		.all()
@@ -1418,12 +1452,12 @@ def check_student_payment_status(db: Session, student_id: int):
 	from datetime import date
 	today = date.today()
 	
-	# Öğrenci ders sayısı: Geldi, Habersiz, Telafisi Alınacak. Telafi eklenmez.
+	# Öğrenci ders sayısı: Geldi, Habersiz, Telafisi Alınacak ve 23 Eylül 2026 öncesi Telafi.
 	total_lessons = db.scalars(
 		select(func.count(models.Attendance.id))
 		.where(
 			models.Attendance.student_id == student_id,
-			models.Attendance.status.in_(STUDENT_LESSON_STATUSES),
+			student_countable_attendance_clause(),
 		)
 	).first() or 0
 	
@@ -1559,7 +1593,7 @@ def _batch_attendance_counts(db: Session, student_ids: list[int]) -> dict[int, i
 		select(models.Attendance.student_id, func.count(models.Attendance.id))
 		.where(
 			models.Attendance.student_id.in_(student_ids),
-			models.Attendance.status.in_(_ATTENDANCE_STATUSES_FOR_PAYMENT),
+			student_countable_attendance_clause(),
 		)
 		.group_by(models.Attendance.student_id)
 	).all()

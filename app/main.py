@@ -4656,8 +4656,12 @@ def staff_panel(
                 # Sadece yoklama alınmış derslerin tarihlerini sırala (gösterim için)
                 attendance_dates_sorted = [entry["date"] for entry in attendance_date_entries]
                 
-                # Öğrenci ders sayısı: Telafi eklenmez, Telafisi Alınacak eklenir
-                total_lessons_count = crud.student_program_lesson_total(student_attendance_summary)
+                # Öğrenci ders sayısı: Telafisi Alınacak eklenir.
+                # 23 Eylül 2026 ve öncesi Telafi de toplama dahildir.
+                total_lessons_count = crud.student_program_lesson_total(
+                    student_attendance_summary,
+                    student_attendances,
+                )
                 
                 # Öğrencinin tüm derslerini tarihe göre sırala (gelecek dersler için)
                 all_student_lessons_sorted = sorted(

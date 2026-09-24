@@ -1107,9 +1107,9 @@ def student_countable_attendance_clause():
 
 
 def student_program_lesson_total(summary: dict | None, attendances=None) -> int:
-	"""Öğrenci programındaki ders sayısı. 23 Eylül 2026 sonrası Telafi bu toplama eklenmez."""
+	"""Öğrenci programındaki ders sayısı. Haberli Gelmedi ve 23 Eylül 2026 sonrası Telafi bu toplama eklenmez."""
 	summary = summary or {}
-	total = sum(int(summary.get(status, 0) or 0) for status in ("PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", TELAFI_ALINACAK_STATUS))
+	total = sum(int(summary.get(status, 0) or 0) for status in ("PRESENT", "UNEXCUSED_ABSENT", TELAFI_ALINACAK_STATUS))
 	for att in attendances or []:
 		if legacy_telafi_counts_for_student(getattr(att, "status", None), getattr(att, "marked_at", None)):
 			total += 1

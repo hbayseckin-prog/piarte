@@ -1126,6 +1126,7 @@ def dashboard(
             end_date=end_date_obj,
             status=status,
             student_name=student_name if not student_id_int else None,
+            include_telafi_alinacak=True,
         )
         for teacher_report in filtered_report:
             students = teacher_report.get("students") or []
@@ -1134,6 +1135,7 @@ def dashboard(
             totals = {
                 "total_present": sum(s.get("present", 0) for s in students),
                 "total_excused_absent": sum(s.get("excused_absent", 0) for s in students),
+                "total_telafi_alinacak": sum(s.get("telafi_alinacak", 0) for s in students),
                 "total_telafi": sum(s.get("telafi", 0) for s in students),
                 "total_unexcused_absent": sum(s.get("unexcused_absent", 0) for s in students),
                 "total_lessons": sum(s.get("total", 0) for s in students),
@@ -1145,6 +1147,7 @@ def dashboard(
             attendance_summary_grand_totals = {
                 "total_present": sum(item["totals"]["total_present"] for item in attendance_teacher_summary),
                 "total_excused_absent": sum(item["totals"]["total_excused_absent"] for item in attendance_teacher_summary),
+                "total_telafi_alinacak": sum(item["totals"]["total_telafi_alinacak"] for item in attendance_teacher_summary),
                 "total_telafi": sum(item["totals"]["total_telafi"] for item in attendance_teacher_summary),
                 "total_unexcused_absent": sum(item["totals"]["total_unexcused_absent"] for item in attendance_teacher_summary),
                 "total_lessons": sum(item["totals"]["total_lessons"] for item in attendance_teacher_summary),
@@ -1318,6 +1321,7 @@ def export_punctuality_excel(
         end_date=end_date_obj,
         status=status,
         student_name=student_name if not student_id_int else None,
+        include_telafi_alinacak=True,
     )
     
     # Excel workbook oluştur
@@ -1338,7 +1342,7 @@ def export_punctuality_excel(
     
     # Başlık satırı
     row = 1
-    ws.merge_cells(f'A{row}:G{row}')
+    ws.merge_cells(f'A{row}:H{row}')
     title_cell = ws[f'A{row}']
     title_cell.value = f"Puantaj Raporu - {datetime.now().strftime('%d.%m.%Y %H:%M')}"
     title_cell.font = Font(bold=True, size=14)
@@ -1348,7 +1352,7 @@ def export_punctuality_excel(
     # Her öğretmen için ayrı bölüm
     for teacher_report in attendance_report:
         # Öğretmen başlığı
-        ws.merge_cells(f'A{row}:G{row}')
+        ws.merge_cells(f'A{row}:H{row}')
         teacher_cell = ws[f'A{row}']
         teacher_cell.value = f"Öğretmen: {teacher_report['teacher'].first_name} {teacher_report['teacher'].last_name}"
         teacher_cell.font = Font(bold=True, size=12, color="001F2937")
@@ -1360,7 +1364,7 @@ def export_punctuality_excel(
         students_data = teacher_report['students']
         
         if not students_data:
-            ws.merge_cells(f'A{row}:G{row}')
+            ws.merge_cells(f'A{row}:H{row}')
             no_data_cell = ws[f'A{row}']
             no_data_cell.value = "Bu öğretmen için filtre kriterlerine uygun veri bulunmuyor."
             no_data_cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -1368,7 +1372,7 @@ def export_punctuality_excel(
             continue
         
         # Tablo başlıkları
-        headers = ["Öğrenci", "Geldi", "Haberli Gelmedi", "Telafi", "Habersiz Gelmedi", "Toplam Ders", "Yoklama Tarihleri"]
+        headers = ["Öğrenci", "Geldi", "Haberli Gelmedi", "Telafisi Alınacak", "Telafi", "Habersiz Gelmedi", "Toplam Ders", "Yoklama Tarihleri"]
         for col_idx, header in enumerate(headers, start=1):
             cell = ws.cell(row=row, column=col_idx)
             cell.value = header
@@ -1400,29 +1404,36 @@ def export_punctuality_excel(
             cell.alignment = center_alignment
             cell.font = Font(color="00F97316", bold=True)  # RGB format
             
-            # Telafi
+            # Telafisi Alınacak (öğretmen toplam dersine eklenmez)
             cell = ws.cell(row=row, column=4)
+            cell.value = student_data.get('telafi_alinacak', 0)
+            cell.border = border_style
+            cell.alignment = center_alignment
+            cell.font = Font(color="00CA8A04", bold=True)
+            
+            # Telafi
+            cell = ws.cell(row=row, column=5)
             cell.value = student_data['telafi']
             cell.border = border_style
             cell.alignment = center_alignment
             cell.font = Font(color="008B5CF6", bold=True)  # RGB format
             
             # Habersiz Gelmedi
-            cell = ws.cell(row=row, column=5)
+            cell = ws.cell(row=row, column=6)
             cell.value = student_data['unexcused_absent']
             cell.border = border_style
             cell.alignment = center_alignment
             cell.font = Font(color="00EF4444", bold=True)  # RGB format
             
             # Toplam Ders
-            cell = ws.cell(row=row, column=6)
+            cell = ws.cell(row=row, column=7)
             cell.value = student_data['total']
             cell.border = border_style
             cell.alignment = center_alignment
             cell.font = Font(bold=True)
             
             # Yoklama Tarihleri
-            cell = ws.cell(row=row, column=7)
+            cell = ws.cell(row=row, column=8)
             dates = student_data.get('dates', [])
             if dates:
                 # Tarihleri sırala ve tekrar edenleri kaldır
@@ -1443,10 +1454,11 @@ def export_punctuality_excel(
     ws.column_dimensions['A'].width = 30
     ws.column_dimensions['B'].width = 12
     ws.column_dimensions['C'].width = 18
-    ws.column_dimensions['D'].width = 12
-    ws.column_dimensions['E'].width = 20
-    ws.column_dimensions['F'].width = 15
-    ws.column_dimensions['G'].width = 50  # Yoklama Tarihleri sütunu için geniş sütun
+    ws.column_dimensions['D'].width = 20
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 20
+    ws.column_dimensions['G'].width = 15
+    ws.column_dimensions['H'].width = 50  # Yoklama Tarihleri sütunu için geniş sütun
     
     # Excel dosyasını memory'de oluştur
     output = BytesIO()

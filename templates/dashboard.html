@@ -699,6 +699,7 @@ if (quickSearchInput) {
     {% set status_filter = filters.status or '' %}
     {% set col_present = not status_filter or status_filter == 'PRESENT' %}
     {% set col_excused = not status_filter or status_filter == 'EXCUSED_ABSENT' %}
+    {% set col_telafi_alinacak = not status_filter or status_filter == 'TELAFI_ALINACAK' %}
     {% set col_telafi = not status_filter or status_filter in ['TELAFI', 'LATE'] %}
     {% set col_unexcused = not status_filter or status_filter == 'UNEXCUSED_ABSENT' %}
     {% set col_total = not status_filter %}
@@ -718,6 +719,7 @@ if (quickSearchInput) {
                             <th>Öğrenci</th>
                             {% if col_present %}<th>Geldi</th>{% endif %}
                             {% if col_excused %}<th>Haberli Gelmedi</th>{% endif %}
+                            {% if col_telafi_alinacak %}<th>Telafisi Alınacak</th>{% endif %}
                             {% if col_telafi %}<th>Telafi</th>{% endif %}
                             {% if col_unexcused %}<th>Habersiz Gelmedi</th>{% endif %}
                             {% if col_total %}<th>Toplam Ders</th>{% endif %}
@@ -729,6 +731,7 @@ if (quickSearchInput) {
                             <td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
                             {% if col_present %}<td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>{% endif %}
                             {% if col_excused %}<td style="text-align:center;color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</td>{% endif %}
+                            {% if col_telafi_alinacak %}<td style="text-align:center;color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</td>{% endif %}
                             {% if col_telafi %}<td style="text-align:center;color:#8b5cf6;font-weight:600;">{{ student_data.telafi }}</td>{% endif %}
                             {% if col_unexcused %}<td style="text-align:center;color:#ef4444;font-weight:600;">{{ student_data.unexcused_absent }}</td>{% endif %}
                             {% if col_total %}<td style="text-align:center;font-weight:600;">{{ student_data.total }}</td>{% endif %}
@@ -742,6 +745,7 @@ if (quickSearchInput) {
                             <td style="padding:12px;font-weight:700;color:#0f172a;">TOPLAM</td>
                             {% if col_present %}<td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_totals.total_present }}</td>{% endif %}
                             {% if col_excused %}<td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</td>{% endif %}
+                            {% if col_telafi_alinacak %}<td style="text-align:center;padding:12px;color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi_alinacak }}</td>{% endif %}
                             {% if col_telafi %}<td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi }}</td>{% endif %}
                             {% if col_unexcused %}<td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_totals.total_unexcused_absent }}</td>{% endif %}
                             {% if col_total %}<td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_totals.total_lessons }}</td>{% endif %}
@@ -766,6 +770,12 @@ if (quickSearchInput) {
                         <div class="mobile-card-row">
                             <div class="mobile-card-label">Haberli Gelmedi</div>
                             <div class="mobile-card-value" style="color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</div>
+                        </div>
+                        {% endif %}
+                        {% if col_telafi_alinacak %}
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Telafisi Alınacak</div>
+                            <div class="mobile-card-value" style="color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</div>
                         </div>
                         {% endif %}
                         {% if col_telafi %}
@@ -805,6 +815,12 @@ if (quickSearchInput) {
                         <div class="mobile-card-row">
                             <div class="mobile-card-label">Haberli Gelmedi</div>
                             <div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_totals.total_excused_absent }}</div>
+                        </div>
+                        {% endif %}
+                        {% if col_telafi_alinacak %}
+                        <div class="mobile-card-row">
+                            <div class="mobile-card-label">Telafisi Alınacak</div>
+                            <div class="mobile-card-value" style="color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_totals.total_telafi_alinacak }}</div>
                         </div>
                         {% endif %}
                         {% if col_telafi %}
@@ -847,6 +863,7 @@ if (quickSearchInput) {
     {% set status_filter = filters.status or '' %}
     {% set col_present = not status_filter or status_filter == 'PRESENT' %}
     {% set col_excused = not status_filter or status_filter == 'EXCUSED_ABSENT' %}
+    {% set col_telafi_alinacak = not status_filter or status_filter == 'TELAFI_ALINACAK' %}
     {% set col_telafi = not status_filter or status_filter in ['TELAFI', 'LATE'] %}
     {% set col_unexcused = not status_filter or status_filter == 'UNEXCUSED_ABSENT' %}
     {% set col_total = not status_filter %}
@@ -857,6 +874,7 @@ if (quickSearchInput) {
                     <th>Öğretmen</th>
                     {% if col_present %}<th>Geldi</th>{% endif %}
                     {% if col_excused %}<th>Haberli Gelmedi</th>{% endif %}
+                    {% if col_telafi_alinacak %}<th>Telafisi Alınacak</th>{% endif %}
                     {% if col_telafi %}<th>Telafi</th>{% endif %}
                     {% if col_unexcused %}<th>Habersiz Gelmedi</th>{% endif %}
                     {% if col_total %}<th>Toplam Ders</th>{% endif %}
@@ -868,6 +886,7 @@ if (quickSearchInput) {
                     <td><strong>{{ item.teacher.first_name }} {{ item.teacher.last_name }}</strong></td>
                     {% if col_present %}<td style="text-align:center;color:#10b981;font-weight:600;">{{ item.totals.total_present }}</td>{% endif %}
                     {% if col_excused %}<td style="text-align:center;color:#f97316;font-weight:600;">{{ item.totals.total_excused_absent }}</td>{% endif %}
+                    {% if col_telafi_alinacak %}<td style="text-align:center;color:#ca8a04;font-weight:600;">{{ item.totals.total_telafi_alinacak }}</td>{% endif %}
                     {% if col_telafi %}<td style="text-align:center;color:#8b5cf6;font-weight:600;">{{ item.totals.total_telafi }}</td>{% endif %}
                     {% if col_unexcused %}<td style="text-align:center;color:#ef4444;font-weight:600;">{{ item.totals.total_unexcused_absent }}</td>{% endif %}
                     {% if col_total %}<td style="text-align:center;font-weight:600;">{{ item.totals.total_lessons }}</td>{% endif %}
@@ -880,6 +899,7 @@ if (quickSearchInput) {
                     <td style="padding:12px;font-weight:700;color:#0f172a;">GENEL TOPLAM</td>
                     {% if col_present %}<td style="text-align:center;padding:12px;color:#10b981;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_present }}</td>{% endif %}
                     {% if col_excused %}<td style="text-align:center;padding:12px;color:#f97316;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_excused_absent }}</td>{% endif %}
+                    {% if col_telafi_alinacak %}<td style="text-align:center;padding:12px;color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_telafi_alinacak }}</td>{% endif %}
                     {% if col_telafi %}<td style="text-align:center;padding:12px;color:#8b5cf6;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_telafi }}</td>{% endif %}
                     {% if col_unexcused %}<td style="text-align:center;padding:12px;color:#ef4444;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_unexcused_absent }}</td>{% endif %}
                     {% if col_total %}<td style="text-align:center;padding:12px;font-weight:700;font-size:16px;color:#0f172a;">{{ attendance_summary_grand_totals.total_lessons }}</td>{% endif %}
@@ -904,6 +924,12 @@ if (quickSearchInput) {
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Haberli Gelmedi</div>
                     <div class="mobile-card-value" style="color:#f97316;font-weight:600;">{{ item.totals.total_excused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_telafi_alinacak %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Telafisi Alınacak</div>
+                    <div class="mobile-card-value" style="color:#ca8a04;font-weight:600;">{{ item.totals.total_telafi_alinacak }}</div>
                 </div>
                 {% endif %}
                 {% if col_telafi %}
@@ -942,6 +968,12 @@ if (quickSearchInput) {
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Haberli Gelmedi</div>
                     <div class="mobile-card-value" style="color:#f97316;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_excused_absent }}</div>
+                </div>
+                {% endif %}
+                {% if col_telafi_alinacak %}
+                <div class="mobile-card-row">
+                    <div class="mobile-card-label">Telafisi Alınacak</div>
+                    <div class="mobile-card-value" style="color:#ca8a04;font-weight:700;font-size:16px;">{{ attendance_summary_grand_totals.total_telafi_alinacak }}</div>
                 </div>
                 {% endif %}
                 {% if col_telafi %}

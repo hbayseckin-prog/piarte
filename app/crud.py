@@ -34,6 +34,18 @@ def update_user_password(db: Session, user_id: int, new_password: str):
 	db.refresh(user)
 	return user
 
+
+def purge_user_account(db: Session, user: models.User) -> None:
+	"""Kullanıcıyı ve bağlı kayıtlarını kalıcı siler. Commit etmez.
+
+	Kayıt silindikten sonra kullanıcı adı boşalır; giriş ve açık oturumlar
+	bu satırın yokluğuna bakarak reddedilir.
+	"""
+	if not user or (user.username or "").strip().lower() == "admin":
+		return
+	db.execute(delete(models.PushSubscription).where(models.PushSubscription.user_id == user.id))
+	db.delete(user)
+
 # Students
 def create_student(db: Session, data: schemas.StudentCreate) -> models.Student:
 	student = models.Student(**data.model_dump())
@@ -122,9 +134,9 @@ def delete_teacher(db: Session, teacher_id: int):
 	).all():
 		db.delete(link)
 
-	# Öğretmen giriş hesaplarını sil
+	# Öğretmen giriş hesaplarını sil (bildirim aboneliği varsa da)
 	for user in db.scalars(select(models.User).where(models.User.teacher_id == teacher_id)).all():
-		db.delete(user)
+		purge_user_account(db, user)
 
 	# Yoklaması olmayan ders programı slotlarını temizle; yoklamalı dersler kalır
 	for lesson in list_lessons_by_teacher(db, teacher_id):

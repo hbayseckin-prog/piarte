@@ -5,11 +5,14 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
+import hashlib
+import logging
 import os
 
-from .db import Base, engine, get_db
+from .db import Base, engine, get_db, SessionLocal
 from . import crud, schemas, models
 try:
 	from . import push_notify
@@ -227,9 +230,102 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def credential_stamp(password_hash: str) -> str:
+	"""Oturum çerezine konan, şifre hash'inin kendisi olmayan damga."""
+	return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()
+
+
+def login_url_for_role(role: str | None) -> str:
+	if role == "teacher":
+		return "/login/teacher"
+	if role == "staff":
+		return "/login/staff"
+	return "/login/admin"
+
+
+_SESSION_SKIP_PREFIXES = ("/static/", "/icons/")
+_SESSION_SKIP_EXACT = {"/favicon.ico", "/sw.js", "/manifest.webmanifest", "/health"}
+_AUTH_PATHS = {"/logout", "/login", "/login/admin", "/login/teacher", "/login/staff"}
+
+
+def session_user_status(session_user: dict) -> tuple[bool, str] | None:
+	"""Oturumdaki kullanıcı hâlâ bu hesap mı?
+
+	True: oturum geçerli. False: hesap silinmiş, şifre değişmiş veya oturum eski.
+	None: veritabanına bakılamadı; isteği mevcut haliyle sürdür.
+	"""
+	try:
+		user_id = int(session_user.get("id"))
+	except (TypeError, ValueError):
+		return False, "Oturumunuz kapatıldı. Lütfen tekrar giriş yapın."
+
+	db = SessionLocal()
+	try:
+		user = db.get(models.User, user_id)
+		if user is None:
+			return False, "Bu kullanıcı silindi. Oturum kapatıldı."
+		session_username = (session_user.get("username") or "").strip()
+		if session_username and session_username != user.username:
+			return False, "Bu kullanıcı silindi. Oturum kapatıldı."
+		cred = session_user.get("cred")
+		if cred and cred != credential_stamp(user.password_hash):
+			return False, "Oturumunuz kapatıldı. Lütfen tekrar giriş yapın."
+		return True, ""
+	except Exception:
+		logging.exception("Oturum kullanıcı kontrolü başarısız")
+		return None
+	finally:
+		db.close()
+
+
+class RejectDeletedUserSessionMiddleware:
+	"""Silinen kullanıcının telefon veya bilgisayarda açık kalan oturumunu düşürür."""
+
+	def __init__(self, app: ASGIApp) -> None:
+		self.app = app
+
+	async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+		if scope["type"] != "http" or scope.get("method") == "OPTIONS":
+			await self.app(scope, receive, send)
+			return
+
+		path = scope.get("path") or "/"
+		if path in _SESSION_SKIP_EXACT or path.startswith(_SESSION_SKIP_PREFIXES):
+			await self.app(scope, receive, send)
+			return
+
+		session = scope.get("session")
+		session_user = session.get("user") if isinstance(session, dict) else None
+		if not isinstance(session_user, dict):
+			await self.app(scope, receive, send)
+			return
+
+		status_result = session_user_status(session_user)
+		if status_result is None or status_result[0]:
+			await self.app(scope, receive, send)
+			return
+
+		role = session_user.get("role")
+		message = status_result[1]
+		session.clear()
+		session["login_error"] = message
+
+		if path in _AUTH_PATHS or path.startswith("/login/"):
+			await self.app(scope, receive, send)
+			return
+
+		if path.startswith("/api/"):
+			response = JSONResponse({"detail": message}, status_code=401)
+		else:
+			response = RedirectResponse(url=login_url_for_role(role), status_code=302)
+		await response(scope, receive, send)
+
+
 # Session secret key - environment variable'dan al, yoksa varsayılan kullan
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key-in-production")
 IS_PRODUCTION = os.getenv("RAILWAY_ENVIRONMENT") == "production" or os.getenv("ENVIRONMENT") == "production"
+# Bu katman SessionMiddleware'in İÇİNDE olmalı; oturum çerezi okunduktan sonra çalışır.
+app.add_middleware(RejectDeletedUserSessionMiddleware)
 app.add_middleware(
 	SessionMiddleware,
 	secret_key=SECRET_KEY,
@@ -736,6 +832,7 @@ def build_session_user_payload(user: models.User, role_override: str | None = No
         "full_name": user.full_name,
         "role": role_value,
         "teacher_id": getattr(user, "teacher_id", None),
+        "cred": credential_stamp(user.password_hash),
     }
 
 
@@ -775,13 +872,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
             return RedirectResponse(url="/", status_code=302)
         if not password_valid:
             return RedirectResponse(url="/", status_code=302)
-        request.session["user"] = {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": user.role or "admin",
-            "teacher_id": getattr(user, 'teacher_id', None),
-        }
+        request.session["user"] = build_session_user_payload(user)
         return RedirectResponse(url="/dashboard", status_code=302)
     except Exception as e:
         import logging
@@ -4313,7 +4404,11 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
     require_admin(request)
     users = crud.list_users(db)
     teachers = crud.list_teachers(db)
-    return templates.TemplateResponse("admin_users.html", {"request": request, "users": users, "teachers": teachers})
+    notice = request.session.pop("users_notice", "")
+    return templates.TemplateResponse(
+        "admin_users.html",
+        {"request": request, "users": users, "teachers": teachers, "notice": notice},
+    )
 
 
 @app.post("/ui/admin/users")
@@ -4343,9 +4438,23 @@ def admin_change_password(user_id: int, request: Request, password: str = Form(.
 def admin_delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     require_admin(request)
     user = db.get(models.User, user_id)
-    if user and user.username != "admin":
-        db.delete(user)
+    if not user or (user.username or "").strip().lower() == "admin":
+        request.session["users_notice"] = "Bu kullanıcı silinemez."
+        return RedirectResponse(url="/ui/admin/users", status_code=302)
+    deleted_self = (request.session.get("user") or {}).get("id") == user.id
+    try:
+        crud.purge_user_account(db, user)
         db.commit()
+    except Exception:
+        db.rollback()
+        logging.exception("Kullanıcı silinemedi: id=%s", user_id)
+        request.session["users_notice"] = "Kullanıcı silinemedi."
+        return RedirectResponse(url="/ui/admin/users", status_code=302)
+    if deleted_self:
+        request.session.clear()
+        request.session["login_error"] = "Bu kullanıcı silindi. Oturum kapatıldı."
+        return RedirectResponse(url="/login/admin", status_code=302)
+    request.session["users_notice"] = "Kullanıcı silindi. Açık oturumlar kapatıldı, bu hesapla tekrar giriş yapılamaz."
     return RedirectResponse(url="/ui/admin/users", status_code=302)
 
 
@@ -4401,13 +4510,7 @@ def login_admin(request: Request, username: str = Form(...), password: str = For
             return RedirectResponse(url="/login/admin", status_code=302)
         
         # Session'a kullanıcı bilgilerini kaydet
-        request.session["user"] = {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": "admin",
-            "teacher_id": getattr(user, 'teacher_id', None),
-        }
+        request.session["user"] = build_session_user_payload(user, role_override="admin")
         # Hata mesajını temizle
         request.session.pop("login_error", None)
         return RedirectResponse(url="/dashboard", status_code=302)
@@ -4461,13 +4564,7 @@ def login_teacher(request: Request, username: str = Form(...), password: str = F
         if not password_valid or user.role != "teacher":
             request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da öğretmen yetkisi yok."
             return RedirectResponse(url="/login/teacher", status_code=302)
-        request.session["user"] = {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": "teacher",
-            "teacher_id": getattr(user, 'teacher_id', None),
-        }
+        request.session["user"] = build_session_user_payload(user, role_override="teacher")
         request.session.pop("login_error", None)
         return RedirectResponse(url="/ui/teacher", status_code=302)
     except Exception as e:
@@ -4518,13 +4615,7 @@ def login_staff(request: Request, username: str = Form(...), password: str = For
         if not password_valid or user.role != "staff":
             request.session["login_error"] = "Kullanıcı adı veya şifre hatalı, ya da personel yetkisi yok."
             return RedirectResponse(url="/login/staff", status_code=302)
-        request.session["user"] = {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": "staff",
-            "teacher_id": getattr(user, 'teacher_id', None),
-        }
+        request.session["user"] = build_session_user_payload(user, role_override="staff")
         request.session.pop("login_error", None)
         return RedirectResponse(url="/ui/staff", status_code=302)
     except Exception as e:

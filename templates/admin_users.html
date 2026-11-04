@@ -2,6 +2,9 @@
 {% block title %}Kullanıcı Yönetimi - Piarte{% endblock %}
 {% block content %}
 <h2>Kullanıcılar</h2>
+{% if notice %}
+<p style="padding:12px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;color:#0f172a;">{{ notice }}</p>
+{% endif %}
 <table>
 	<thead><tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Rol</th><th>Oluşturma</th><th>Şifre Değiştir</th><th>Sil</th></tr></thead>
 	<tbody>

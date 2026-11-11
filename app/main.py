@@ -1243,7 +1243,7 @@ def payment_status_partial(
         db,
         status_filter=status_filter,
         payment_day=day_value,
-        include_staff_fields=(variant == "staff"),
+        include_staff_fields=True,
     )
 
     return templates.TemplateResponse(

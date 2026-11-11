@@ -1110,6 +1110,7 @@ def dashboard(
                 "teacher": teacher,
                 "course": course,
             })
+        crud.annotate_completed_telafi(db, attendances_with_details)
     # Puantaj / öğretmen özeti (filtre uygulandığında)
     attendance_report = []
     attendance_totals_by_teacher = {}
@@ -1128,6 +1129,8 @@ def dashboard(
             student_name=student_name if not student_id_int else None,
             include_telafi_alinacak=True,
         )
+        if (status or "").strip().upper() == "TELAFI_ALINACAK":
+            crud.annotate_report_completed_telafi(db, filtered_report)
         for teacher_report in filtered_report:
             students = teacher_report.get("students") or []
             if not students:
@@ -1323,6 +1326,8 @@ def export_punctuality_excel(
         student_name=student_name if not student_id_int else None,
         include_telafi_alinacak=True,
     )
+    if (status or "").strip().upper() == "TELAFI_ALINACAK":
+        crud.annotate_report_completed_telafi(db, attendance_report)
     
     # Excel workbook oluştur
     wb = Workbook()
@@ -1386,7 +1391,14 @@ def export_punctuality_excel(
         for student_data in students_data:
             # Öğrenci adı
             cell = ws.cell(row=row, column=1)
-            cell.value = f"{student_data['student'].first_name} {student_data['student'].last_name}"
+            student_label = f"{student_data['student'].first_name} {student_data['student'].last_name}"
+            if student_data.get("telafi_completed"):
+                done_labels = student_data.get("telafi_done_labels") or []
+                if done_labels:
+                    student_label += f" — telafisi yapılmıştır ({', '.join(done_labels)})"
+                else:
+                    student_label += " — telafisi yapılmıştır"
+            cell.value = student_label
             cell.border = border_style
             cell.alignment = Alignment(horizontal='left', vertical='center')
             
@@ -1685,6 +1697,8 @@ def teacher_panel(request: Request, selected_teacher_id: int | None = None, star
                 status=status_filter or None,
                 include_telafi_alinacak=True,
             )
+            if status_filter == "TELAFI_ALINACAK":
+                crud.annotate_report_completed_telafi(db, attendance_report)
             # Toplamları hesapla
             if attendance_report and len(attendance_report) > 0:
                 teacher_report = attendance_report[0]
@@ -4974,6 +4988,7 @@ def staff_panel(
                         "teacher": teacher,
                         "course": course,
                     })
+                crud.annotate_completed_telafi(db, attendances_with_details)
         
         # Filtre dict'i oluştur
         filters = {

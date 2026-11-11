@@ -722,6 +722,122 @@ def attendance_status_filter(status: str):
 	return models.Attendance.status == normalized
 
 
+def _marked_day(marked_at):
+	if marked_at is None:
+		return None
+	if isinstance(marked_at, datetime):
+		return marked_at.date()
+	if isinstance(marked_at, date):
+		return marked_at
+	return None
+
+
+def pair_pending_telafi(
+	pending: list[tuple[int, datetime | None]],
+	telafi: list[tuple[int, datetime | None]],
+) -> dict[int, datetime | None]:
+	"""Aynı öğrenci ve kurstaki telafi yoklamasını bekleyen kayda bağlar.
+
+	En eski telafisi alınacak kayıt, aynı gün veya sonraki en eski telafi ile kapanır.
+	Her yoklama yalnızca bir kez eşleşir.
+	"""
+	pending_sorted = sorted(pending, key=lambda item: (_marked_day(item[1]) or date.min, item[0]))
+	telafi_sorted = sorted(telafi, key=lambda item: (_marked_day(item[1]) or date.min, item[0]))
+	used: set[int] = set()
+	result: dict[int, datetime | None] = {}
+	for _telafi_id, telafi_at in telafi_sorted:
+		telafi_day = _marked_day(telafi_at)
+		match_id = None
+		for pending_id, pending_at in pending_sorted:
+			if pending_id in used:
+				continue
+			pending_day = _marked_day(pending_at)
+			if telafi_day is not None and pending_day is not None and pending_day > telafi_day:
+				break
+			match_id = pending_id
+			break
+		if match_id is None:
+			continue
+		used.add(match_id)
+		result[match_id] = telafi_at
+	return result
+
+
+def completed_telafi_dates(db: Session, student_ids) -> dict[int, datetime | None]:
+	"""TELAFI_ALINACAK yoklama id -> bu kaydı kapatan telafi yoklamasının marked_at değeri."""
+	ids = [sid for sid in {sid for sid in student_ids if sid}]
+	if not ids:
+		return {}
+	rows = db.execute(
+		select(models.Attendance, models.Lesson.course_id)
+		.outerjoin(models.Lesson, models.Attendance.lesson_id == models.Lesson.id)
+		.where(models.Attendance.student_id.in_(ids))
+		.where(models.Attendance.status.in_(["TELAFI_ALINACAK", "TELAFI", "LATE"]))
+	).all()
+	groups: dict[tuple[int, int | None], dict[str, list]] = {}
+	for att, course_id in rows:
+		bucket = groups.setdefault((att.student_id, course_id), {"pending": [], "done": []})
+		status = (att.status or "").upper()
+		if status == "TELAFI_ALINACAK":
+			bucket["pending"].append((att.id, att.marked_at))
+		elif status in ("TELAFI", "LATE"):
+			bucket["done"].append((att.id, att.marked_at))
+	completed: dict[int, datetime | None] = {}
+	for bucket in groups.values():
+		completed.update(pair_pending_telafi(bucket["pending"], bucket["done"]))
+	return completed
+
+
+def annotate_completed_telafi(db: Session, entries: list[dict]) -> list[dict]:
+	"""Yoklama satırlarına, telafisi alınmışsa tarih bilgisini ekler."""
+	student_ids = []
+	for entry in entries:
+		att = entry.get("attendance")
+		entry["telafi_completed"] = False
+		entry["telafi_done_at"] = None
+		if att and (att.status or "").upper() == "TELAFI_ALINACAK":
+			student_ids.append(att.student_id)
+	if not student_ids:
+		return entries
+	completed = completed_telafi_dates(db, student_ids)
+	for entry in entries:
+		att = entry.get("attendance")
+		if not att or att.id not in completed:
+			continue
+		entry["telafi_completed"] = True
+		entry["telafi_done_at"] = completed[att.id]
+	return entries
+
+
+def annotate_report_completed_telafi(db: Session, report: list[dict]) -> list[dict]:
+	"""Puantaj satırlarına, listedeki telafisi alınacak kayıtların kapanış tarihlerini ekler."""
+	student_ids = []
+	for item in report:
+		for student_data in item.get("students") or []:
+			student_data["telafi_completed"] = False
+			student_data["telafi_done_labels"] = []
+			if student_data.get("pending_attendance_ids"):
+				student_ids.append(student_data["student"].id)
+	if not student_ids:
+		return report
+	completed = completed_telafi_dates(db, student_ids)
+	for item in report:
+		for student_data in item.get("students") or []:
+			labels = []
+			matched = False
+			for pending_id in student_data.get("pending_attendance_ids") or []:
+				if pending_id not in completed:
+					continue
+				matched = True
+				done_at = completed[pending_id]
+				day = _marked_day(done_at)
+				if day is not None:
+					labels.append(day.strftime("%d.%m.%Y"))
+			student_data["telafi_completed"] = matched
+			student_data["telafi_done_labels"] = labels
+	return report
+
+
 def list_all_attendances(db: Session, limit: int = 100, teacher_id: int | None = None, student_id: int | None = None, course_id: int | None = None, status: str | None = None, start_date: date | None = None, end_date: date | None = None, order_by: str = "marked_at_desc"):
 	needs_join = teacher_id is not None or course_id is not None
 
@@ -1896,7 +2012,8 @@ def get_attendance_report_by_teacher(
                     "telafi": 0,
                     "unexcused_absent": 0,
                     "total": 0,
-                    "dates": []
+                    "dates": [],
+                    "pending_attendance_ids": [],
                 }
             
             # Yoklama zamanındaki tarihi kullan (marked_at)
@@ -1914,6 +2031,7 @@ def get_attendance_report_by_teacher(
             if status == TELAFI_ALINACAK_STATUS:
                 student_stats[att_student_id]["telafi_alinacak"] += 1
                 student_stats[att_student_id]["dates"].append(date_str)
+                student_stats[att_student_id]["pending_attendance_ids"].append(att.id)
             elif status == "PRESENT":
                 student_stats[att_student_id]["present"] += lesson_count
                 student_stats[att_student_id]["total"] += lesson_count

@@ -184,7 +184,7 @@
 					<tbody>
 						{% for student_data in teacher_report.students %}
 						<tr>
-							<td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
+							<td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong>{% with telafi_completed=student_data.telafi_completed, telafi_done_text=(student_data.telafi_done_labels | join(', ') if student_data.telafi_done_labels else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</td>
 							<td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>
 							<td style="text-align:center;color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</td>
 							<td style="text-align:center;color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</td>
@@ -213,7 +213,7 @@
 					<div class="mobile-card">
 						<div class="mobile-card-row">
 							<div class="mobile-card-label">Öğrenci</div>
-							<div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></div>
+							<div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong>{% with telafi_completed=student_data.telafi_completed, telafi_done_text=(student_data.telafi_done_labels | join(', ') if student_data.telafi_done_labels else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</div>
 						</div>
 						<div class="mobile-card-row">
 							<div class="mobile-card-label">Geldi</div>

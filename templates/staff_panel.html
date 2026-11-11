@@ -647,7 +647,7 @@
                 </td>
                 <td><strong>{{ entry.course.name if entry.course else '-' }}</strong></td>
                 <td>{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</td>
-                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></td>
+                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong>{% with telafi_completed=entry.telafi_completed, telafi_done_text=(entry.telafi_done_at.strftime('%d.%m.%Y') if entry.telafi_done_at else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</td>
                 <td>
                     {% if entry.attendance.status == 'PRESENT' %}
                         <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
@@ -695,7 +695,7 @@
                 </div>
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Öğrenci</div>
-                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></div>
+                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong>{% with telafi_completed=entry.telafi_completed, telafi_done_text=(entry.telafi_done_at.strftime('%d.%m.%Y') if entry.telafi_done_at else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</div>
                 </div>
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Durum</div>

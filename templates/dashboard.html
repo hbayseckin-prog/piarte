@@ -566,7 +566,7 @@ if (quickSearchInput) {
                 </td>
                 <td><strong>{{ entry.course.name if entry.course else '-' }}</strong></td>
                 <td>{% if entry.teacher %}{{ entry.teacher.first_name }} {{ entry.teacher.last_name }}{% else %}-{% endif %}</td>
-                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></td>
+                <td><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong>{% with telafi_completed=entry.telafi_completed, telafi_done_text=(entry.telafi_done_at.strftime('%d.%m.%Y') if entry.telafi_done_at else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</td>
                 <td>
                     {% if entry.attendance.status == 'PRESENT' %}
                         <span style="padding:4px 8px;background:#10b981;color:#fff;border-radius:6px;font-size:12px;font-weight:500;">Geldi</span>
@@ -623,7 +623,7 @@ if (quickSearchInput) {
                 </div>
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Öğrenci</div>
-                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong></div>
+                    <div class="mobile-card-value"><strong>{{ entry.student.first_name }} {{ entry.student.last_name }} {% if not entry.student %}(Öğrenci ID: {{ entry.attendance.student_id }}){% endif %}</strong>{% with telafi_completed=entry.telafi_completed, telafi_done_text=(entry.telafi_done_at.strftime('%d.%m.%Y') if entry.telafi_done_at else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</div>
                 </div>
                 <div class="mobile-card-row">
                     <div class="mobile-card-label">Durum</div>
@@ -728,7 +728,7 @@ if (quickSearchInput) {
                     <tbody>
                         {% for student_data in teacher_report.students %}
                         <tr>
-                            <td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></td>
+                            <td><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong>{% with telafi_completed=student_data.telafi_completed, telafi_done_text=(student_data.telafi_done_labels | join(', ') if student_data.telafi_done_labels else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</td>
                             {% if col_present %}<td style="text-align:center;color:#10b981;font-weight:600;">{{ student_data.present }}</td>{% endif %}
                             {% if col_excused %}<td style="text-align:center;color:#f97316;font-weight:600;">{{ student_data.excused_absent }}</td>{% endif %}
                             {% if col_telafi_alinacak %}<td style="text-align:center;color:#ca8a04;font-weight:600;">{{ student_data.telafi_alinacak }}</td>{% endif %}
@@ -758,7 +758,7 @@ if (quickSearchInput) {
                     <div class="mobile-card">
                         <div class="mobile-card-row">
                             <div class="mobile-card-label">Öğrenci</div>
-                            <div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong></div>
+                            <div class="mobile-card-value"><strong>{{ student_data.student.first_name }} {{ student_data.student.last_name }}</strong>{% with telafi_completed=student_data.telafi_completed, telafi_done_text=(student_data.telafi_done_labels | join(', ') if student_data.telafi_done_labels else '') %}{% include "_telafi_done_label.html" %}{% endwith %}</div>
                         </div>
                         {% if col_present %}
                         <div class="mobile-card-row">

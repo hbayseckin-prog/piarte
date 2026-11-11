@@ -12,7 +12,9 @@
 <div class="card">
 	<div>Telefon: {{ teacher.phone or '-' }}</div>
 	<div>Email: {{ teacher.email or '-' }}</div>
+	{% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}
 	<div>Ders saat ücreti: {% if teacher.hourly_rate_try is not none %}{{ '%.2f'|format(teacher.hourly_rate_try) }} ₺{% else %}-{% endif %}</div>
+	{% endif %}
 </div>
 
 {% if request.session.get('user') and request.session.get('user').get('role') == 'admin' %}

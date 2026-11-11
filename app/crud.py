@@ -1093,17 +1093,71 @@ def expense_totals_by_category(
 	return [{"category": (cat or "Diğer"), "total": float(total or 0)} for cat, total in q.all()]
 
 
-def student_teacher_name_map(db: Session) -> dict[int, str]:
-	"""student_id -> 'Ad Soyad' (TeacherStudent üzerinden; yoksa boş)."""
-	rows = (
-		db.query(models.TeacherStudent.student_id, models.Teacher.first_name, models.Teacher.last_name)
-		.join(models.Teacher, models.Teacher.id == models.TeacherStudent.teacher_id)
-		.all()
+_UNSET_TEACHER_NAME_TOKENS = {"belirtilmedi", "atanmamış", "atanmamis", "atanmamıs"}
+
+
+def display_teacher_name(first_name: str | None, last_name: str | None, teacher_id: int | None = None) -> str:
+	"""Öğretmen adı. Soyad yerine konan 'Belirtilmedi' listede gösterilmez."""
+	first = (first_name or "").strip()
+	last = (last_name or "").strip()
+	if last.casefold() in _UNSET_TEACHER_NAME_TOKENS:
+		last = ""
+	name = f"{first} {last}".strip()
+	if name:
+		return name
+	if teacher_id:
+		return f"Öğretmen #{teacher_id}"
+	return "Atanmamış"
+
+
+def _direct_teacher_id_by_student(db: Session) -> dict[int, int]:
+	rows = db.query(models.TeacherStudent.student_id, models.TeacherStudent.teacher_id).all()
+	return {student_id: teacher_id for student_id, teacher_id in rows if teacher_id}
+
+
+def _lesson_teacher_id_by_student(db: Session, student_ids: list[int] | None = None) -> dict[int, int]:
+	"""Öğrencinin derslerindeki öğretmen. Birden fazla ise en çok dersi olan seçilir."""
+	q = (
+		db.query(
+			models.LessonStudent.student_id,
+			models.Lesson.teacher_id,
+			func.count(models.LessonStudent.id),
+		)
+		.join(models.Lesson, models.Lesson.id == models.LessonStudent.lesson_id)
+		.filter(models.Lesson.teacher_id.isnot(None))
 	)
-	return {
-		student_id: f"{(first or '').strip()} {(last or '').strip()}".strip() or f"Öğretmen #{student_id}"
-		for student_id, first, last in rows
-	}
+	if student_ids is not None:
+		if not student_ids:
+			return {}
+		q = q.filter(models.LessonStudent.student_id.in_(student_ids))
+	rows = q.group_by(models.LessonStudent.student_id, models.Lesson.teacher_id).all()
+	best: dict[int, tuple[int, int]] = {}
+	for student_id, teacher_id, lesson_count in rows:
+		count = int(lesson_count or 0)
+		current = best.get(student_id)
+		if current is None or count > current[0] or (count == current[0] and teacher_id < current[1]):
+			best[student_id] = (count, teacher_id)
+	return {student_id: teacher_id for student_id, (_, teacher_id) in best.items()}
+
+
+def student_teacher_name_map(db: Session) -> dict[int, str]:
+	"""student_id -> öğretmen adı. Doğrudan atama yoksa ders öğretmeni kullanılır."""
+	teachers = {teacher.id: teacher for teacher in db.query(models.Teacher).all()}
+	direct = _direct_teacher_id_by_student(db)
+	names: dict[int, str] = {}
+	for student_id, teacher_id in direct.items():
+		teacher = teachers.get(teacher_id)
+		if not teacher:
+			continue
+		names[student_id] = display_teacher_name(teacher.first_name, teacher.last_name, teacher.id)
+	for student_id, teacher_id in _lesson_teacher_id_by_student(db).items():
+		if student_id in names:
+			continue
+		teacher = teachers.get(teacher_id)
+		if not teacher:
+			continue
+		names[student_id] = display_teacher_name(teacher.first_name, teacher.last_name, teacher.id)
+	return names
 
 
 def payment_totals_by_teacher(
@@ -1115,41 +1169,53 @@ def payment_totals_by_teacher(
 ) -> list[dict]:
 	"""
 	Öğretmene kayıtlı öğrencilerin tahsilat toplamları.
-	Öğretmeni olmayan öğrenciler 'Atanmamış' altında toplanır.
+	Doğrudan öğretmeni olmayan öğrenci, dersindeki öğretmene yazılır.
+	Hiç öğretmeni yoksa 'Atanmamış' altında toplanır.
 	"""
-	q = (
-		db.query(
-			models.Teacher.id,
-			models.Teacher.first_name,
-			models.Teacher.last_name,
-			func.coalesce(func.sum(models.Payment.amount_try), 0),
-			func.count(models.Payment.id),
-		)
-		.select_from(models.Payment)
-		.join(models.Student, models.Student.id == models.Payment.student_id)
-		.outerjoin(models.TeacherStudent, models.TeacherStudent.student_id == models.Payment.student_id)
-		.outerjoin(models.Teacher, models.Teacher.id == models.TeacherStudent.teacher_id)
-	)
+	q = db.query(models.Payment.student_id, models.Payment.amount_try)
 	if start_date:
 		q = q.filter(models.Payment.payment_date >= start_date)
 	if end_date:
 		q = q.filter(models.Payment.payment_date <= end_date)
 	if method and method.strip():
 		q = q.filter(models.Payment.method == method.strip())
-	q = q.group_by(models.Teacher.id, models.Teacher.first_name, models.Teacher.last_name)
-	rows = q.all()
+	payments = q.all()
+	if not payments:
+		return []
+
+	direct = _direct_teacher_id_by_student(db)
+	missing_student_ids = sorted({student_id for student_id, _amount in payments if student_id not in direct})
+	lesson_teachers = _lesson_teacher_id_by_student(db, missing_student_ids)
+	teachers = {
+		teacher.id: teacher
+		for teacher in db.query(models.Teacher).filter(
+			models.Teacher.id.in_(set(direct.values()) | set(lesson_teachers.values()) or {0})
+		).all()
+	}
+
+	buckets: dict[int | None, dict] = {}
+	for student_id, amount in payments:
+		teacher_id = direct.get(student_id)
+		if teacher_id is None:
+			teacher_id = lesson_teachers.get(student_id)
+		if teacher_id is not None and teacher_id not in teachers:
+			teacher_id = None
+		bucket = buckets.setdefault(teacher_id, {"total": 0.0, "count": 0})
+		bucket["total"] += float(amount or 0)
+		bucket["count"] += 1
 
 	result = []
-	for teacher_id, first, last, total, count in rows:
-		if teacher_id is None:
-			name = "Atanmamış"
+	for teacher_id, bucket in buckets.items():
+		teacher = teachers.get(teacher_id) if teacher_id is not None else None
+		if teacher:
+			name = display_teacher_name(teacher.first_name, teacher.last_name, teacher.id)
 		else:
-			name = f"{(first or '').strip()} {(last or '').strip()}".strip() or f"Öğretmen #{teacher_id}"
+			name = "Atanmamış"
 		result.append({
 			"teacher_id": teacher_id,
 			"teacher_name": name,
-			"total": float(total or 0),
-			"count": int(count or 0),
+			"total": bucket["total"],
+			"count": bucket["count"],
 		})
 	result.sort(key=lambda x: (-x["total"], x["teacher_name"]))
 	return result

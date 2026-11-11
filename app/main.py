@@ -2240,19 +2240,7 @@ def attendance_form(
     
     # Bu ders için mevcut yoklamaları getir
     existing_attendances = crud.list_attendance_for_lesson(db, lesson_id)
-    attendance_map = {att.student_id: att.status for att in existing_attendances}
-    
-    # Her öğrenci için ödeme durumunu ve mevcut yoklama durumunu kontrol et
-    students_with_payment_status = []
-    for student in students:
-        needs_payment = crud.check_student_payment_status(db, student.id)
-        current_status = attendance_map.get(student.id, "")
-        students_with_payment_status.append({
-            "student": student,
-            "needs_payment": needs_payment,
-            "current_status": current_status
-        })
-    
+
     # Öğretmen için bugünün tarihini, diğerleri için ders tarihini kullan
     if user.get("role") == "teacher":
         default_attendance_date = date_cls.today()
@@ -2264,6 +2252,32 @@ def attendance_form(
                 default_attendance_date = date_cls(y, m, d)
             except Exception:
                 pass
+
+    # Seçili güne ait son yoklama seçili gelsin. Başka günün durumu formu doldurmasın.
+    attendance_map: dict[int, tuple] = {}
+    for att in existing_attendances:
+        att_day = att.marked_at.date() if att.marked_at else None
+        if att_day != default_attendance_date:
+            continue
+        previous = attendance_map.get(att.student_id)
+        if previous is None or (att.marked_at and (previous[0] is None or att.marked_at >= previous[0])):
+            status = att.status
+            if status == "LATE":
+                status = "TELAFI"
+            elif status == "ABSENT":
+                status = "UNEXCUSED_ABSENT"
+            attendance_map[att.student_id] = (att.marked_at, status)
+
+    # Her öğrenci için ödeme durumunu ve mevcut yoklama durumunu kontrol et
+    students_with_payment_status = []
+    for student in students:
+        needs_payment = crud.check_student_payment_status(db, student.id)
+        current_status = attendance_map.get(student.id, (None, ""))[1]
+        students_with_payment_status.append({
+            "student": student,
+            "needs_payment": needs_payment,
+            "current_status": current_status
+        })
 
     focus_student_id = None
     if focus_student and focus_student.strip():
@@ -2514,7 +2528,7 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             marked_at_dt = None
 
     valid_statuses = {"PRESENT", "UNEXCUSED_ABSENT", "EXCUSED_ABSENT", "TELAFI", "TELAFI_ALINACAK"}
-    to_create: list[schemas.AttendanceCreate] = []
+    chosen_status: dict[int, str] = {}
     passive_attempted_student_names: list[str] = []
 
     for key, value in form.items():
@@ -2532,6 +2546,9 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
                         f"{blocked_student.first_name} {blocked_student.last_name}"
                     )
             continue
+        # Masaüstü ve gizli mobil kutu aynı öğrenciyi iki kez gönderirse ilkini koru.
+        if sid in chosen_status:
+            continue
 
         status_raw = (value or "").strip()
         if not status_raw:
@@ -2543,15 +2560,17 @@ async def attendance_create(lesson_id: int, request: Request, db: Session = Depe
             status = "TELAFI"
         if status not in valid_statuses:
             continue
+        chosen_status[sid] = status
 
-        to_create.append(
-            schemas.AttendanceCreate(
-                lesson_id=lesson_id,
-                student_id=sid,
-                status=status,
-                marked_at=marked_at_dt,
-            )
+    to_create = [
+        schemas.AttendanceCreate(
+            lesson_id=lesson_id,
+            student_id=sid,
+            status=status,
+            marked_at=marked_at_dt,
         )
+        for sid, status in chosen_status.items()
+    ]
 
     if marked_at_dt and user.get("role") in ("teacher", "staff") and to_create:
         duplicate_ids = crud.find_attendance_duplicate_student_ids(

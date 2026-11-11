@@ -64,7 +64,7 @@
 						</strong>
 					</td>
 					<td>
-						<select name="status_{{ item.student.id }}" style="width:100%;max-width:100%;">
+						<select name="status_{{ item.student.id }}" data-student-status="{{ item.student.id }}" style="width:100%;max-width:100%;">
 							<option value="">-</option>
 							<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 							<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
@@ -97,7 +97,7 @@
 					<div class="mobile-card-row">
 						<div class="mobile-card-label">Durum</div>
 						<div class="mobile-card-value">
-							<select name="status_{{ item.student.id }}" style="width:100%;max-width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+							<select data-student-status="{{ item.student.id }}" data-status-mirror="1" style="width:100%;max-width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
 								<option value="">-</option>
 								<option value="PRESENT" {% if item.current_status == "PRESENT" %}selected{% endif %}>Geldi</option>
 								<option value="EXCUSED_ABSENT" {% if item.current_status == "EXCUSED_ABSENT" %}selected{% endif %}>Haberli Gelmedi</option>
@@ -196,6 +196,45 @@
 	✅ {{ success_message }} yoklama kaydı başarıyla oluşturuldu.
 </div>
 {% endif %}
+
+<script>
+	(function() {
+		var form = document.getElementById('attendance-form');
+		if (!form) return;
+
+		function namedSelect(studentId) {
+			return form.querySelector('select[name="status_' + studentId + '"]');
+		}
+
+		function mirrors() {
+			return form.querySelectorAll('select[data-status-mirror]');
+		}
+
+		function isMobileLayout() {
+			return window.matchMedia('(max-width: 768px)').matches;
+		}
+
+		mirrors().forEach(function(mirror) {
+			var named = namedSelect(mirror.getAttribute('data-student-status'));
+			if (!named) return;
+			mirror.addEventListener('change', function() {
+				named.value = mirror.value;
+				named.dispatchEvent(new Event('change'));
+			});
+			named.addEventListener('change', function() {
+				if (mirror.value !== named.value) mirror.value = named.value;
+			});
+		});
+
+		form.addEventListener('submit', function() {
+			if (!isMobileLayout()) return;
+			mirrors().forEach(function(mirror) {
+				var named = namedSelect(mirror.getAttribute('data-student-status'));
+				if (named) named.value = mirror.value;
+			});
+		});
+	})();
+</script>
 
 {% if request.session.get('user') and request.session.get('user').get('role') == 'teacher' %}
 <script>
